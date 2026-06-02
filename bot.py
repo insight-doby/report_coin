@@ -346,6 +346,62 @@ def fetch_market_activity(coins_data: dict) -> dict:
 
 
 # ==========================================
+# 1-C. Kill Switch — 시장 상황별 모드 판단
+# ==========================================
+def fetch_market_mode() -> dict:
+    """
+    BTC 주봉 EMA200 기준으로 강세/박스권/약세장 자동 판단.
+    - 강세장: BTC 현재가 > 주봉 EMA200 → 돌파 비중 정상
+    - 박스권: BTC가 EMA200 ±5% 내 → 눌림목 위주
+    - 약세장: BTC 현재가 < 주봉 EMA200 -5% → 매매 중단 권고
+    """
+    mode = {
+        "mode":        "보통",          # 강세장 / 박스권 / 약세장
+        "mode_emoji":  "😊",
+        "btc_vs_ema":  None,            # BTC 현재가 대비 EMA200 괴리율 (%)
+        "description": "정상 매매 가능",
+        "allow_break": True,            # 돌파 매매 허용 여부
+        "allow_swing": True,            # 눌림목 매매 허용 여부
+        "max_picks":   6,               # 최대 추천 종목 수
+    }
+    try:
+        url = "https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1w&limit=210"
+        r   = requests.get(url, timeout=10)
+        if r.status_code != 200:
+            return mode
+        klines = r.json()
+        closes = np.array([float(k[4]) for k in klines])
+        if len(closes) < 200:
+            return mode
+
+        # 주봉 EMA200 계산
+        k_val, ema = 2/201, closes[0]
+        for c in closes[1:]: ema = c * k_val + ema * (1 - k_val)
+        cur       = closes[-1]
+        gap_pct   = round((cur - ema) / ema * 100, 1)
+        mode["btc_vs_ema"] = gap_pct
+
+        if gap_pct >= 5:
+            mode.update({"mode": "강세장", "mode_emoji": "🚀",
+                         "description": "BTC 상승 추세 — 돌파 매매 유효",
+                         "allow_break": True, "allow_swing": True, "max_picks": 6})
+        elif gap_pct >= -5:
+            mode.update({"mode": "박스권", "mode_emoji": "⚖️",
+                         "description": "BTC 횡보 구간 — 눌림목 위주 권장",
+                         "allow_break": True, "allow_swing": True, "max_picks": 4})
+        else:
+            mode.update({"mode": "약세장", "mode_emoji": "🧊",
+                         "description": "⛔ BTC 하락 추세 — 신규 매매 자제 (Cash is King)",
+                         "allow_break": False, "allow_swing": True, "max_picks": 2})
+
+        print(f"  📡 시장 모드: {mode['mode_emoji']} {mode['mode']} "
+              f"(BTC vs EMA200: {gap_pct:+.1f}%)")
+    except Exception as e:
+        print(f"  ⚠️ 시장 모드 판단 실패: {e}")
+    return mode
+
+
+# ==========================================
 # 2. 기술적 지표 계산 헬퍼
 # ==========================================
 def _calc_ema(closes: np.ndarray, period: int) -> Optional[float]:
@@ -515,6 +571,7 @@ def generate_market_insights_via_gemini(
     indicators: dict,
     top_30_cutoff: float,
     market_activity: dict,
+    market_mode: dict,
     strengthened_rules: str = "",
     performance_summary: str = "",
 ) -> Optional[dict]:
@@ -559,7 +616,7 @@ def generate_market_insights_via_gemini(
 
     system_prompt = (
         "너는 한국 코인 시장 전문 퀀트 애널리스트다.\n"
-        "제공된 데이터를 바탕으로 아래 구조로 총 6종목을 정확하게 선별해라.\n\n"
+        "제공된 데이터를 바탕으로 아래 구조로 종목을 정확하게 선별해라.\n\n"
 
         "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
         "▶ 선별 구조\n"
@@ -570,10 +627,9 @@ def generate_market_insights_via_gemini(
         "  '급등후보 돌파'  — 31~80위 중 수급이 갑자기 터지는 것\n"
         "  '급등후보 눌림목'— 31~80위 중 저점 매수 타이밍 노리는 것\n\n"
 
-        "종목 수:\n"
-        "  TOP30 돌파 1종 + TOP30 눌림목 1종 = 2종\n"
-        "  급등후보 돌파 2종 + 급등후보 눌림목 2종 = 4종\n"
-        "  합계 6종목\n\n"
+        f"종목 수 (시장 모드: {market_mode['mode']} — 최대 {market_mode['max_picks']}종목):\n"
+        f"  {'돌파 허용' if market_mode['allow_break'] else '⛔ 돌파 매매 금지 (약세장)'}\n"
+        f"  {'눌림목 허용' if market_mode['allow_swing'] else '⛔ 눌림목 매매도 자제'}\n\n"
 
         "[TOP30 돌파/눌림목] TOP30 풀(스테이블·BTC 제외)에서 선정:\n"
         "  · 돌파: 1h/6h 거래량 130%↑, 볼밴 중단 돌파 초입, BTC 비연동 또는 독자 수급\n"
@@ -585,10 +641,19 @@ def generate_market_insights_via_gemini(
         "  · 눌림목: 일봉 RSI 38~55, EMA 수렴, 방어력 [상] 이상\n\n"
 
         "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        "▶ 섹터 분산 규칙 (중복 금지)\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        "6종목의 섹터(category)가 중복되면 안 됩니다.\n"
+        "같은 섹터가 2종목 이상이면 순위 낮은 종목은 탈락시키고 다른 섹터로 교체.\n"
+        "섹터 예시: AI·렌더링 / 실물자산 토큰화 / 탈중앙화 금융 / 분산형 인프라 / "
+        "레이어1 / 레이어2 / 게임·메타버스 / 밈코인 / 프라이버시 등\n\n"
+
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
         "▶ 진입가 계산 규칙 (절대 '시장가' 금지)\n"
         "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
         "[돌파] entry = 현재가 × 1.005 이내 숫자로 명시\n"
         "[눌림목] entry = EMA20 또는 볼밴 중단 기준 계산한 숫자\n"
+        "entry_max = entry × 1.01 (이 가격 초과 시 진입 금지)\n"
         "T1 = entry × 1.08 ~ 1.12 (1차 50% 익절)\n"
         "T2 = entry × 1.15 ~ 1.25 (2차 홀딩)\n"
         "stop_loss = 직전 저점 또는 EMA60 이탈가\n\n"
@@ -615,13 +680,14 @@ def generate_market_insights_via_gemini(
         '반환 JSON 스키마:\n'
         '{\n'
         '  "market_mood": "시장 분위기 한 줄 요약",\n'
-        '  "editor_pick_ticker": "6종목 중 오늘 가장 추천하는 단 1개의 티커",\n'
-        '  "editor_pick_reason": "편집장 픽 이유 1~2문장 (초보자도 이해할 수 있게 쉽게)",\n'
+        '  "market_mode_comment": "현재 시장 모드에 대한 한 줄 코멘트",\n'
+        '  "editor_pick_ticker": "오늘 가장 추천하는 단 1개의 티커",\n'
+        '  "editor_pick_reason": "편집장 픽 이유 1~2문장 (초보자용)",\n'
         '  "picks": [\n'
         '    {\n'
         '      "perspective": "TOP30 돌파 또는 TOP30 눌림목 또는 급등후보 돌파 또는 급등후보 눌림목",\n'
         '      "rank_in_perspective": 1,\n'
-        '      "category": "테마명 (영어약어 없이 한글로)",\n'
+        '      "category": "섹터명 (영어약어 없이 한글로, 다른 종목과 중복 금지)",\n'
         '      "ticker": "티커",\n'
         '      "ticker_full_name": "코인 정식 이름",\n'
         '      "ticker_description": "초보자용 한 줄 설명",\n'
@@ -637,6 +703,7 @@ def generate_market_insights_via_gemini(
         '      "trend_reverse": "추세 역행 분석",\n'
         '      "rank_change": "순위 변화 또는 null",\n'
         '      "entry": "원화 숫자",\n'
+        '      "entry_max": "진입 유효 상한가 (entry × 1.01, 이 가격 초과 시 진입 포기)",\n'
         '      "entry_logic": "진입 근거 (쉬운 말로)",\n'
         '      "t1": "1차 목표가",\n'
         '      "t1_pct": 0.0,\n'
@@ -646,6 +713,8 @@ def generate_market_insights_via_gemini(
         '      "stop_loss_pct": 0.0,\n'
         '      "position_size": "권장 비중",\n'
         '      "holding_period": "기간",\n'
+        '      "confidence_score": 7,\n'
+        '      "confidence_reason": "확신 점수 7점인 이유 (구체적 근거 2~3가지)",\n'
         '      "why_down": "하락 이유",\n'
         '      "why_still": "추천 이유",\n'
         '      "tech_signal": "기술적 근거",\n'
@@ -657,7 +726,8 @@ def generate_market_insights_via_gemini(
         '      "source": "출처"\n'
         '    }\n'
         '  ],\n'
-        '  "keywords": ["키워드1"]\n'
+        '  "keywords": ["키워드1"],\n'
+        '  "sector_check": "6종목 섹터 중복 여부 확인 결과 (중복 없으면 OK)"\n'
         '}'
     )
 
@@ -670,13 +740,16 @@ def generate_market_insights_via_gemini(
         "kimp_action: 5%↑이면 '고김프 — 과매수 주의', -1%↓이면 '역김프 — 진입 유리' 형식.\n"
         "position_size: TOP30은 급등후보보다 1.5~2배 크게. 시장온도도 반영.\n"
         "what_if_t1_miss / what_if_btc_drop: 종목별로 반드시 다르게 작성.\n"
-        "category: 영어 약어 없이 한글만. RWA→실물자산 토큰화, DePIN→분산형 인프라.\n"
+        "category: 영어 약어 없이 한글만. 6종목 모두 서로 다른 섹터여야 함.\n"
+        "confidence_score: 1~10점. 7점 미만이면 해당 종목 추천 재고.\n"
+        "entry_max: entry × 1.01 계산값. 리포트 확인 시 이미 이 가격 넘었으면 진입 금지.\n"
     )
 
     user_query = f"""
 [시장 현황]
 {activity_ctx}
 [TOP30 컷오프: {top_30_cutoff:,.0f}원]
+[시장 모드: {market_mode['mode_emoji']} {market_mode['mode']} — {market_mode['description']} | BTC vs EMA200: {market_mode.get('btc_vs_ema','?')}%]
 
 [TOP30 대형 알트 (스테이블·BTC 제외) — TOP30 돌파/눌림목 후보]
 {top30_list}
@@ -688,15 +761,17 @@ def generate_market_insights_via_gemini(
 {format_indicators_for_prompt(indicators, target_coins + top30_coins)}
 
 ★ 지시사항 ★
-1. TOP30 돌파 1종 + TOP30 눌림목 1종 + 급등후보 돌파 2종 + 급등후보 눌림목 2종 = 총 6종목.
-2. TOP30 종목은 반드시 TOP30 풀(위 목록)에서만 선택.
-3. 급등후보 종목은 31~80위 풀에서만 선택.
-4. 진입가·T1·T2·손절가는 반드시 원화 숫자로 명시. '시장가' 절대 금지.
-5. what_if_t1_miss와 what_if_btc_drop은 종목별로 각각 다르게 작성.
-6. 시장 온도 '{ma['level_label']}'에 맞게 손절/목표·position_size 조정.
-7. unlock_alert는 구글 검색으로 확인 후 작성.
-8. ticker_description은 코인을 전혀 모르는 사람도 이해할 수 있게 작성.
-9. editor_pick_ticker는 6종목 중 오늘 시장 온도와 가장 잘 맞는 1종목만 선택.
+1. 시장 모드 '{market_mode['mode']}' 기준 최대 {market_mode['max_picks']}종목 선별.
+   {'⛔ 약세장: 돌파 매매 금지. TOP30 눌림목 위주로만 최대 2종목.' if market_mode['mode'] == '약세장' else ''}
+   {'⚖️ 박스권: 눌림목 비중 높이고 돌파는 신중하게. 최대 4종목.' if market_mode['mode'] == '박스권' else ''}
+2. 6종목의 섹터(category)가 서로 중복되지 않도록 반드시 확인.
+3. confidence_score 7점 미만 종목은 추천 목록에서 제외.
+4. entry_max = entry × 1.01 계산해서 명시.
+5. 진입가·T1·T2·손절가는 반드시 원화 숫자로 명시. '시장가' 절대 금지.
+6. what_if_t1_miss와 what_if_btc_drop은 종목별로 각각 다르게 작성.
+7. 시장 온도 '{ma['level_label']}'에 맞게 손절/목표·position_size 조정.
+8. unlock_alert는 구글 검색으로 확인 후 작성.
+9. ticker_description은 코인을 전혀 모르는 사람도 이해할 수 있게 작성.
 10. 순수 JSON만 반환.
 """
 
@@ -876,22 +951,50 @@ def track_performance() -> list:
             elif pnl >= 5:         result = "📈 수익 중"
             elif pnl <= -3:        result = "⚠️ 손실 중"
 
+            # ── 손절 원인 자동 태깅 ────────────────────────────
+            loss_reason = ""
+            if "손절" in result or pnl <= -2:
+                try:
+                    btc_r = requests.get(
+                        "https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1h&limit=5",
+                        timeout=5
+                    )
+                    if btc_r.status_code == 200:
+                        btc_klines = btc_r.json()
+                        btc_open   = float(btc_klines[0][1])
+                        btc_close  = float(btc_klines[-1][4])
+                        btc_chg    = (btc_close - btc_open) / btc_open * 100
+                        if btc_chg <= -2:
+                            loss_reason = "① BTC 동반 하락"
+                        else:
+                            # 거래량으로 수급 부족 판단
+                            pick_vol = pick.get("거래량", 0)
+                            if pick_vol and float(str(pick_vol).replace(",","")) < 1e9:
+                                loss_reason = "③ 수급 부족 (거래량 미달)"
+                            else:
+                                loss_reason = "② 개별 악재 또는 ④ 차트 패턴 실패"
+                except Exception:
+                    loss_reason = "원인 분석 실패"
+
             perf_data.append({
-                "추천일시":  pick.get("추천일시", ""),
-                "티커":     ticker,
-                "관점":     pick.get("관점", ""),
-                "진입가":   pick.get("진입가", ""),
-                "T1":       pick.get("T1", ""),
-                "T2":       pick.get("T2", ""),
-                "손절가":   pick.get("손절가", ""),
-                "확인일시": now_str,
-                "확인가격": str(int(cur)),
-                "수익률":   f"{pnl:+.2f}%",
-                "결과":     result,
-                "T1달성":   "Y" if t1 and cur >= t1 else "N",
-                "T2달성":   "Y" if t2 and cur >= t2 else "N",
-                "손절":     "Y" if sl and cur <= sl else "N",
-                "시장온도": pick.get("시장온도", ""),
+                "추천일시":   pick.get("추천일시", ""),
+                "티커":      ticker,
+                "관점":      pick.get("관점", ""),
+                "진입가":    pick.get("진입가", ""),
+                "T1":        pick.get("T1", ""),
+                "T2":        pick.get("T2", ""),
+                "손절가":    pick.get("손절가", ""),
+                "확인일시":  now_str,
+                "확인가격":  str(int(cur)),
+                "수익률":    f"{pnl:+.2f}%",
+                "결과":      result,
+                "손절원인":  loss_reason,
+                "T1달성":    "Y" if t1 and cur >= t1 else "N",
+                "T2달성":    "Y" if t2 and cur >= t2 else "N",
+                "손절":      "Y" if sl and cur <= sl else "N",
+                "시장온도":  pick.get("시장온도", ""),
+                "섹터":      pick.get("섹터", pick.get("카테고리", "")),
+                "확신점수":  pick.get("confidence_score", ""),
             })
 
             pick["기록상태"] = "완료" if "달성" in result or "손절" in result else "추적중"
@@ -960,8 +1063,19 @@ def run_ml_review(results: list) -> dict:
             f"승률 {round(wins/total*100,1) if total else 0}%"
         )
 
+        # 성공/실패 케이스 분리
+        wins_detail   = [r for r in all_perf_rows if "달성" in str(r.get("결과",""))][-5:]
+        losses_detail = [r for r in all_perf_rows if "손절" in str(r.get("결과",""))][-5:]
+        # 손절 원인 분포
+        reason_dist = {}
+        for r in all_perf_rows:
+            reason = r.get("손절원인", "")
+            if reason:
+                reason_dist[reason] = reason_dist.get(reason, 0) + 1
+
         prompt = f"""
-아래 코인 추천 성과를 분석하고 JSON으로 반환해라.
+너는 세계 최고의 퀀트 트레이더다.
+아래 코인 추천 성과를 '온체인 데이터', '차트 패턴', 'BTC 상관관계' 관점에서 비교 분석해라.
 
 [당회 성과]
 {cur_summary}
@@ -969,23 +1083,35 @@ def run_ml_review(results: list) -> dict:
 [누적 성과 요약]
 {accum_summary}
 
-[누적 상세 (최근 20건)]
-{json.dumps(all_perf_rows[-20:], ensure_ascii=False)}
+[성공 사례 최근 {len(wins_detail)}건]
+{json.dumps(wins_detail, ensure_ascii=False)}
+
+[실패 사례 최근 {len(losses_detail)}건]
+{json.dumps(losses_detail, ensure_ascii=False)}
+
+[손절 원인 분포]
+{json.dumps(reason_dist, ensure_ascii=False)}
 
 분석 지시:
-1. 수익 종목들의 공통 패턴 (관점, 시장온도, 지표 특징)
-2. 손절 종목들의 공통 패턴
-3. 앞으로 추천 시 반드시 지켜야 할 규칙 2~3개
-4. 절대 하지 말아야 할 패턴 1~2개
+1. 성공 케이스와 실패 케이스의 차이점을 '관점', '시장온도', '섹터', '확신점수' 기준으로 비교해라.
+2. 특히 '성공한 줄 알았으나 결과적으로 손절한 종목'의 공통적인 속임수 패턴을 찾아라.
+3. 손절 원인 분포를 보고 가장 자주 발생하는 손실 패턴에 대한 방어 규칙을 만들어라.
+4. "실행 차단 규칙" 우선 생성: 예) "BTC 1시간봉 -2% 이상 하락 시 모든 돌파 매매 무효화"
+5. 규칙은 단순하게 (조건 2개 이하). 복잡한 규칙은 실전에서 못 지킨다.
 
-반환 JSON (JSON만):
+반환 JSON (JSON만, 설명 없이):
 {{
-  "win_pattern": "수익 공통 패턴",
-  "lose_pattern": "손실 공통 패턴",
+  "win_pattern": "수익 공통 패턴 (관점·시장온도·섹터 기준 구체적으로)",
+  "lose_pattern": "손실 공통 패턴 (구체적으로)",
+  "fake_out_patterns": "속임수 패턴 — 성공인 줄 알았으나 결국 손절한 공통점",
   "market_insight": "시장 환경이 결과에 미친 영향",
-  "rule_improvements": [{{"관점":"","개선규칙":"","근거":""}}],
+  "rule_improvements": [
+    {{"관점": "공통/TOP30/급등후보", "개선규칙": "규칙 (조건 2개 이하)", "근거": "어떤 손실 케이스에서 도출"}}
+  ],
+  "kill_switch_rule": "BTC 상황별 매매 차단 조건 (예: BTC 1h -2% 시 돌파 매매 전면 중단)",
   "never_do": "절대 하지 말아야 할 패턴",
-  "next_focus": "다음 추천 시 핵심 포인트"
+  "next_focus": "다음 추천 시 핵심 포인트",
+  "confidence_insight": "확신점수와 실제 성과의 상관관계 분석"
 }}"""
 
         url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
@@ -1041,13 +1167,16 @@ def run_ml_review(results: list) -> dict:
         existing, sha = _gh_read("data/review.json")
         if not isinstance(existing, list): existing = []
         existing.append({
-            "분석일시":   datetime.now(KST).strftime("%Y년 %m월 %d일 %H:%M"),
-            "win_pattern":    review.get("win_pattern", ""),
-            "lose_pattern":   review.get("lose_pattern", ""),
-            "never_do":       review.get("never_do", ""),
-            "market_insight": review.get("market_insight", ""),
-            "next_focus":     review.get("next_focus", ""),
-            "ml_accuracy":    review.get("ml_accuracy", ""),
+            "분석일시":         datetime.now(KST).strftime("%Y년 %m월 %d일 %H:%M"),
+            "win_pattern":      review.get("win_pattern", ""),
+            "lose_pattern":     review.get("lose_pattern", ""),
+            "fake_out_patterns":review.get("fake_out_patterns", ""),
+            "never_do":         review.get("never_do", ""),
+            "kill_switch_rule": review.get("kill_switch_rule", ""),
+            "market_insight":   review.get("market_insight", ""),
+            "next_focus":       review.get("next_focus", ""),
+            "confidence_insight":review.get("confidence_insight",""),
+            "ml_accuracy":      review.get("ml_accuracy", ""),
         })
         _gh_write("data/review.json", existing, sha, "복기분석 저장")
         print("  ✅ 복기분석 저장 완료")
@@ -1299,6 +1428,13 @@ def run_and_send_to_slack():
     print(f"✅ 시장: {market_activity['level_label']} | "
           f"메이저 {market_activity['major_ratio']}% / 알트 {market_activity['alt_ratio']}%")
 
+    # Kill Switch — 시장 모드 판단
+    print("📡 시장 모드 판단 중 (BTC 주봉 EMA200)...")
+    market_mode = fetch_market_mode()
+    if market_mode["mode"] == "약세장":
+        print(f"  ⛔ {market_mode['description']}")
+        print(f"  ⚠️ 약세장 감지 — 최대 {market_mode['max_picks']}종목만 추천합니다.")
+
     print("📡 BTC 1h 기준 데이터 수집 중...")
     btc_closes_1h, btc_vols_1h = fetch_btc_1h_base()
 
@@ -1306,7 +1442,8 @@ def run_and_send_to_slack():
     indicators = fetch_indicators_for_top_coins(all_coins, btc_closes_1h, btc_vols_1h)
 
     insights = generate_market_insights_via_gemini(
-        target_coins, top30_coins, indicators, cutoff, market_activity, rules, perf_summary
+        target_coins, top30_coins, indicators, cutoff,
+        market_activity, market_mode, rules, perf_summary
     )
     if not insights:
         print("❌ AI 분석 실패"); return
@@ -1345,6 +1482,15 @@ def run_and_send_to_slack():
     print("\n📄 HTML 리포트 생성 중...")
     html = generate_html_report(insights, pub_time, market_activity, perf_results, review, rules)
     push_report_to_github(html, pub_time)
+
+       # insights.json 저장 (HTML 대시보드용)
+    _gh_write("data/insights.json", {
+        "publish_time":    pub_time,
+        "market_activity": market_activity,
+        "market_mode":     market_mode,
+        **insights
+    }, None, f"insights: {pub_time}")
+    print("✅ insights.json 저장 완료")
 
 
 # ==========================================
