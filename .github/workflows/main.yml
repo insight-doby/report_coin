@@ -1,15 +1,19 @@
 name: 봇 실행
 
 on:
-  workflow_dispatch:  # 수동 실행 (버튼 트리거)
+  workflow_dispatch:
   schedule:
-    - cron: '0 1 * * *'  # 매일 오전 10시 KST 자동 실행 (선택)
+    - cron: '0 1 * * *'
 
 jobs:
   run-bot:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
     steps:
-      - uses: actions/checkout@v4
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
 
       - name: Python 설치
         uses: actions/setup-python@v5
@@ -21,8 +25,8 @@ jobs:
 
       - name: 봇 실행
         env:
-          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
-          GEMINI_API_KEY:  ${{ secrets.GEMINI_API_KEY }}
+          SLACK_BOT_TOKEN:  ${{ secrets.SLACK_BOT_TOKEN }}
+          GEMINI_API_KEY:   ${{ secrets.GEMINI_API_KEY }}
           SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
           GITHUB_TOKEN_BOT: ${{ secrets.GITHUB_TOKEN_BOT }}
         run: python bot.py
