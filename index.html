@@ -70,8 +70,10 @@ button{cursor:pointer;font-family:inherit;}
   border:1px solid var(--border);border-radius:var(--r3);color:var(--txt2);transition:all .15s;}
 .btn-hist:hover{background:var(--surface2);color:var(--txt);}
 .btn-start{padding:7px 16px;font-size:12px;font-weight:700;background:var(--txt);
-  color:var(--bg);border:none;border-radius:var(--r3);transition:opacity .15s;letter-spacing:-0.01em;}
+  color:var(--bg);border:none;border-radius:var(--r3);transition:all .15s;letter-spacing:-0.01em;min-width:80px;}
 .btn-start:hover{opacity:0.85;}
+.btn-start.loading{background:var(--txt3);cursor:not-allowed;opacity:1;}
+.btn-start.done{background:var(--pos);}
 
 /* ── Tabs ── */
 .tabs{display:flex;border-bottom:1px solid var(--border);margin-bottom:28px;gap:0;overflow-x:auto;-webkit-overflow-scrolling:touch;}
@@ -119,6 +121,23 @@ button{cursor:pointer;font-family:inherit;}
 .flt-btn:hover{background:var(--surface2);color:var(--txt);}
 .flt-btn.active{background:var(--txt);color:var(--bg);border-color:var(--txt);}
 .sort-lbl{font-size:11px;color:var(--txt3);display:flex;align-items:center;gap:3px;font-family:'JetBrains Mono',monospace;}
+
+/* 리포트 삭제 */
+.btn-del-report{padding:5px 12px;font-size:11px;font-weight:600;border-radius:var(--r3);
+  border:1px solid var(--neg);background:var(--negm);color:var(--neg);transition:all .15s;}
+.btn-del-report:hover{background:var(--neg);color:#fff;}
+.del-menu{position:absolute;right:0;top:calc(100% + 6px);z-index:100;
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
+  box-shadow:var(--shadow2);min-width:220px;overflow:hidden;}
+.del-menu-item{display:flex;align-items:center;justify-content:space-between;
+  padding:10px 14px;font-size:12px;border-bottom:1px solid var(--border);gap:12px;}
+.del-menu-item:last-child{border-bottom:none;}
+.del-menu-date{color:var(--txt2);font-family:'JetBrains Mono',monospace;font-size:11px;}
+.del-menu-cnt{font-size:10px;color:var(--txt3);}
+.del-menu-btn{padding:3px 10px;font-size:11px;font-weight:600;border-radius:4px;
+  border:1px solid var(--neg);background:transparent;color:var(--neg);cursor:pointer;white-space:nowrap;}
+.del-menu-btn:hover{background:var(--neg);color:#fff;}
+.del-menu-empty{padding:14px;font-size:12px;color:var(--txt3);text-align:center;}
 
 /* ── Signal Grid ── */
 .sig-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
@@ -420,7 +439,7 @@ button{cursor:pointer;font-family:inherit;}
   <div class="hdr-right">
     <span class="hdr-time" id="hdr-time">빗썸 스캔 · Gemini AI</span>
     <a href="history.html" class="btn-hist">히스토리</a>
-    <button class="btn-start" onclick="loadData()">분석 시작</button>
+    <button class="btn-start" id="btn-analyze" onclick="loadData()">분석 시작</button>
     <button class="btn-icon" onclick="toggleTheme()" aria-label="테마">
       <svg id="ico-sun" viewBox="0 0 24 24" style="display:block;"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
       <svg id="ico-moon" viewBox="0 0 24 24" style="display:none;"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
@@ -853,6 +872,9 @@ function initFilters(){
    DATA LOAD
    ══════════════════════════════════ */
 function loadData(){
+  var btn = document.getElementById('btn-analyze');
+  if(btn){ btn.textContent = '불러오는 중...'; btn.classList.add('loading'); btn.disabled=true; }
+
   Promise.all([
     fetch(BASE+'picks.json').then(function(r){ return r.ok?r.json():[]; }).catch(function(){ return []; }),
     fetch(BASE+'performance.json').then(function(r){ return r.ok?r.json():[]; }).catch(function(){ return []; }),
@@ -864,7 +886,17 @@ function loadData(){
     G.review = res[2]||[];
     G.rules  = res[3]||[];
     renderAll();
-  }).catch(function(e){ console.warn('로드 실패:', e); });
+    if(btn){
+      btn.textContent = '완료';
+      btn.classList.remove('loading');
+      btn.classList.add('done');
+      btn.disabled = false;
+      setTimeout(function(){ btn.textContent='분석 시작'; btn.classList.remove('done'); }, 2000);
+    }
+  }).catch(function(e){
+    console.warn('로드 실패:', e);
+    if(btn){ btn.textContent='실패 — 재시도'; btn.classList.remove('loading'); btn.disabled=false; }
+  });
 }
 
 function renderAll(){
@@ -905,6 +937,23 @@ function renderTab1(){
   /* 시그널 카드 */
   var grid = document.getElementById('sig-grid');
   grid.innerHTML = '';
+
+  /* 날짜 그룹 헤더 + X 버튼 */
+  var groupHeader = document.createElement('div');
+  groupHeader.style.cssText = 'grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;';
+  groupHeader.innerHTML =
+    '<span style="font-size:12px;font-weight:700;color:var(--txt3);font-family:\'JetBrains Mono\',monospace;letter-spacing:0.04em;">'+latest+'</span>'+
+    '<button onclick="confirmDeleteReport(\''+latest.replace(/'/g,"\\'")+'\')" '+
+      'style="display:flex;align-items:center;gap:4px;padding:4px 10px;font-size:11px;font-weight:600;'+
+      'background:transparent;border:1px solid var(--border);border-radius:4px;color:var(--txt3);'+
+      'cursor:pointer;transition:all .15s;" '+
+      'onmouseover="this.style.borderColor=\'var(--neg)\';this.style.color=\'var(--neg)\'" '+
+      'onmouseout="this.style.borderColor=\'var(--border)\';this.style.color=\'var(--txt3)\'">'+
+      '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'+
+      '이 리포트 삭제'+
+    '</button>';
+  grid.appendChild(groupHeader);
+
   var edTicker = '';
 
   today.forEach(function(p){
@@ -1627,7 +1676,34 @@ function runBacktest(){
     '수익: '+wins.length+'건  손절: '+losses.length+'건  진행중: '+(filtered.length-wins.length-losses.length)+'건';
 }
 
-/* ── 유틸 ── */
+/* ── 리포트 삭제 ── */
+function confirmDeleteReport(date){
+  if(!confirm('"'+date+'" 리포트를 삭제할까요?')) return;
+
+  var token = prompt('GitHub Personal Access Token을 입력하세요\n(repo contents 권한 필요):');
+  if(!token){ return; }
+
+  G.picks = G.picks.filter(function(p){ return p['추천일시'] !== date; });
+
+  var repo   = 'insight-doby/report_coin';
+  var apiUrl = 'https://api.github.com/repos/'+repo+'/contents/data/picks.json';
+  var hdrs   = { 'Authorization':'token '+token, 'Content-Type':'application/json' };
+
+  fetch(apiUrl, { headers: hdrs })
+    .then(function(r){ return r.json(); })
+    .then(function(info){
+      var encoded = btoa(unescape(encodeURIComponent(JSON.stringify(G.picks, null, 2))));
+      return fetch(apiUrl, {
+        method: 'PUT', headers: hdrs,
+        body: JSON.stringify({ message:'리포트 삭제: '+date, content: encoded, sha: info.sha })
+      });
+    })
+    .then(function(r){
+      alert(r.ok ? '삭제됐어요.' : 'GitHub 반영 실패. 토큰 권한을 확인하세요.');
+      renderTab1();
+    })
+    .catch(function(e){ alert('오류: '+e.message); renderTab1(); });
+}
 function calcPnl(entry, cur){ return entry>0 ? Math.round((cur-entry)/entry*10000)/100 : 0; }
 function fmtNum(n){ return n ? Math.round(n).toLocaleString() : '—'; }
 function fmtPrice(s){ return s||'—'; }
