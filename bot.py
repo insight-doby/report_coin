@@ -809,6 +809,7 @@ def record_picks_to_github(picks: list, market_activity: dict, publish_time: str
                 "why_still":   p.get("why_still", ""),
                 "what_if":     p.get("what_if_t1_miss", "") or p.get("what_if", ""),
                 "신뢰도":      p.get("score", ""),
+                "현재가":      p.get("current_price_krw", ""),
                 "기록상태":    "신규",
             })
 
@@ -1351,10 +1352,9 @@ def run_and_send_to_slack():
 # 7. HTML 리포트 생성 + GitHub Pages push
 # ==========================================
 
-
 def generate_html_report(insights: dict, pub_time: str, market_activity: dict,
                           perf_results: list, review: dict, rules: str) -> str:
-    """봇 실행 결과를 코주부 시그널 디자인 HTML로 변환"""
+    """봇 실행 결과를 HTML 파일로 변환"""
     ma     = market_activity
     picks  = insights.get("picks", [])
     pct    = ma.get("vs_avg_pct", 0) or 0
@@ -1367,481 +1367,372 @@ def generate_html_report(insights: dict, pub_time: str, market_activity: dict,
 
     PERSP_COLOR = {
         "TOP30 돌파":    "#8B5CF6",
-        "TOP30 눌림목":  "#3B82F6",
-        "급등후보 돌파":  "#22C55E",
+        "TOP30 눌림목":  "#378ADD",
+        "급등후보 돌파":  "#1D9E75",
         "급등후보 눌림목":"#F59E0B",
     }
+    PERSP_EMOJI = {
+        "TOP30 돌파":    "🏆",
+        "TOP30 눌림목":  "🏛️",
+        "급등후보 돌파":  "🚀",
+        "급등후보 눌림목":"📉",
+    }
 
-    editor_ticker = insights.get("editor_pick_ticker", "")
-    editor_reason = insights.get("editor_pick_reason", "")
-    mood = insights.get("market_mood", "")
-
-    # ── Lucide SVG 아이콘 ──
-    ICO_ACT = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>'
-    ICO_BAR = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>'
-    ICO_LNK = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>'
-    ICO_SHD = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>'
-    ICO_SUN = '<svg id="ico-sun" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:block;"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>'
-    ICO_MOON = '<svg id="ico-moon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>'
-    ICO_SORT = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m3 16 4 4 4-4"/><path d="M7 20V4"/><path d="m21 8-4-4-4 4"/><path d="M17 4v16"/></svg>'
-
-    # ── 성과 섹션 HTML ──
+    # ── 성과 섹션 HTML ───────────────────────────────────
     perf_html = ""
     if perf_results:
-        wins   = [r for r in perf_results if "달성" in r["result"]]
-        losses = [r for r in perf_results if "손절" in r["result"]]
-        avg    = round(sum(r["pnl_pct"] for r in perf_results) / len(perf_results), 2)
-        wr     = round(len(wins) / len(perf_results) * 100, 1)
+        wins  = [r for r in perf_results if "달성" in r["result"]]
+        losses= [r for r in perf_results if "손절" in r["result"]]
+        avg   = round(sum(r["pnl_pct"] for r in perf_results) / len(perf_results), 2)
+        wr    = round(len(wins) / len(perf_results) * 100, 1)
 
         rows = ""
         for r in perf_results:
-            pc = "var(--positive)" if r["pnl_pct"] >= 0 else "var(--negative)"
-            bt = "T 달성" if "달성" in r["result"] else "손절" if "손절" in r["result"] else "진행중"
-            bc = "badge-up" if "달성" in r["result"] else "badge-down" if "손절" in r["result"] else "badge-neut"
-            bw = min(abs(r["pnl_pct"]) * 5, 100)
+            color  = "#1D9E75" if r["pnl_pct"] >= 0 else "#E24B4A"
+            badge  = ("✅ 달성" if "달성" in r["result"]
+                      else "❌ 손절" if "손절" in r["result"]
+                      else "📊 진행중")
+            bcolor = ("#E1F5EE" if "달성" in r["result"]
+                      else "#FCEBEB" if "손절" in r["result"]
+                      else "#F1EFE8")
+            btcolor= ("#0F6E56" if "달성" in r["result"]
+                      else "#A32D2D" if "손절" in r["result"]
+                      else "#5F5E5A")
+            bar_w  = min(abs(r["pnl_pct"]) * 5, 100)
             rows += f"""
             <tr>
-              <td class="mono" style="font-weight:600;padding:10px 12px;">{r['ticker']}</td>
-              <td style="padding:10px 12px;"><span class="{bc}">{bt}</span></td>
-              <td style="padding:10px 12px;">
+              <td style="font-weight:500;padding:10px 8px;">{r['ticker']}</td>
+              <td><span style="background:{bcolor};color:{btcolor};padding:2px 8px;border-radius:6px;font-size:12px;">{badge}</span></td>
+              <td style="padding:10px 8px;">
                 <div style="display:flex;align-items:center;gap:8px;">
-                  <div style="width:80px;background:var(--border);border-radius:3px;height:4px;">
-                    <div style="width:{bw}%;background:{pc};height:4px;border-radius:3px;"></div>
+                  <div style="width:100px;background:#f0f0f0;border-radius:4px;height:6px;">
+                    <div style="width:{bar_w}%;background:{color};height:6px;border-radius:4px;"></div>
                   </div>
-                  <span class="mono" style="color:{pc};font-weight:500;font-size:13px;">{r['pnl_pct']:+.1f}%</span>
+                  <span style="color:{color};font-weight:500;">{r['pnl_pct']:+.1f}%</span>
                 </div>
               </td>
             </tr>"""
 
         perf_html = f"""
-        <div class="sum-grid" style="margin-bottom:20px;">
-          <div class="sum-card"><div class="sl">총 추천</div><div class="sv">{len(perf_results)}건</div></div>
-          <div class="sum-card"><div class="sl">승률</div><div class="sv" style="color:var(--positive);">{wr}%</div></div>
-          <div class="sum-card"><div class="sl">평균 수익</div><div class="sv" style="color:{'var(--positive)' if avg>=0 else 'var(--negative)'};">{avg:+.1f}%</div></div>
-          <div class="sum-card"><div class="sl">T달성 / 손절</div><div class="sv">{len(wins)} / {len(losses)}</div></div>
-        </div>
-        <table class="dtable">
-          <thead><tr><th>티커</th><th>결과</th><th>수익률</th></tr></thead>
-          <tbody>{rows}</tbody>
-        </table>"""
-    else:
-        perf_html = '<p style="color:var(--text-tertiary);font-size:13px;padding:20px 0;">아직 성과 추적 데이터가 없습니다.</p>'
+        <div class="section">
+          <h2>📊 성과 요약</h2>
+          <div class="metric-grid">
+            <div class="metric"><div class="metric-label">총 추천</div><div class="metric-value">{len(perf_results)}건</div></div>
+            <div class="metric"><div class="metric-label">승률</div><div class="metric-value" style="color:#1D9E75;">{wr}%</div></div>
+            <div class="metric"><div class="metric-label">평균 수익</div><div class="metric-value" style="color:{'#1D9E75' if avg>=0 else '#E24B4A'};">{avg:+.1f}%</div></div>
+            <div class="metric"><div class="metric-label">T달성 / 손절</div><div class="metric-value">{len(wins)}건 / {len(losses)}건</div></div>
+          </div>
+          <table style="width:100%;border-collapse:collapse;margin-top:12px;">
+            <thead><tr style="border-bottom:1px solid #eee;font-size:12px;color:#888;">
+              <th style="text-align:left;padding:8px;">티커</th>
+              <th style="text-align:left;padding:8px;">결과</th>
+              <th style="text-align:left;padding:8px;">수익률</th>
+            </tr></thead>
+            <tbody>{rows}</tbody>
+          </table>
+        </div>"""
 
-    # ── 복기 섹션 HTML ──
+    # ── 복기/강화규칙 섹션 HTML ──────────────────────────
     review_html = ""
     if review:
         rules_items = ""
         for item in review.get("rule_improvements", []):
             rules_items += f"""
-            <div style="padding:10px 0;border-bottom:0.5px solid var(--border);font-size:13px;">
-              <span style="background:var(--surface-hover);color:var(--text-secondary);padding:2px 8px;border-radius:5px;font-size:11px;margin-right:6px;">{item.get('관점','공통')}</span>
+            <div class="rule-item">
+              <span class="rule-tag">{item.get('관점','공통')}</span>
               {item.get('개선규칙','')}
+              <span style="font-size:11px;color:#aaa;margin-left:6px;">근거: {item.get('근거','')}</span>
             </div>"""
 
         review_html = f"""
-        <div class="rv-card"><div class="rv-title">수익 종목 공통 패턴</div><p>{review.get('win_pattern','—')}</p></div>
-        <div class="rv-card"><div class="rv-title">손절 종목 공통 패턴</div><p>{review.get('lose_pattern','—')}</p></div>
-        <div class="rv-card"><div class="rv-title">시장 환경 영향</div><p>{review.get('market_insight','—')}</p></div>
-        <div class="rv-card"><div class="rv-title">다음 추천 핵심 포인트</div><p>{review.get('next_focus','—')}</p></div>
-        {'<h3 style="margin-top:16px;font-size:14px;font-weight:600;color:var(--text-primary);margin-bottom:8px;">적용 중인 강화규칙</h3>' + rules_items if rules_items else ''}"""
-    else:
-        review_html = '<p style="color:var(--text-tertiary);font-size:13px;padding:20px 0;">아직 복기 데이터가 없습니다.</p>'
+        <div class="section">
+          <h2>🔬 AI 복기 분석</h2>
+          <div class="review-block">
+            <div class="review-title">수익 종목 공통 패턴</div>
+            <p>{review.get('win_pattern','—')}</p>
+          </div>
+          <div class="review-block">
+            <div class="review-title">손절 종목 공통 패턴</div>
+            <p>{review.get('lose_pattern','—')}</p>
+          </div>
+          <div class="review-block">
+            <div class="review-title">다음 추천 핵심 포인트</div>
+            <p>{review.get('next_focus','—')}</p>
+          </div>
+          {'<h3 style="margin-top:16px;font-size:14px;">현재 적용 중인 강화규칙</h3>' + rules_items if rules_items else ''}
+        </div>"""
 
-    # ── 종목 카드 HTML ──
+    # ── 종목 카드 HTML ───────────────────────────────────
     picks_html = ""
+    editor_ticker = insights.get("editor_pick_ticker", "")
     for i, p in enumerate(picks):
-        persp    = p.get("perspective", "")
-        color    = PERSP_COLOR.get(persp, "#71717a")
-        t1_pct   = float(p.get("t1_pct") or 0)
-        t2_pct   = float(p.get("t2_pct") or 0)
-        sl_pct   = float(p.get("stop_loss_pct") or 0)
-        rr       = round(t2_pct / sl_pct, 1) if sl_pct > 0 else 0
-        chg      = float(p.get("change_num", 0) or 0)
-        is_ed    = p.get("ticker","") == editor_ticker
-        unlock   = p.get("unlock_alert") or ""
-        win_w    = min(int(t2_pct * 6), 200)
-        lose_w   = min(int(sl_pct * 6), 120)
+        persp     = p.get("perspective", "")
+        color     = PERSP_COLOR.get(persp, "#888")
+        emoji     = PERSP_EMOJI.get(persp, "📌")
+        t1_pct    = float(p.get("t1_pct") or 0)
+        t2_pct    = float(p.get("t2_pct") or 0)
+        sl_pct    = float(p.get("stop_loss_pct") or 0)
+        rr        = round(t2_pct / sl_pct, 1) if sl_pct > 0 else 0
+        chg       = float(p.get("change_num", 0) or 0)
+        chg_color = "#1D9E75" if chg >= 0 else "#E24B4A"
+        is_editor = p.get("ticker","") == editor_ticker
+        unlock    = p.get("unlock_alert") or ""
+        win_w     = min(int(t2_pct * 6), 200)
+        lose_w    = min(int(sl_pct * 6), 120)
 
-        ed_badge  = '<span class="ed-badge">편집장 픽</span>' if is_ed else ""
-        ul_box    = f'<div class="alert-box">{unlock}</div>' if unlock else ""
-        rel       = " ".join(f'<span class="kw-tag">{c}</span>' for c in p.get("related_coins", []))
-        rel_line  = f'<div style="margin-top:8px;font-size:12px;color:var(--text-tertiary);">연관 코인: {rel}</div>' if rel else ""
+        editor_badge = '<span style="background:#FEF3C7;color:#92400E;padding:2px 8px;border-radius:6px;font-size:11px;margin-left:6px;">⭐ 편집장 픽</span>' if is_editor else ""
+        unlock_box   = f'<div class="alert-box">🚨 <strong>이벤트 경보</strong> {unlock}</div>' if unlock else ""
 
         picks_html += f"""
-    <article class="sig-card" data-perspective="{persp}" style="border-left:3px solid {color};">
-      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
-        <span class="persp-b" style="background:{color}18;color:{color};">{persp}</span>
-        <span class="cat-b">{p.get('category','')}</span>
-        {ed_badge}
-      </div>
-      <div class="title-row">
-        <span class="tk-name">{p.get('ticker','')}</span>
-        <span class="tk-full">{p.get('ticker_full_name','')}</span>
-        <span class="tk-price mono">{p.get('current_price_krw','')}</span>
-        <span style="color:{'var(--positive)' if chg >= 0 else 'var(--negative)'};font-weight:600;font-size:14px;">{p.get('change_24h','')}</span>
-      </div>
-      <p class="tk-desc">{p.get('ticker_description','')}</p>
-      {ul_box}
+        <div class="pick-card" style="border-left:4px solid {color};">
+          <div class="pick-header">
+            <div>
+              <span class="persp-badge" style="background:{color}20;color:{color};">{emoji} {persp}</span>
+              <span class="category-badge">{p.get('category','')}</span>
+              {editor_badge}
+            </div>
+          </div>
+          <div class="pick-title">
+            <span class="ticker">{p.get('ticker','')}</span>
+            <span class="full-name">{p.get('ticker_full_name','')}</span>
+            <span class="price">{p.get('current_price_krw','')}</span>
+            <span style="color:{chg_color};font-weight:500;">{p.get('change_24h','')}</span>
+          </div>
+          <p style="font-size:13px;color:#666;margin:4px 0 12px;">{p.get('ticker_description','')}</p>
+          {unlock_box}
 
-      <div class="trd-grid">
-        <div class="trd-box">
-          <div class="trd-label">진입가</div>
-          <div class="trd-val mono">{p.get('entry','—')}</div>
-          <div class="trd-sub">{p.get('entry_logic','')}</div>
-        </div>
-        <div class="trd-box">
-          <div class="trd-label">1차 목표 (절반 매도)</div>
-          <div class="trd-val mono" style="color:var(--positive);">{p.get('t1','—')}</div>
-          <div class="trd-sub">+{t1_pct:.1f}%</div>
-        </div>
-        <div class="trd-box">
-          <div class="trd-label">2차 목표 (나머지 홀딩)</div>
-          <div class="trd-val mono" style="color:var(--positive);">{p.get('t2','—')}</div>
-          <div class="trd-sub">+{t2_pct:.1f}%</div>
-        </div>
-        <div class="trd-box">
-          <div class="trd-label">손절가 (이탈 시 포기)</div>
-          <div class="trd-val mono" style="color:var(--negative);">{p.get('stop_loss','—')}</div>
-          <div class="trd-sub">-{sl_pct:.1f}%</div>
-        </div>
-      </div>
+          <div class="trade-grid">
+            <div class="trade-box">
+              <div class="trade-label">🎯 진입가</div>
+              <div class="trade-value">{p.get('entry','—')}</div>
+              <div class="trade-sub">{p.get('entry_logic','')}</div>
+            </div>
+            <div class="trade-box" style="border-color:#1D9E75;">
+              <div class="trade-label">🥇 1차 목표 (절반 매도)</div>
+              <div class="trade-value" style="color:#1D9E75;">{p.get('t1','—')}</div>
+              <div class="trade-sub">+{t1_pct:.1f}%</div>
+            </div>
+            <div class="trade-box" style="border-color:#1D9E75;">
+              <div class="trade-label">🏆 2차 목표 (나머지 홀딩)</div>
+              <div class="trade-value" style="color:#1D9E75;">{p.get('t2','—')}</div>
+              <div class="trade-sub">+{t2_pct:.1f}%</div>
+            </div>
+            <div class="trade-box" style="border-color:#E24B4A;">
+              <div class="trade-label">🛑 손절가 (이 가격이면 포기)</div>
+              <div class="trade-value" style="color:#E24B4A;">{p.get('stop_loss','—')}</div>
+              <div class="trade-sub">-{sl_pct:.1f}%</div>
+            </div>
+          </div>
 
-      <div class="rr-box">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-          <span style="font-size:12px;color:var(--text-secondary);">손익비</span>
-          <span style="font-size:13px;font-weight:600;color:{'var(--positive)' if rr>=2 else '#F59E0B' if rr>=1.5 else 'var(--negative)'};">{'유리' if rr>=2 else '보통' if rr>=1.5 else '불리'} {rr}:1</span>
-        </div>
-        <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
-          <span style="font-size:11px;color:var(--text-tertiary);width:50px;">수익</span>
-          <div style="width:{win_w}px;height:6px;background:var(--positive);border-radius:3px;"></div>
-          <span style="color:var(--positive);font-size:11px;">+{t2_pct:.1f}%</span>
-        </div>
-        <div style="display:flex;align-items:center;gap:6px;">
-          <span style="font-size:11px;color:var(--text-tertiary);width:50px;">손실</span>
-          <div style="width:{lose_w}px;height:6px;background:var(--negative);border-radius:3px;"></div>
-          <span style="color:var(--negative);font-size:11px;">-{sl_pct:.1f}%</span>
-        </div>
-      </div>
+          <div class="rr-section">
+            <div class="rr-label-row">
+              <span style="font-size:12px;color:#666;">⚖️ 손익비 — 얼마나 유리한 거래인가</span>
+              <span class="rr-verdict" style="color:{'#1D9E75' if rr>=2 else '#F59E0B' if rr>=1.5 else '#E24B4A'};">
+                {'✅ 유리' if rr>=2 else '⚠️ 보통' if rr>=1.5 else '❌ 불리'} {rr}:1
+              </span>
+            </div>
+            <div style="margin:6px 0 2px;">
+              <span style="font-size:11px;color:#888;display:inline-block;width:70px;">벌 수 있음</span>
+              <div style="display:inline-block;width:{win_w}px;height:8px;background:#1D9E75;border-radius:4px;vertical-align:middle;"></div>
+              <span style="font-size:12px;color:#1D9E75;margin-left:6px;">최대 +{t2_pct:.1f}%</span>
+            </div>
+            <div>
+              <span style="font-size:11px;color:#888;display:inline-block;width:70px;">잃을 수 있음</span>
+              <div style="display:inline-block;width:{lose_w}px;height:8px;background:#E24B4A;border-radius:4px;vertical-align:middle;"></div>
+              <span style="font-size:12px;color:#E24B4A;margin-left:6px;">최대 -{sl_pct:.1f}%</span>
+            </div>
+          </div>
 
-      <div class="ind-grid">
-        <div><span class="ind-l">김프</span>{p.get('kimp','—')}<br><span style="font-size:11px;color:var(--text-tertiary);">{p.get('kimp_action','')}</span></div>
-        <div><span class="ind-l">BTC 동조화</span>{p.get('btc_sync','—')}</div>
-        <div><span class="ind-l">방어력</span>{p.get('defense','—')}</div>
-        <div><span class="ind-l">독자 수급</span>{p.get('vol_divergence','—')}</div>
-      </div>
+          <div class="info-grid">
+            <div><span class="info-label">🏷️ 김프</span><span>{p.get('kimp','—')}</span><br><span style="font-size:11px;color:#888;">{p.get('kimp_action','')}</span></div>
+            <div><span class="info-label">🔗 BTC 동조화</span><span>{p.get('btc_sync','—')}</span></div>
+            <div><span class="info-label">🛡️ 방어력</span><span>{p.get('defense','—')}</span></div>
+            <div><span class="info-label">📊 독자 수급</span><span>{p.get('vol_divergence','—')}</span></div>
+          </div>
 
-      <div class="rsn-grid">
-        <div class="rsn-box"><div class="rsn-t">왜 지금 싸게 거래되나?</div><p>{p.get('why_down','—')}</p></div>
-        <div class="rsn-box"><div class="rsn-t">그럼에도 지금 사는 이유</div><p>{p.get('why_still','—')}</p></div>
-      </div>
+          <div class="reason-grid">
+            <div class="reason-box">
+              <div class="reason-title">⚠️ 왜 지금 싸게 거래되나?</div>
+              <p>{p.get('why_down','—')}</p>
+            </div>
+            <div class="reason-box">
+              <div class="reason-title">✅ 그럼에도 지금 사는 이유</div>
+              <p>{p.get('why_still','—')}</p>
+            </div>
+          </div>
 
-      <div class="wif-box">
-        <div style="font-weight:600;font-size:12px;margin-bottom:6px;color:var(--accent);">예상과 다를 때 대응책</div>
-        <div>1차 목표 미달: {p.get('what_if_t1_miss','—')}</div>
-        <div>BTC 급락 시: {p.get('what_if_btc_drop','—')}</div>
-      </div>
+          <div class="whatif-box">
+            <strong>💡 예상과 다를 때 대응책</strong><br>
+            • 1차 목표 못 가면: {p.get('what_if_t1_miss','—')}<br>
+            • 비트코인 급락 시: {p.get('what_if_btc_drop','—')}
+          </div>
 
-      <div class="card-ft">
-        권장 비중: {p.get('position_size','—')} &nbsp;|&nbsp;
-        보유기간: {p.get('holding_period','—')} &nbsp;|&nbsp;
-        {p.get('score','—')}
-      </div>
-      {rel_line}
-    </article>"""
+          <div style="margin-top:12px;font-size:12px;color:#888;">
+            💼 권장 비중: {p.get('position_size','—')} &nbsp;|&nbsp;
+            ⏱️ 보유기간: {p.get('holding_period','—')} &nbsp;|&nbsp;
+            {p.get('score','—')}
+          </div>
+        </div>"""
 
-    # ── 키워드 ──
-    keywords_html = " ".join(f'<span class="kw-tag">{k}</span>' for k in insights.get("keywords", []))
-
-    # ── 편집장 픽 ──
-    editor_html = ""
-    if editor_ticker and editor_reason:
-        editor_html = f"""
-      <div class="editor-pick">
-        <div style="font-weight:600;margin-bottom:4px;">편집장 픽 — 오늘 1종목만 골라야 한다면?</div>
-        <span style="font-size:16px;font-weight:700;" class="mono">{editor_ticker}</span>
-        <span style="font-size:13px;color:var(--text-secondary);margin-left:8px;">{editor_reason}</span>
-      </div>"""
-
-    # ── 전체 HTML 조립 ──
-    mood_short = mood[:50] + '...' if len(mood) > 50 else mood
+    # ── 전체 HTML 조립 ───────────────────────────────────
+    mood         = insights.get("market_mood", "")
+    editor_reason= insights.get("editor_pick_reason","")
+    keywords     = "  ".join(f'<span class="kw-badge">{k}</span>' for k in insights.get("keywords",[]))
 
     html = f"""<!DOCTYPE html>
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>코주부 시그널 — {{pub_time}}</title>
-<meta name="description" content="코주부 시그널 - 실시간 암호화폐 분석 대시보드">
-<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<title>차기 주도주 리포트 — {pub_time}</title>
 <style>
-:root {{
-  --z50:#fafafa;--z100:#f4f4f5;--z200:#e4e4e7;--z300:#d4d4d8;--z400:#a1a1aa;
-  --z500:#71717a;--z600:#52525b;--z700:#3f3f46;--z800:#27272a;--z900:#18181b;--z950:#09090b;
-  --bg:var(--z50);--surface:#fff;--surface-hover:var(--z100);--border:var(--z200);
-  --text-primary:var(--z900);--text-secondary:var(--z500);--text-tertiary:var(--z400);
-  --accent:#2563eb;--accent-muted:rgba(37,99,235,0.08);
-  --positive:#16a34a;--positive-bg:rgba(22,163,74,0.08);
-  --negative:#dc2626;--negative-bg:rgba(220,38,38,0.08);
-  --card-shadow:inset 0 1px 0 0 rgba(255,255,255,0.05),0 1px 3px 0 rgba(0,0,0,0.04);
-  --card-shadow-hover:inset 0 1px 0 0 rgba(255,255,255,0.08),0 4px 12px -2px rgba(0,0,0,0.08);
-}}
-[data-theme="dark"] {{
-  --bg:var(--z950);--surface:var(--z900);--surface-hover:var(--z800);--border:var(--z800);
-  --text-primary:var(--z50);--text-secondary:var(--z300);--text-tertiary:var(--z400);
-  --accent:#3b82f6;--accent-muted:rgba(59,130,246,0.1);
-  --positive:#22c55e;--positive-bg:rgba(34,197,94,0.1);
-  --negative:#ef4444;--negative-bg:rgba(239,68,68,0.1);
-  --card-shadow:inset 0 1px 0 0 rgba(255,255,255,0.03),0 1px 2px 0 rgba(0,0,0,0.4);
-  --card-shadow-hover:inset 0 1px 0 0 rgba(255,255,255,0.06),0 8px 24px -4px rgba(0,0,0,0.5);
-}}
-*,*::before,*::after {{ box-sizing:border-box;margin:0;padding:0; }}
-body {{
-  font-family:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
-  background:var(--bg);color:var(--text-primary);transition:background .3s,color .3s;
-  -webkit-font-smoothing:antialiased;line-height:1.6;letter-spacing:-0.01em;
-}}
-.mono {{ font-family:'JetBrains Mono','SF Mono',monospace;font-variant-numeric:tabular-nums; }}
-.dash {{ max-width:1200px;margin:0 auto;padding:24px 28px 60px; }}
-/* Header */
-.hdr {{ display:flex;align-items:center;justify-content:space-between;padding-bottom:20px;margin-bottom:24px;border-bottom:0.5px solid var(--border); }}
-.brand {{ display:flex;align-items:center;gap:12px; }}
-.brand-name {{ font-size:17px;font-weight:800;letter-spacing:-0.04em; }}
-.brand-name em {{ font-style:normal;color:var(--accent); }}
-.brand-badge {{ padding:3px 8px;border:0.5px solid var(--border);border-radius:4px;font-size:10px;font-weight:500;color:var(--text-tertiary);letter-spacing:0.06em; }}
-.hdr-actions {{ display:flex;align-items:center;gap:12px; }}
-.hdr-time {{ font-size:11px;color:var(--text-tertiary); }}
-.btn-icon {{ display:flex;align-items:center;justify-content:center;width:34px;height:34px;background:var(--surface);border:0.5px solid var(--border);border-radius:8px;cursor:pointer;color:var(--text-secondary);transition:all .15s; }}
-.btn-icon:hover {{ background:var(--surface-hover);color:var(--text-primary); }}
-.btn-history {{ padding:7px 14px;font-size:12px;font-weight:600;background:var(--surface);border:0.5px solid var(--border);border-radius:8px;cursor:pointer;color:var(--text-secondary);text-decoration:none;transition:all .15s; }}
-.btn-history:hover {{ background:var(--surface-hover);color:var(--text-primary); }}
-/* Tabs */
-.nav-tabs {{ display:flex;gap:0;margin-bottom:24px;border-bottom:0.5px solid var(--border); }}
-.nav-tab {{ padding:10px 16px;font-size:13px;font-weight:500;color:var(--text-tertiary);background:none;border:none;border-bottom:1.5px solid transparent;cursor:pointer;transition:color .15s;letter-spacing:-0.01em; }}
-.nav-tab:hover {{ color:var(--text-secondary); }}
-.nav-tab.active {{ color:var(--text-primary);border-bottom-color:var(--text-primary); }}
-.tab-content {{ display:none; }}
-.tab-content.active {{ display:block; }}
-/* Summary Grid */
-.sum-grid {{ display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px; }}
-.sum-card {{ background:var(--surface);border:0.5px solid var(--border);border-radius:10px;padding:16px 18px;box-shadow:var(--card-shadow);transition:box-shadow .2s,border-color .2s; }}
-.sum-card:hover {{ box-shadow:var(--card-shadow-hover);border-color:var(--text-tertiary); }}
-.sl {{ display:flex;align-items:center;gap:6px;font-size:11px;font-weight:500;color:var(--text-tertiary);letter-spacing:0.03em;text-transform:uppercase;margin-bottom:8px; }}
-.sl svg {{ flex-shrink:0; }}
-.sv {{ font-size:20px;font-weight:700;letter-spacing:-0.03em;display:flex;align-items:baseline;gap:8px; }}
-.dot-live {{ display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--positive);animation:pulse 2s ease-in-out infinite; }}
-@keyframes pulse {{ 0%,100%{{opacity:1}} 50%{{opacity:0.3}} }}
-.tag-pos {{ font-size:11px;font-weight:600;color:var(--positive); }}
-.tag-acc {{ font-size:13px;font-weight:600;color:var(--accent); }}
-/* Strategy */
-.strat-box {{ background:var(--accent-muted);border:0.5px solid var(--accent);border-radius:8px;padding:12px 16px;font-size:13px;color:var(--accent);margin-bottom:20px; }}
-/* Editor Pick */
-.editor-pick {{ background:var(--positive-bg);border:0.5px solid var(--positive);border-radius:10px;padding:16px 20px;margin-bottom:20px;font-size:13px;color:var(--text-primary); }}
-/* Filters */
-.flt-bar {{ display:flex;align-items:center;justify-content:space-between;margin-bottom:16px; }}
-.flt-group {{ display:flex;gap:6px; }}
-.flt-btn {{ padding:6px 14px;font-size:11px;font-weight:600;border-radius:6px;border:0.5px solid var(--border);background:var(--surface);color:var(--text-secondary);cursor:pointer;transition:all .15s; }}
-.flt-btn:hover {{ background:var(--surface-hover);color:var(--text-primary); }}
-.flt-btn.active {{ background:var(--text-primary);color:var(--bg);border-color:var(--text-primary); }}
-.sort-l {{ font-size:11px;color:var(--text-tertiary);display:flex;align-items:center;gap:4px; }}
-/* Signal Cards */
-.sig-grid {{ display:grid;grid-template-columns:repeat(2,1fr);gap:12px; }}
-.sig-card {{ background:var(--surface);border:0.5px solid var(--border);border-radius:12px;padding:22px;box-shadow:var(--card-shadow);transition:box-shadow .25s,border-color .25s; }}
-.sig-card:hover {{ box-shadow:var(--card-shadow-hover);border-color:var(--text-tertiary); }}
-.persp-b {{ display:inline-block;padding:3px 10px;border-radius:5px;font-size:11px;font-weight:600;letter-spacing:0.02em; }}
-.cat-b {{ display:inline-block;background:var(--surface-hover);color:var(--text-secondary);padding:3px 10px;border-radius:5px;font-size:11px; }}
-.ed-badge {{ display:inline-block;background:#FEF3C7;color:#92400E;padding:3px 10px;border-radius:5px;font-size:11px;font-weight:600; }}
-[data-theme="dark"] .ed-badge {{ background:rgba(251,191,36,0.15);color:#FCD34D; }}
-.title-row {{ display:flex;align-items:baseline;gap:8px;margin:8px 0 4px;flex-wrap:wrap; }}
-.tk-name {{ font-size:20px;font-weight:700;letter-spacing:-0.02em; }}
-.tk-full {{ font-size:12px;color:var(--text-tertiary); }}
-.tk-price {{ font-size:16px;font-weight:600; }}
-.tk-desc {{ font-size:12px;color:var(--text-secondary);line-height:1.7;margin-bottom:14px; }}
-.trd-grid {{ display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:14px; }}
-.trd-box {{ background:var(--bg);border:0.5px solid var(--border);border-radius:8px;padding:10px 12px;box-shadow:inset 0 1px 2px rgba(0,0,0,0.03); }}
-[data-theme="dark"] .trd-box {{ box-shadow:inset 0 1px 2px rgba(0,0,0,0.2); }}
-.trd-label {{ font-size:10px;font-weight:500;color:var(--text-tertiary);letter-spacing:0.04em;margin-bottom:3px; }}
-.trd-val {{ font-size:15px;font-weight:600;letter-spacing:-0.02em; }}
-.trd-sub {{ font-size:10px;color:var(--text-tertiary);margin-top:2px; }}
-.rr-box {{ background:var(--bg);border:0.5px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:14px; }}
-.ind-grid {{ display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:14px;font-size:13px; }}
-.ind-l {{ font-weight:500;display:block;font-size:11px;color:var(--text-tertiary);margin-bottom:2px; }}
-.rsn-grid {{ display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px; }}
-.rsn-box {{ background:var(--bg);border:0.5px solid var(--border);border-radius:8px;padding:12px;font-size:13px;color:var(--text-secondary); }}
-.rsn-t {{ font-weight:600;font-size:12px;margin-bottom:6px;color:var(--text-primary); }}
-.wif-box {{ background:var(--accent-muted);border-radius:8px;padding:12px 14px;font-size:13px;color:var(--text-secondary);margin-bottom:12px;line-height:1.8; }}
-.alert-box {{ background:var(--negative-bg);border:0.5px solid var(--negative);border-radius:8px;padding:10px 14px;font-size:13px;color:var(--negative);margin:10px 0; }}
-.card-ft {{ font-size:12px;color:var(--text-tertiary);margin-top:10px; }}
-/* Performance */
-.dtable {{ width:100%;border-collapse:collapse; }}
-.dtable thead tr {{ border-bottom:0.5px solid var(--border); }}
-.dtable th {{ text-align:left;padding:8px 12px;font-size:12px;color:var(--text-tertiary);font-weight:500; }}
-.dtable tbody tr {{ border-bottom:0.5px solid var(--border); }}
-.dtable tbody tr:last-child {{ border-bottom:none; }}
-.badge-up {{ background:var(--positive-bg);color:var(--positive);padding:2px 8px;border-radius:5px;font-size:11px;font-weight:600; }}
-.badge-down {{ background:var(--negative-bg);color:var(--negative);padding:2px 8px;border-radius:5px;font-size:11px;font-weight:600; }}
-.badge-neut {{ background:var(--surface-hover);color:var(--text-secondary);padding:2px 8px;border-radius:5px;font-size:11px;font-weight:600; }}
-/* Review */
-.rv-card {{ background:var(--surface);border:0.5px solid var(--border);border-radius:10px;padding:16px;margin-bottom:10px;box-shadow:var(--card-shadow); }}
-.rv-title {{ font-weight:600;font-size:13px;margin-bottom:6px;color:var(--text-primary); }}
-.rv-card p {{ font-size:13px;color:var(--text-secondary);line-height:1.7; }}
-/* Keywords */
-.kw-tag {{ display:inline-block;background:var(--accent-muted);color:var(--accent);padding:3px 10px;border-radius:5px;font-size:12px;margin:2px; }}
-/* Footer */
-.footer {{ margin-top:40px;padding-top:16px;border-top:0.5px solid var(--border);display:flex;justify-content:space-between;align-items:center; }}
-.footer-t {{ font-size:11px;color:var(--text-tertiary); }}
-/* Responsive */
-@media(max-width:1024px) {{ .sig-grid{{grid-template-columns:1fr;}} }}
-@media(max-width:768px) {{
-  .sum-grid{{grid-template-columns:repeat(2,1fr);}}
-  .hdr{{flex-direction:column;gap:12px;align-items:flex-start;}}
-  .hdr-time{{display:none;}}
-  .dash{{padding:16px 16px 40px;}}
-  .rsn-grid{{grid-template-columns:1fr;}}
-}}
-@media(max-width:480px) {{ .sum-grid{{grid-template-columns:1fr;}} .nav-tabs{{overflow-x:auto;-webkit-overflow-scrolling:touch;}} }}
-::-webkit-scrollbar{{width:4px;}} ::-webkit-scrollbar-track{{background:transparent;}} ::-webkit-scrollbar-thumb{{background:var(--border);border-radius:4px;}}
+  * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+  body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+          background: #f5f5f5; color: #1a1a1a; line-height: 1.6; }}
+  .container {{ max-width: 900px; margin: 0 auto; padding: 24px 16px; }}
+  .report-header {{ background: #fff; border-radius: 12px; padding: 24px; margin-bottom: 16px;
+                    border: 1px solid #e5e5e5; }}
+  .report-title {{ font-size: 20px; font-weight: 600; margin-bottom: 4px; }}
+  .report-sub {{ font-size: 13px; color: #888; }}
+  .temp-badge {{ display:inline-block; padding:4px 12px; border-radius:20px;
+                 background:#FEF3C7; color:#92400E; font-size:12px; font-weight:500; margin-top:8px; }}
+  .section {{ background:#fff; border-radius:12px; padding:20px 24px;
+              margin-bottom:16px; border:1px solid #e5e5e5; }}
+  .section h2 {{ font-size:16px; font-weight:600; margin-bottom:16px; }}
+  .metric-grid {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; }}
+  .metric {{ background:#f8f8f8; border-radius:8px; padding:12px; }}
+  .metric-label {{ font-size:11px; color:#888; margin-bottom:4px; }}
+  .metric-value {{ font-size:20px; font-weight:600; }}
+  .strategy-box {{ background:#FFFBEB; border:1px solid #FDE68A; border-radius:8px;
+                   padding:12px 16px; font-size:13px; color:#92400E; margin-top:12px; }}
+  .editor-pick {{ background:#F0FDF4; border:1px solid #BBF7D0; border-radius:8px;
+                  padding:14px 16px; margin-bottom:16px; }}
+  .pick-card {{ background:#fff; border-radius:12px; padding:20px 24px;
+                margin-bottom:14px; border:1px solid #e5e5e5; }}
+  .pick-header {{ display:flex; align-items:center; justify-content:space-between;
+                  margin-bottom:8px; flex-wrap:wrap; gap:6px; }}
+  .persp-badge {{ display:inline-block; padding:3px 10px; border-radius:20px;
+                  font-size:12px; font-weight:500; }}
+  .category-badge {{ display:inline-block; background:#f0f0f0; color:#555;
+                     padding:3px 10px; border-radius:20px; font-size:12px; margin-left:6px; }}
+  .pick-title {{ display:flex; align-items:baseline; gap:8px; margin:8px 0 4px; flex-wrap:wrap; }}
+  .ticker {{ font-size:22px; font-weight:700; }}
+  .full-name {{ font-size:13px; color:#888; }}
+  .price {{ font-size:18px; font-weight:500; margin-left:4px; }}
+  .trade-grid {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
+                 gap:10px; margin:14px 0; }}
+  .trade-box {{ background:#fafafa; border:1px solid #e5e5e5; border-radius:8px; padding:12px; }}
+  .trade-label {{ font-size:11px; color:#888; margin-bottom:4px; }}
+  .trade-value {{ font-size:16px; font-weight:600; }}
+  .trade-sub {{ font-size:11px; color:#aaa; margin-top:2px; }}
+  .rr-section {{ background:#fafafa; border-radius:8px; padding:12px 14px; margin:12px 0; }}
+  .rr-label-row {{ display:flex; justify-content:space-between; align-items:center;
+                   margin-bottom:8px; flex-wrap:wrap; gap:6px; }}
+  .rr-verdict {{ font-size:13px; font-weight:600; }}
+  .info-grid {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
+                gap:10px; margin:14px 0; font-size:13px; }}
+  .info-label {{ font-weight:500; margin-right:4px; display:block; font-size:11px;
+                 color:#888; margin-bottom:2px; }}
+  .reason-grid {{ display:grid; grid-template-columns:1fr 1fr; gap:12px; margin:12px 0; }}
+  @media(max-width:600px) {{ .reason-grid {{ grid-template-columns:1fr; }} }}
+  .reason-box {{ background:#fafafa; border-radius:8px; padding:12px; font-size:13px; }}
+  .reason-title {{ font-weight:600; font-size:12px; margin-bottom:6px; color:#555; }}
+  .whatif-box {{ background:#EFF6FF; border-radius:8px; padding:12px 14px;
+                 font-size:13px; color:#1e40af; margin-top:10px; line-height:1.8; }}
+  .alert-box {{ background:#FEF2F2; border:1px solid #FECACA; border-radius:8px;
+                padding:10px 14px; font-size:13px; color:#991B1B; margin:10px 0; }}
+  .review-block {{ background:#f8f8f8; border-radius:8px; padding:12px 14px; margin-bottom:10px; }}
+  .review-title {{ font-weight:600; font-size:13px; margin-bottom:6px; }}
+  .review-block p {{ font-size:13px; color:#555; }}
+  .rule-item {{ padding:10px 0; border-bottom:1px solid #eee; font-size:13px; }}
+  .rule-item:last-child {{ border-bottom:none; }}
+  .rule-tag {{ background:#f0f0f0; color:#555; padding:2px 8px; border-radius:6px;
+               font-size:11px; margin-right:6px; }}
+  .kw-badge {{ background:#EFF6FF; color:#1D4ED8; padding:3px 10px;
+               border-radius:20px; font-size:12px; margin:2px; display:inline-block; }}
+  .nav-bar {{ background:#fff; border-radius:12px; padding:12px 16px; margin-bottom:16px;
+              border:1px solid #e5e5e5; display:flex; gap:8px; flex-wrap:wrap; align-items:center; }}
+  .nav-bar span {{ font-size:12px; color:#888; margin-right:4px; }}
+  .nav-btn {{ padding:5px 14px; border-radius:20px; border:1px solid #e5e5e5;
+              font-size:12px; cursor:pointer; background:#fff; color:#333;
+              text-decoration:none; transition:all 0.15s; }}
+  .nav-btn:hover {{ background:#f0f0f0; }}
+  .nav-btn.active {{ background:#1a1a1a; color:#fff; border-color:#1a1a1a; }}
+  @media(max-width:600px) {{
+    .trade-grid {{ grid-template-columns:1fr 1fr; }}
+    .info-grid  {{ grid-template-columns:1fr 1fr; }}
+  }}
 </style>
 </head>
-<body data-theme="dark">
-<div class="dash">
+<body>
+<div class="container">
 
-  <!-- Header -->
-  <header class="hdr">
-    <div class="brand">
-      <span class="brand-name">코주부 <em>시그널</em></span>
-      <span class="brand-badge mono">{pub_time}</span>
-    </div>
-    <div class="hdr-actions">
-      <span class="hdr-time mono">빗썸 31~80위 스캔 · Gemini AI · BTC 동조화 · 김프</span>
-      <a href="history.html" class="btn-history">히스토리</a>
-      <button class="btn-icon" onclick="toggleTheme()" aria-label="테마 변경">
-        {ICO_SUN}{ICO_MOON}
-      </button>
-    </div>
-  </header>
-
-  <!-- Tabs -->
-  <nav class="nav-tabs">
-    <button class="nav-tab active" data-tab="tab-report">리포트</button>
-    <button class="nav-tab" data-tab="tab-perf">성과 분석</button>
-    <button class="nav-tab" data-tab="tab-review">리뷰</button>
-  </nav>
-
-  <!-- ═══ TAB: 리포트 ═══ -->
-  <section id="tab-report" class="tab-content active">
-
-    <!-- Summary -->
-    <div class="sum-grid">
-      <div class="sum-card">
-        <div class="sl">{ICO_ACT} 시장 심리</div>
-        <div class="sv"><span class="dot-live"></span> {ma.get('level_label','—')}</div>
-      </div>
-      <div class="sum-card">
-        <div class="sl">{ICO_BAR} 24시간 거래량</div>
-        <div class="sv"><span class="mono">{ma['total_volume']/1e12:.2f}조</span> <span class="tag-pos">전월 대비 {ma.get('vs_avg_pct','—')}%</span></div>
-      </div>
-      <div class="sum-card">
-        <div class="sl">{ICO_LNK} 수급 성격</div>
-        <div class="sv" style="font-size:15px;">{ma.get('supply_character','—')}</div>
-      </div>
-      <div class="sum-card">
-        <div class="sl">{ICO_SHD} 메이저 / 알트</div>
-        <div class="sv"><span class="mono">{ma['major_ratio']}%</span> <span style="color:var(--text-tertiary);font-size:14px;">/</span> <span class="mono">{ma['alt_ratio']}%</span></div>
+  <!-- 헤더 -->
+  <div class="report-header">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;">
+      <div>
+        <p style="font-size:12px;color:#888;margin-bottom:4px;">차기 주도주 리포트</p>
+        <div class="report-title">🚀 {pub_time}</div>
+        <div class="report-sub">빗썸 31~80위 스캔 · Gemini AI · BTC 동조화 · 김프</div>
+        <span class="temp-badge">{ma.get('level_label','—')}</span>
       </div>
     </div>
+  </div>
 
-    <!-- Strategy -->
-    <div class="strat-box">{strategy}</div>
-
-    <!-- Mood -->
-    {'<p style="font-size:13px;color:var(--text-secondary);margin-bottom:16px;">' + mood + '</p>' if mood else ''}
-
-    <!-- Editor Pick -->
-    {editor_html}
-
-    <!-- Filter Bar -->
-    <div class="flt-bar">
-      <div class="flt-group">
-        <button class="flt-btn active" data-filter="전체">전체</button>
-        <button class="flt-btn" data-filter="TOP30">TOP30</button>
-        <button class="flt-btn" data-filter="급등후보">급등후보</button>
-        <button class="flt-btn" data-filter="돌파">돌파</button>
-        <button class="flt-btn" data-filter="눌림목">눌림목</button>
+  <!-- 시장 온도계 -->
+  <div class="section">
+    <h2>🌡️ 시장 온도계</h2>
+    <div class="metric-grid">
+      <div class="metric">
+        <div class="metric-label">전체 거래대금</div>
+        <div class="metric-value">{ma['total_volume']/1e12:.2f}조원</div>
+        <div style="font-size:11px;color:#888;margin-top:2px;">전월 평균 대비 {ma.get('vs_avg_pct','—')}%</div>
       </div>
-      <div class="sort-l mono">{ICO_SORT} 신뢰도 순</div>
+      <div class="metric">
+        <div class="metric-label">수급 주도</div>
+        <div class="metric-value" style="font-size:16px;">{ma.get('supply_character','—')}</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">메이저 / 알트</div>
+        <div class="metric-value" style="font-size:16px;">{ma['major_ratio']}% / {ma['alt_ratio']}%</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">시장 분위기</div>
+        <div class="metric-value" style="font-size:13px;line-height:1.4;">{mood[:40] + '...' if len(mood) > 40 else mood}</div>
+      </div>
     </div>
+    <div class="strategy-box">📌 오늘의 전략: {strategy}</div>
+  </div>
 
-    <!-- Signal Cards -->
-    <div class="sig-grid">
-      {picks_html}
-    </div>
+  <!-- 편집장 픽 -->
+  {f'''<div class="editor-pick">
+    ⭐ <strong>편집장 픽 — 오늘 1종목만 골라야 한다면?</strong><br>
+    <span style="font-size:15px;font-weight:600;">{editor_ticker}</span>
+    <span style="font-size:13px;color:#555;margin-left:8px;">{editor_reason}</span>
+  </div>''' if editor_ticker else ''}
 
-    <!-- Keywords -->
-    <div style="margin-top:24px;">
-      <div style="font-size:13px;font-weight:600;margin-bottom:8px;color:var(--text-primary);">트렌드 키워드</div>
-      <div>{keywords_html}</div>
-    </div>
+  <!-- 종목 분석 -->
+  <div class="section">
+    <h2>🎯 종목 분석 ({len(picks)}종목 — TOP30 2종 + 급등후보 4종)</h2>
+  </div>
+  {picks_html}
 
-  </section>
+  <!-- 성과 -->
+  {perf_html}
 
-  <!-- ═══ TAB: 성과 분석 ═══ -->
-  <section id="tab-perf" class="tab-content">
-    <h2 style="font-size:16px;font-weight:600;margin-bottom:16px;">성과 추적</h2>
-    {perf_html}
-  </section>
+  <!-- 복기 -->
+  {review_html}
 
-  <!-- ═══ TAB: 리뷰 ═══ -->
-  <section id="tab-review" class="tab-content">
-    <h2 style="font-size:16px;font-weight:600;margin-bottom:16px;">AI 복기 분석</h2>
-    {review_html}
-  </section>
+  <!-- 키워드 -->
+  <div class="section">
+    <h2>🌟 트렌드 키워드</h2>
+    <div>{keywords}</div>
+  </div>
 
-  <!-- Footer -->
-  <footer class="footer">
-    <span class="footer-t">코주부 시그널은 투자 조언이 아닙니다. 모든 투자 판단은 본인 책임 하에 이루어져야 합니다.</span>
-    <span class="footer-t mono">v2.1.0</span>
-  </footer>
-
+  <p style="text-align:center;font-size:12px;color:#aaa;padding:20px 0;">
+    ⚠️ 본 리포트는 투자 참고용이며, 투자 손실에 대한 책임은 본인에게 있습니다.
+  </p>
 </div>
-
-<script>
-function toggleTheme() {{
-  var b=document.body, s=document.getElementById('ico-sun'), m=document.getElementById('ico-moon');
-  if(b.dataset.theme==='dark'){{ b.dataset.theme='light'; s.style.display='none'; m.style.display='block'; }}
-  else{{ b.dataset.theme='dark'; s.style.display='block'; m.style.display='none'; }}
-}}
-document.addEventListener('DOMContentLoaded',function(){{
-  // Tab switching
-  var tabs=document.querySelectorAll('.nav-tab');
-  tabs.forEach(function(tab){{
-    tab.addEventListener('click',function(e){{
-      e.preventDefault();
-      tabs.forEach(function(t){{ t.classList.remove('active'); }});
-      tab.classList.add('active');
-      var target=tab.dataset.tab;
-      document.querySelectorAll('.tab-content').forEach(function(s){{
-        s.classList.toggle('active', s.id===target);
-      }});
-    }});
-  }});
-  // Filter switching
-  var btns=document.querySelectorAll('.flt-btn');
-  btns.forEach(function(btn){{
-    btn.addEventListener('click',function(e){{
-      e.preventDefault();
-      btns.forEach(function(b){{ b.classList.remove('active'); }});
-      btn.classList.add('active');
-      var f=btn.dataset.filter;
-      document.querySelectorAll('.sig-card').forEach(function(card){{
-        var p=card.dataset.perspective;
-        if(f==='전체') card.style.display='';
-        else card.style.display=p.indexOf(f)!==-1?'':'none';
-      }});
-    }});
-  }});
-}});
-</script>
 </body>
 </html>"""
     return html
