@@ -1754,12 +1754,9 @@ def push_report_to_github(html_content: str, pub_time: str):
         file_date = datetime.now(KST).strftime("%Y%m%d_%H%M")
         filename  = f"reports/report_{file_date}.html"
 
-        # index.html — 항상 최신 리포트로 덮어쓰기
-        # reports/ 폴더에는 날짜별로 쌓기
-
+        # reports/ 폴더에 날짜별로만 쌓기 (index.html은 건드리지 않음)
         files_to_push = [
-            ("index.html",  html_content),
-            (filename,      html_content),
+            (filename, html_content),
         ]
 
         for path, content in files_to_push:
@@ -1817,11 +1814,20 @@ def _update_history_index(headers: dict, repo: str, file_date: str, pub_time: st
                 existing_rows = old_html[start:end]
 
         new_row = f"""
-        <tr>
-          <td style="padding:10px 12px;">{pub_time}</td>
+        <tr data-date="{pub_time}" data-file="reports/report_{file_date}.html">
+          <td style="padding:10px 12px;font-size:13px;">{pub_time}</td>
           <td style="padding:10px 12px;">
             <a href="reports/report_{file_date}.html"
-               style="color:#1D4ED8;text-decoration:none;">📄 리포트 보기</a>
+               style="color:#2563eb;text-decoration:none;font-size:13px;font-weight:500;">리포트 보기</a>
+          </td>
+          <td style="padding:10px 12px;">
+            <button onclick="deleteRow(this, '{pub_time}', 'reports/report_{file_date}.html')"
+              style="padding:3px 10px;font-size:11px;font-weight:600;border:1px solid #e5e5e5;
+              border-radius:4px;background:transparent;color:#aaa;cursor:pointer;"
+              onmouseover="this.style.borderColor='#ef4444';this.style.color='#ef4444';"
+              onmouseout="this.style.borderColor='#e5e5e5';this.style.color='#aaa';">
+              X
+            </button>
           </td>
         </tr>"""
 
@@ -1832,29 +1838,53 @@ def _update_history_index(headers: dict, repo: str, file_date: str, pub_time: st
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>리포트 히스토리</title>
 <style>
+  * {{ box-sizing:border-box; margin:0; padding:0; }}
   body {{ font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
-          background:#f5f5f5; padding:24px; }}
+          background:#f5f5f5; padding:24px; color:#18181b; }}
   .container {{ max-width:700px; margin:0 auto; }}
-  h1 {{ font-size:20px; margin-bottom:16px; }}
-  table {{ width:100%; background:#fff; border-radius:12px;
-           border-collapse:collapse; border:1px solid #e5e5e5; overflow:hidden; }}
-  thead tr {{ background:#f8f8f8; }}
-  th {{ padding:10px 12px; text-align:left; font-size:13px; color:#888; font-weight:500; }}
-  tbody tr {{ border-top:1px solid #f0f0f0; }}
-  tbody tr:hover {{ background:#fafafa; }}
-  .back-btn {{ display:inline-block; margin-bottom:16px; color:#1D4ED8;
+  .back-btn {{ display:inline-block; margin-bottom:16px; color:#2563eb;
                text-decoration:none; font-size:13px; }}
+  h1 {{ font-size:18px; font-weight:700; margin-bottom:16px; letter-spacing:-0.02em; }}
+  table {{ width:100%; background:#fff; border-radius:10px;
+           border-collapse:collapse; border:1px solid #e5e5e5; }}
+  thead tr {{ background:#f8f8f8; border-bottom:1px solid #e5e5e5; }}
+  th {{ padding:10px 12px; text-align:left; font-size:11px; color:#a1a1aa;
+        font-weight:600; text-transform:uppercase; letter-spacing:0.06em; }}
+  tbody tr {{ border-bottom:1px solid #f0f0f0; }}
+  tbody tr:last-child {{ border-bottom:none; }}
+  tbody tr:hover {{ background:#fafafa; }}
+  .notice {{ font-size:12px; color:#a1a1aa; margin-top:12px; }}
 </style>
 </head>
 <body>
 <div class="container">
   <a href="index.html" class="back-btn">← 최신 리포트로</a>
-  <h1>📋 리포트 히스토리</h1>
+  <h1>리포트 히스토리</h1>
   <table>
-    <thead><tr><th>발행일시</th><th>링크</th></tr></thead>
-    <tbody>{new_row}{existing_rows}</tbody>
+    <thead><tr><th>발행일시</th><th>링크</th><th></th></tr></thead>
+    <tbody id="tbody">{new_row}{existing_rows}</tbody>
   </table>
+  <p class="notice">행 삭제는 히스토리 목록에서만 제거됩니다. 실제 리포트 파일은 유지됩니다.</p>
 </div>
+<script>
+function deleteRow(btn, date, file) {{
+  if(!confirm('"' + date + '" 항목을 목록에서 삭제할까요?')) return;
+  var row = btn.closest('tr');
+  if(row) row.remove();
+  /* 남은 행 수집해서 localStorage에 숨김 처리 */
+  var hidden = JSON.parse(localStorage.getItem('kzb-hidden-reports') || '[]');
+  hidden.push(file);
+  localStorage.setItem('kzb-hidden-reports', JSON.stringify(hidden));
+}}
+/* 페이지 로드 시 숨김 처리된 행 제거 */
+document.addEventListener('DOMContentLoaded', function() {{
+  var hidden = JSON.parse(localStorage.getItem('kzb-hidden-reports') || '[]');
+  document.querySelectorAll('#tbody tr').forEach(function(row) {{
+    var file = row.dataset.file;
+    if(file && hidden.indexOf(file) !== -1) row.remove();
+  }});
+}});
+</script>
 </body>
 </html>"""
 
