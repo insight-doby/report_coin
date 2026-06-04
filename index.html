@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light dark">
 <title>코주부 시그널 — Dashboard</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -43,7 +44,11 @@ body{
   -webkit-font-smoothing:antialiased;
   line-height:1.5;letter-spacing:-0.01em;
   min-height:100vh;
+  -webkit-text-size-adjust:100%;
 }
+/* 모바일 브라우저 강제 다크모드 방지 */
+:root { color-scheme: light; }
+[data-theme="dark"] { color-scheme: dark; }
 .mono{font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;}
 a{text-decoration:none;color:inherit;}
 button{cursor:pointer;font-family:inherit;}
@@ -439,7 +444,7 @@ button{cursor:pointer;font-family:inherit;}
   <div class="hdr-right">
     <span class="hdr-time" id="hdr-time">빗썸 스캔 · Gemini AI</span>
     <a href="history.html" class="btn-hist">히스토리</a>
-    <button class="btn-start" id="btn-analyze" onclick="loadData()">분석 시작</button>
+    <button class="btn-start" id="btn-analyze" onclick="loadData(true)">분석 시작</button>
     <button class="btn-icon" onclick="toggleTheme()" aria-label="테마">
       <svg id="ico-sun" viewBox="0 0 24 24" style="display:block;"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
       <svg id="ico-moon" viewBox="0 0 24 24" style="display:none;"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
@@ -871,22 +876,28 @@ function initFilters(){
 /* ══════════════════════════════════
    DATA LOAD
    ══════════════════════════════════ */
-function loadData(){
+function loadData(fromBtn){
   var btn = document.getElementById('btn-analyze');
-  if(btn){ btn.textContent = '불러오는 중...'; btn.classList.add('loading'); btn.disabled=true; }
+
+  /* 버튼 클릭일 때만 상태 변경 */
+  if(fromBtn && btn){
+    btn.textContent = '불러오는 중...';
+    btn.classList.add('loading');
+    btn.disabled = true;
+  }
 
   Promise.all([
-    fetch(BASE+'picks.json').then(function(r){ return r.ok?r.json():[]; }).catch(function(){ return []; }),
-    fetch(BASE+'performance.json').then(function(r){ return r.ok?r.json():[]; }).catch(function(){ return []; }),
-    fetch(BASE+'review.json').then(function(r){ return r.ok?r.json():[]; }).catch(function(){ return []; }),
-    fetch(BASE+'rules.json').then(function(r){ return r.ok?r.json():[]; }).catch(function(){ return []; })
+    fetch(BASE+'picks.json?t='+Date.now()).then(function(r){ return r.ok?r.json():[]; }).catch(function(){ return []; }),
+    fetch(BASE+'performance.json?t='+Date.now()).then(function(r){ return r.ok?r.json():[]; }).catch(function(){ return []; }),
+    fetch(BASE+'review.json?t='+Date.now()).then(function(r){ return r.ok?r.json():[]; }).catch(function(){ return []; }),
+    fetch(BASE+'rules.json?t='+Date.now()).then(function(r){ return r.ok?r.json():[]; }).catch(function(){ return []; })
   ]).then(function(res){
     G.picks  = res[0]||[];
     G.perf   = res[1]||[];
     G.review = res[2]||[];
     G.rules  = res[3]||[];
     renderAll();
-    if(btn){
+    if(fromBtn && btn){
       btn.textContent = '완료';
       btn.classList.remove('loading');
       btn.classList.add('done');
@@ -895,7 +906,11 @@ function loadData(){
     }
   }).catch(function(e){
     console.warn('로드 실패:', e);
-    if(btn){ btn.textContent='실패 — 재시도'; btn.classList.remove('loading'); btn.disabled=false; }
+    if(fromBtn && btn){
+      btn.textContent = '실패 — 재시도';
+      btn.classList.remove('loading');
+      btn.disabled = false;
+    }
   });
 }
 
