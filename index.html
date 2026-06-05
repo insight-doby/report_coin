@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="color-scheme" content="light dark">
-<title>크립토 시그널 — Dashboard</title>
+<title>코주부 시그널 — Dashboard</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
@@ -122,6 +122,39 @@ button{cursor:pointer;font-family:inherit;}
 /* ── Strategy Box ── */
 .strat{background:var(--accentm);border:1px solid var(--accent);border-radius:var(--r2);
   padding:11px 15px;font-size:13px;color:var(--accent);margin-bottom:18px;}
+
+/* ── Narrative Section ── */
+.narr-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
+  padding:18px 20px;margin-bottom:18px;box-shadow:var(--shadow);}
+.narr-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;}
+.narr-title{font-size:13px;font-weight:700;display:flex;align-items:center;gap:6px;}
+.narr-theme{font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;
+  background:var(--warnm);color:var(--warn);letter-spacing:0.02em;}
+.narr-sentiment{font-size:13px;color:var(--txt2);line-height:1.7;margin-bottom:14px;
+  padding:10px 14px;background:var(--surface2);border-radius:var(--r2);}
+.narr-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px;}
+.narr-box{background:var(--bg);border:1px solid var(--border);border-radius:var(--r2);padding:12px 14px;}
+.narr-box-lbl{font-size:10px;font-weight:700;color:var(--txt3);text-transform:uppercase;
+  letter-spacing:0.06em;margin-bottom:6px;}
+.narr-box-val{font-size:12px;color:var(--txt2);line-height:1.6;}
+.narr-sector-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;}
+.sector-chip{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;
+  border-radius:20px;font-size:11px;font-weight:600;}
+.sector-chip.hot{background:var(--posm);color:var(--pos);}
+.sector-chip.cold{background:var(--negm);color:var(--neg);}
+.narr-risk{font-size:12px;color:var(--warn);background:var(--warnm);
+  border-radius:var(--r2);padding:8px 12px;display:flex;align-items:flex-start;gap:6px;}
+
+/* ── Coin Narrative in detail panel ── */
+.coin-narr-box{background:var(--accentm);border:1px solid rgba(59,130,246,0.2);
+  border-radius:var(--r2);padding:10px 12px;margin-bottom:12px;}
+.coin-narr-lbl{font-size:10px;font-weight:700;color:var(--accent);text-transform:uppercase;
+  letter-spacing:0.06em;margin-bottom:4px;}
+.coin-narr-phase{display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;margin-left:6px;}
+.phase-early{background:var(--posm);color:var(--pos);}
+.phase-mid{background:var(--warnm);color:var(--warn);}
+.phase-hot{background:var(--negm);color:var(--neg);}
+.coin-narr-text{font-size:12px;color:var(--txt2);line-height:1.6;}
 
 /* ── Editor Pick ── */
 .editor-pick{background:var(--posm);border:1px solid var(--pos);border-radius:var(--r);
@@ -435,6 +468,7 @@ button{cursor:pointer;font-family:inherit;}
   .hdr-time{display:none;}
   .timing-grid{grid-template-columns:1fr;}
   .hof-grid{grid-template-columns:1fr;}
+  .narr-grid{grid-template-columns:1fr;}
 }
 @media(max-width:480px){
   .sum-grid,.kpi-grid{grid-template-columns:1fr;}
@@ -452,7 +486,7 @@ button{cursor:pointer;font-family:inherit;}
 <!-- ── Header ── -->
 <header class="hdr">
   <div class="brand">
-    <span class="brand-name">크립토 <em>시그널</em></span>
+    <span class="brand-name">코주부 <em>시그널</em></span>
     <span class="brand-badge" id="pub-time">DASHBOARD v2.1</span>
   </div>
   <div class="hdr-right">
@@ -502,6 +536,9 @@ button{cursor:pointer;font-family:inherit;}
 
   <div class="strat" id="strat-box" style="display:none;"></div>
   <div id="editor-pick-wrap"></div>
+
+  <!-- 시장 내러티브 섹션 -->
+  <div id="narr-wrap" class="narr-wrap" style="display:none;"></div>
 
   <!-- Filter -->
   <div class="flt-bar">
@@ -813,7 +850,7 @@ button{cursor:pointer;font-family:inherit;}
 
 <!-- Footer -->
 <footer class="footer">
-  <span class="footer-t">크립토 시그널은 투자 조언이 아닙니다. 모든 투자 판단은 본인 책임입니다.</span>
+  <span class="footer-t">코주부 시그널은 투자 조언이 아닙니다. 모든 투자 판단은 본인 책임입니다.</span>
   <span class="footer-t mono">v2.1.0</span>
 </footer>
 
@@ -828,7 +865,7 @@ var PERSP_COLOR = {
   'TOP30 돌파':'#8B5CF6','TOP30 눌림목':'#3B82F6',
   '급등후보 돌파':'#22C55E','급등후보 눌림목':'#F59E0B'
 };
-var G = { picks:[], perf:[], review:[], rules:[] };
+var G = { picks:[], perf:[], review:[], rules:[], narrative:[] };
 var liveIntervals = {};
 
 /* ══════════════════════════════════
@@ -899,59 +936,155 @@ function autoLoadData(){
     return Promise.all([
       fetch(BASE+'performance.json?t='+Date.now()).then(function(r){ return r.ok?r.json():[]; }).catch(function(){ return []; }),
       fetch(BASE+'review.json?t='+Date.now()).then(function(r){ return r.ok?r.json():[]; }).catch(function(){ return []; }),
-      fetch(BASE+'rules.json?t='+Date.now()).then(function(r){ return r.ok?r.json():[]; }).catch(function(){ return []; })
+      fetch(BASE+'rules.json?t='+Date.now()).then(function(r){ return r.ok?r.json():[]; }).catch(function(){ return []; }),
+      fetch(BASE+'narrative.json?t='+Date.now()).then(function(r){ return r.ok?r.json():[]; }).catch(function(){ return []; })
     ]);
   }).then(function(res){
-    G.perf   = res[0]||[];
-    G.review = res[1]||[];
-    G.rules  = res[2]||[];
+    G.perf      = res[0]||[];
+    G.review    = res[1]||[];
+    G.rules     = res[2]||[];
+    G.narrative = res[3]||[];
     renderAll();
   }).catch(function(e){ console.warn('자동 로드 실패:', e); });
 }
 
-/* 분석 시작 버튼 클릭 — 버튼 상태 표시 */
-function loadData(fromBtn){
+/* 분석 시작 버튼 클릭 — 봇 실행 + 데이터 로드 */
+function loadData(){
   var btn = document.getElementById('btn-analyze');
   if(btn){
-    btn.textContent = '불러오는 중...';
+    btn.textContent = '봇 실행 중...';
     btn.classList.add('loading');
     btn.disabled = true;
   }
 
-  Promise.all([
-    fetch(BASE+'picks.json?t='+Date.now()).then(function(r){ return r.ok?r.json():[]; }).catch(function(){ return []; }),
-    fetch(BASE+'performance.json?t='+Date.now()).then(function(r){ return r.ok?r.json():[]; }).catch(function(){ return []; }),
-    fetch(BASE+'review.json?t='+Date.now()).then(function(r){ return r.ok?r.json():[]; }).catch(function(){ return []; }),
-    fetch(BASE+'rules.json?t='+Date.now()).then(function(r){ return r.ok?r.json():[]; }).catch(function(){ return []; })
-  ]).then(function(res){
-    G.picks  = res[0]||[];
-    G.perf   = res[1]||[];
-    G.review = res[2]||[];
-    G.rules  = res[3]||[];
-    renderAll();
-    if(btn){
-      btn.textContent = '완료';
-      btn.classList.remove('loading');
-      btn.classList.add('done');
-      btn.disabled = false;
-      setTimeout(function(){ btn.textContent='분석 시작'; btn.classList.remove('done'); }, 2000);
+  // Cloudflare Worker로 봇 실행
+  fetch('https://frosty-mountain-5de4.duseoska.workers.dev/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' }
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(res){
+    if(res.ok){
+      if(btn){ btn.textContent = '봇 실행됨 — 약 3분 후 완료'; }
+      // 3분 후 최신 데이터 자동 로드
+      setTimeout(function(){
+        autoLoadData();
+        if(btn){
+          btn.textContent = '완료';
+          btn.classList.remove('loading');
+          btn.classList.add('done');
+          btn.disabled = false;
+          setTimeout(function(){ btn.textContent='분석 시작'; btn.classList.remove('done'); }, 2000);
+        }
+      }, 180000);
+    } else {
+      alert('봇 실행 실패: ' + (res.error||'알 수 없는 오류'));
+      if(btn){ btn.textContent='분석 시작'; btn.classList.remove('loading'); btn.disabled=false; }
     }
-  }).catch(function(e){
-    console.warn('로드 실패:', e);
-    if(btn){
-      btn.textContent = '실패 — 재시도';
-      btn.classList.remove('loading');
-      btn.disabled = false;
-    }
+  })
+  .catch(function(e){
+    alert('Worker 연결 실패: ' + e.message);
+    if(btn){ btn.textContent='분석 시작'; btn.classList.remove('loading'); btn.disabled=false; }
   });
 }
 
 function renderAll(){
   renderTab1();
+  renderNarrative();
   renderTab2();
   renderTab3();
   renderTab4();
   /* Tab5는 localStorage 기반으로 이미 initPortfolio에서 처리 */
+}
+
+/* ══════════════════════════════════
+   내러티브 섹션 렌더링
+   ══════════════════════════════════ */
+function renderNarrative(){
+  var wrap = document.getElementById('narr-wrap');
+  if(!wrap) return;
+  if(!G.narrative || !G.narrative.length){ wrap.style.display='none'; return; }
+
+  var latest = G.narrative[G.narrative.length-1];
+  var mn  = latest.market_narrative || {};
+  var cn  = latest.coin_narratives  || {};
+
+  var sentiment = mn.overall_sentiment || '';
+  var keyRisk   = mn.key_risk || '';
+  var sectors   = mn.sectors  || {};
+  var dominant  = sectors.dominant_theme || '';
+  var macro     = mn.macro || {};
+  var btc       = mn.btc   || {};
+  var reg       = mn.regulation || {};
+  var kimp      = mn.kimchi_premium || {};
+
+  /* 섹터 칩 */
+  var hotChips  = (sectors.hot||[]).slice(0,4).map(function(s){
+    return '<span class="sector-chip hot">🔥 '+esc(s.name)+'</span>';
+  }).join('');
+  var coldChips = (sectors.cold||[]).slice(0,3).map(function(s){
+    return '<span class="sector-chip cold">❄️ '+esc(s.name)+'</span>';
+  }).join('');
+
+  /* 거시/BTC/규제 박스 */
+  var macroVal = [
+    macro.fed    ? '연준: '+macro.fed    : '',
+    macro.nasdaq ? '나스닥: '+macro.nasdaq : '',
+    macro.dxy    ? '달러: '+macro.dxy    : '',
+  ].filter(Boolean).join('<br>') || '—';
+
+  var btcVal = [
+    btc.etf_flow    ? 'ETF: '+btc.etf_flow       : '',
+    btc.whale       ? '고래: '+btc.whale          : '',
+    btc.liquidation ? '청산: '+btc.liquidation    : '',
+    btc.institution ? '기관: '+btc.institution    : '',
+  ].filter(Boolean).join('<br>') || '—';
+
+  var regVal = [
+    reg.clarity_act ? '클래리티: '+reg.clarity_act : '',
+    reg.us          ? '미국: '+reg.us              : '',
+    reg.global      ? '글로벌: '+reg.global        : '',
+  ].filter(Boolean).join('<br>') || '—';
+
+  var html =
+    '<div class="narr-header">'+
+      '<div class="narr-title">📰 오늘의 시장 내러티브</div>'+
+      (dominant ? '<span class="narr-theme">'+esc(dominant)+'</span>' : '')+
+    '</div>'+
+    (sentiment ? '<div class="narr-sentiment">'+esc(sentiment)+'</div>' : '')+
+    '<div class="narr-grid">'+
+      '<div class="narr-box"><div class="narr-box-lbl">거시경제</div><div class="narr-box-val">'+macroVal+'</div></div>'+
+      '<div class="narr-box"><div class="narr-box-lbl">BTC 특이사항</div><div class="narr-box-val">'+btcVal+'</div></div>'+
+      '<div class="narr-box"><div class="narr-box-lbl">규제/정책</div><div class="narr-box-val">'+regVal+'</div></div>'+
+    '</div>'+
+    ((hotChips||coldChips) ?
+      '<div class="narr-sector-row">'+hotChips+coldChips+'</div>' : '')+
+    (keyRisk ?
+      '<div class="narr-risk">⚠️ <span><strong>핵심 리스크:</strong> '+esc(keyRisk)+'</span></div>' : '');
+
+  wrap.innerHTML = html;
+  wrap.style.display = 'block';
+
+  /* coin_narratives를 G에 저장해두고 카드 렌더 시 참조 */
+  G.coinNarratives = cn;
+}
+
+/* 개별 코인 내러티브 HTML 생성 */
+function renderCoinNarrative(ticker, p){
+  var cn = (G.coinNarratives && (G.coinNarratives[ticker] || G.coinNarratives[ticker.toUpperCase()] || G.coinNarratives[ticker.toLowerCase()])) || null;
+  var storedNarr = p['coin_narrative'] || '';
+  if(!cn && !storedNarr) return '';
+  var catalyst = cn ? (cn.catalyst||'') : '';
+  var phase    = cn ? (cn.narrative_phase||'') : '';
+  var caution  = cn ? (cn.caution||'') : '';
+  var phaseClass = phase==='초입'?'phase-early':phase==='중반'?'phase-mid':phase==='과열'?'phase-hot':'';
+  var phaseTag = phase ? '<span class="coin-narr-phase '+phaseClass+'">'+esc(phase)+'</span>' : '';
+  var body = catalyst || storedNarr;
+  if(!body) return '';
+  return '<div class="coin-narr-box">'+
+    '<div class="coin-narr-lbl">📌 개별 내러티브'+phaseTag+'</div>'+
+    '<div class="coin-narr-text">'+esc(body)+(caution?'<br><span style="color:var(--warn);">⚠️ '+esc(caution)+'</span>':'')+'</div>'+
+  '</div>';
 }
 
 /* ══════════════════════════════════
@@ -1061,6 +1194,8 @@ function renderTab1(){
       '</div>'+
       /* 상세 펼치기 패널 */
       '<div class="detail-panel" id="'+detailId+'">'+
+        /* 개별 코인 내러티브 */
+        renderCoinNarrative(ticker, p)+
         /* 전체 목표가 */
         '<div class="trd-grid-full" style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:12px;">'+
           '<div class="trd-box"><div class="trd-lbl">진입가</div><div class="trd-val">'+esc(p['진입가']||'—')+'</div></div>'+
