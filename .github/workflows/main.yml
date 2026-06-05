@@ -28,5 +28,5 @@ jobs:
           SLACK_BOT_TOKEN:  ${{ secrets.SLACK_BOT_TOKEN }}
           GEMINI_API_KEY:   ${{ secrets.GEMINI_API_KEY }}
           SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
-          GITHUB_TOKEN_BOT: ${{ secrets.GITHUB_TOKEN_BOT }}
+          GITHUB_TOKEN_BOT: ${{ secrets.GITHUB_TOKEN }}
         run: python bot.py
