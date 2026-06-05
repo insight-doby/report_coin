@@ -21,7 +21,8 @@ import os
 SLACK_BOT_TOKEN  = os.environ.get("SLACK_BOT_TOKEN", "")
 GEMINI_API_KEY   = os.environ.get("GEMINI_API_KEY", "")
 SLACK_CHANNEL_ID = os.environ.get("SLACK_CHANNEL_ID", "")
-GITHUB_TOKEN     = os.environ.get("GITHUB_TOKEN_BOT", "")  # 코랩에서 직접 실행 시 여기에 입력
+GITHUB_TOKEN     = os.environ.get("GITHUB_TOKEN_BOT", "")
+WATCHLIST        = [t.strip().upper() for t in os.environ.get("WATCHLIST", "").split(",") if t.strip()]
 GITHUB_REPO      = "https://github.com/insight-doby/report_coin.git"
 
 INTERVALS = {
@@ -709,6 +710,18 @@ def save_narrative_to_github(narrative: dict, coin_narratives: dict, publish_tim
         print(f"  ❌ 내러티브 저장 실패: {e}")
 
 
+def _calc_pct(entry, target, abs_val=False) -> float:
+    """진입가 대비 목표가/손절가 수익률 계산"""
+    try:
+        e = float(str(entry).replace(",", ""))
+        t = float(str(target).replace(",", ""))
+        if e <= 0: return 0.0
+        pct = round((t - e) / e * 100, 1)
+        return round(abs(pct), 1) if abs_val else pct
+    except Exception:
+        return 0.0
+
+
 # ==========================================
 # 4. Gemini AI 분석 (3호출 — 종목 선별)
 # ==========================================
@@ -739,8 +752,9 @@ def generate_market_insights_via_gemini(
     # 31~80위 수급급증 목록
     market_list = ""
     for rank, (ticker, info) in enumerate(target_coins, start=31):
+        wl_mark = " ⭐관심종목" if info.get("is_watchlist") else ""
         market_list += (
-            f"- {rank}위 {ticker}: {info['price']:,}원 / "
+            f"- {rank}위 {ticker}{wl_mark}: {info['price']:,}원 / "
             f"거래대금 {info['volume']/1e8:.0f}억 / 변동 {info['change']:+.1f}%\n"
         )
 
@@ -978,6 +992,8 @@ def generate_market_insights_via_gemini(
     - 내러티브 단계가 '과열'인 코인은 추격 경고 표시
     - 촉매 없는 급등 코인은 coin_narrative에 '촉매 미확인 — 추격 주의' 명시
 12. coin_narrative 필드에 개별 코인 촉매 분석 내용을 간결하게 작성.
+13. ⭐관심종목 표시된 종목은 반드시 분석에 포함하고 가능하면 추천 목록에 넣어라.
+    단, 기술적/수급 조건이 매우 불리하면 제외하되 이유를 market_mood에 명시해라.
 """
 
     # google_search 툴 사용 시 responseMimeType 제거 (충돌 방지)
@@ -1074,9 +1090,9 @@ def record_picks_to_github(picks: list, market_activity: dict, publish_time: str
                 "T1":          p.get("t1", ""),
                 "T2":          p.get("t2", ""),
                 "손절가":      p.get("stop_loss", ""),
-                "T1수익률":    p.get("t1_pct", ""),
-                "T2수익률":    p.get("t2_pct", ""),
-                "손절률":      p.get("stop_loss_pct", ""),
+                "T1수익률":    _calc_pct(p.get("entry"), p.get("t1")),
+                "T2수익률":    _calc_pct(p.get("entry"), p.get("t2")),
+                "손절률":      _calc_pct(p.get("entry"), p.get("stop_loss"), abs_val=True),
                 "시장온도":    market_activity.get("level_label", ""),
                 "메이저비중":  market_activity.get("major_ratio", ""),
                 "알트비중":    market_activity.get("alt_ratio", ""),
@@ -1352,7 +1368,99 @@ def update_rules(review: dict) -> str:
         if not isinstance(existing, list): existing = []
 
         now = datetime.now(KST).strftime("%Y년 %m월 %d일 %H:%M")
-        for item in review.get("rule_improvements", []):
+        new_rules = review.get("rule_improvements", [])
+        if not new_rules:
+            active = [r for r in existing if r.get("적용여부") == "적용중"][-5:]
+            return "\n".join(f"  • [{r.get('관점','')}] {r.get('규칙내용','')}" for r in active)
+
+        # 기존 규칙 + 신규 규칙을 Gemini에게 정리 요청
+        clean_key = GEMINI_API_KEY.strip()
+        existing_text = "\n".join(
+            f"- [{r.get('관점','')}] {r.get('규칙내용','')} (등록: {r.get('업데이트일시','')}, 상태: {r.get('적용여부','')})"
+            for r in existing
+        ) or "없음"
+        new_text = "\n".join(
+            f"- [{r.get('관점','')}] {r.get('개선규칙','')} (근거: {r.get('근거','')})"
+            for r in new_rules
+        )
+
+        prompt = f"""
+아래는 현재 적용 중인 강화규칙 목록과 새로 도출된 규칙이다.
+두 목록을 합쳐서 최종 규칙 리스트를 정리해라.
+
+[기존 규칙]
+{existing_text}
+
+[새로 도출된 규칙]
+{new_text}
+
+정리 기준:
+1. 모순/상충하는 규칙 → 더 최근에 도출된 규칙 우선, 오래된 것 폐기
+2. 유사한 규칙 → 하나로 합쳐서 더 구체적으로 작성
+3. 6개월 이상 지난 규칙 → 폐기 검토
+4. 최종 규칙은 최대 10개 이하로 유지
+5. 폐기된 규칙도 기록에 남기되 상태를 "폐기"로 표시
+
+순수 JSON만 반환해라:
+{{
+  "final_rules": [
+    {{
+      "관점": "TOP30 돌파 또는 TOP30 눌림목 또는 급등후보 돌파 또는 급등후보 눌림목 또는 공통",
+      "규칙내용": "구체적인 규칙",
+      "근거": "이 규칙을 유지/생성한 이유",
+      "적용여부": "적용중 또는 폐기",
+      "업데이트일시": "{now}"
+    }}
+  ],
+  "changelog": "이번 업데이트에서 변경된 내용 한 줄 요약"
+}}
+"""
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {"temperature": 0.1},
+        }
+        url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
+               f"gemini-2.5-flash:generateContent?key={clean_key}")
+
+        for idx in range(3):
+            try:
+                resp = requests.post(url, json=payload, timeout=60)
+                if resp.status_code == 200:
+                    parts = resp.json()["candidates"][0]["content"]["parts"]
+                    text  = next((p["text"] for p in parts if "text" in p), None)
+                    if not text: continue
+                    cleaned = re.sub(r"```json|```", "", text).strip()
+                    f, l = cleaned.find("{"), cleaned.rfind("}")
+                    if f != -1 and l != -1:
+                        parsed = json.loads(cleaned[f:l+1])
+                        final_rules = parsed.get("final_rules", [])
+                        changelog   = parsed.get("changelog", "")
+
+                        # changelog 히스토리 보존
+                        history = [r for r in existing if r.get("_type") == "changelog"]
+                        if changelog:
+                            history.append({"_type": "changelog", "일시": now, "내용": changelog})
+
+                        # 최종 규칙 + 히스토리 저장
+                        _gh_write("data/rules.json", final_rules + history, sha, f"강화규칙 정리: {now}")
+
+                        active = [r for r in final_rules if r.get("적용여부") == "적용중"]
+                        rules_text = "\n".join(
+                            f"  • [{r.get('관점','')}] {r.get('규칙내용','')}" for r in active
+                        )
+                        print(f"  ✅ {len(active)}개 규칙 적용 중 (폐기: {len(final_rules)-len(active)}개)")
+                        return rules_text
+                else:
+                    wait = 30 if resp.status_code == 429 else 5
+                    time.sleep(wait)
+                    continue
+            except Exception as e:
+                print(f"  ⚠️ [시도 {idx+1}] 에러: {e}")
+            time.sleep(5)
+
+        # Gemini 실패 시 기존 방식으로 폴백
+        print("  ⚠️ Gemini 규칙 정리 실패 — 기존 방식으로 저장")
+        for item in new_rules:
             existing.append({
                 "업데이트일시": now,
                 "관점":        item.get("관점", ""),
@@ -1360,16 +1468,12 @@ def update_rules(review: dict) -> str:
                 "근거":        item.get("근거", ""),
                 "적용여부":    "적용중",
             })
-
-        _gh_write("data/rules.json", existing, sha, f"강화규칙 업데이트: {now}")
-
-        # 최근 5개 적용중 규칙 반환
+        if len(existing) > 30:
+            existing = existing[-30:]
+        _gh_write("data/rules.json", existing, sha, f"강화규칙 업데이트(폴백): {now}")
         active = [r for r in existing if r.get("적용여부") == "적용중"][-5:]
-        rules_text = "\n".join(
-            f"  • [{r.get('관점','')}] {r.get('규칙내용','')}" for r in active
-        )
-        print(f"  ✅ {len(active)}개 규칙 적용 중")
-        return rules_text
+        return "\n".join(f"  • [{r.get('관점','')}] {r.get('규칙내용','')}" for r in active)
+
     except Exception as e:
         print(f"  ⚠️ 규칙 업데이트 실패: {e}")
         return ""
@@ -1513,7 +1617,21 @@ def build_slack_blocks(
         t1_pct     = float(p.get("t1_pct") or 0)
         t2_pct     = float(p.get("t2_pct") or 0)
         sl_pct     = float(p.get("stop_loss_pct") or 0)
+
+        # 가격 기반으로 직접 재계산 (Gemini가 0으로 채울 경우 대비)
+        try:
+            entry_price = float(str(p.get("entry", 0)).replace(",", ""))
+            t1_price    = float(str(p.get("t1", 0)).replace(",", ""))
+            t2_price    = float(str(p.get("t2", 0)).replace(",", ""))
+            sl_price    = float(str(p.get("stop_loss", 0)).replace(",", ""))
+            if entry_price > 0:
+                if t1_price > 0:  t1_pct = round((t1_price - entry_price) / entry_price * 100, 1)
+                if t2_price > 0:  t2_pct = round((t2_price - entry_price) / entry_price * 100, 1)
+                if sl_price > 0:  sl_pct = round(abs((sl_price - entry_price) / entry_price * 100), 1)
+        except Exception:
+            pass
         is_editor  = (p.get("ticker", "") == editor_ticker)
+        is_watchlist = p.get("ticker", "") in WATCHLIST
 
         ticker       = p.get("ticker", "")
         full_name    = p.get("ticker_full_name", "")
@@ -1527,12 +1645,13 @@ def build_slack_blocks(
         what_if_btc  = p.get("what_if_btc_drop") or "BTC 급락 시 손절가 기준으로 대응"
         rr_text      = _rr_bar(t2_pct, sl_pct)
         editor_mark  = "  ⭐ 편집장 픽" if is_editor else ""
+        watchlist_mark = "  📌 관심종목" if is_watchlist else ""
 
         # ── 블록 1: 헤더 + 지표 + 매매셋업 (하나로 합침) ──
         unlock_line  = f"\n🚨 *이벤트 경보* {unlock_alert}" if unlock_alert else ""
         rank_line    = f"\n📊 순위 변화: {rank_change}" if rank_change else ""
         blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": (
-            f"{CARD_NUM[i]} {pc}{pe} *[{persp}]* {category}{editor_mark}\n"
+            f"{CARD_NUM[i]} {pc}{pe} *[{persp}]* {category}{editor_mark}{watchlist_mark}\n"
             f"*{ticker}* ({full_name})  {arrow} *{p.get('change_24h','')}*  현재가 {p.get('current_price_krw','')}\n"
             f"_{description}_{unlock_line}{rank_line}\n\n"
             f"🏷️ 김프: {p.get('kimp','—')}  ({kimp_action})\n"
@@ -1602,6 +1721,28 @@ def run_and_send_to_slack():
     target_coins, top30_coins, cutoff, coins_data = fetch_rising_star_bithumb_krw_coins()
     if not target_coins:
         print("❌ 빗썸 데이터 수집 실패"); return
+
+    # 관심종목 추가
+    if WATCHLIST:
+        print(f"📌 관심종목 {len(WATCHLIST)}개 추가: {', '.join(WATCHLIST)}")
+        existing_tickers = {t for t, _ in target_coins + top30_coins}
+        for ticker in WATCHLIST:
+            if ticker not in existing_tickers:
+                # 빗썸에서 가격 가져오기
+                try:
+                    r = requests.get(f"https://api.bithumb.com/public/ticker/{ticker}_KRW", timeout=5)
+                    d = r.json().get("data", {})
+                    price  = float(d.get("closing_price", 0))
+                    volume = float(d.get("acc_trade_value_24H", 0))
+                    change = float(d.get("fluctate_rate_24H", 0))
+                    if price > 0:
+                        target_coins.append((ticker, {
+                            "price": price, "volume": volume,
+                            "change": change, "is_watchlist": True
+                        }))
+                        print(f"  ✅ 관심종목 {ticker} 추가 (현재가: {price:,}원)")
+                except Exception as e:
+                    print(f"  ⚠️ 관심종목 {ticker} 수집 실패: {e}")
 
     market_activity = fetch_market_activity(coins_data)
     print(f"✅ 시장: {market_activity['level_label']} | "
@@ -1797,6 +1938,20 @@ def generate_html_report(insights: dict, pub_time: str, market_activity: dict,
         t1_pct    = float(p.get("t1_pct") or 0)
         t2_pct    = float(p.get("t2_pct") or 0)
         sl_pct    = float(p.get("stop_loss_pct") or 0)
+
+        # 가격 기반으로 직접 재계산
+        try:
+            entry_price = float(str(p.get("entry", 0)).replace(",", ""))
+            t1_price    = float(str(p.get("t1", 0)).replace(",", ""))
+            t2_price    = float(str(p.get("t2", 0)).replace(",", ""))
+            sl_price    = float(str(p.get("stop_loss", 0)).replace(",", ""))
+            if entry_price > 0:
+                if t1_price > 0: t1_pct = round((t1_price - entry_price) / entry_price * 100, 1)
+                if t2_price > 0: t2_pct = round((t2_price - entry_price) / entry_price * 100, 1)
+                if sl_price > 0: sl_pct = round(abs((sl_price - entry_price) / entry_price * 100), 1)
+        except Exception:
+            pass
+
         rr        = round(t2_pct / sl_pct, 1) if sl_pct > 0 else 0
         chg       = float(p.get("change_num", 0) or 0)
         chg_color = "#1D9E75" if chg >= 0 else "#E24B4A"
