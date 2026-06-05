@@ -1,32 +1,32 @@
 name: 봇 실행
-
 on:
   workflow_dispatch:
+    inputs:
+      watchlist:
+        description: '관심종목 (쉼표 구분, 예: BTC,ETH,WLD)'
+        required: false
+        default: ''
   schedule:
     - cron: '0 1 * * *'
-
 jobs:
   run-bot:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-
     steps:
       - name: 저장소 체크아웃
         uses: actions/checkout@v4
-
       - name: Python 설치
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
       - name: 라이브러리 설치
         run: pip install requests numpy pytz slack_sdk
-
       - name: 봇 실행
         env:
           SLACK_BOT_TOKEN:  ${{ secrets.SLACK_BOT_TOKEN }}
           GEMINI_API_KEY:   ${{ secrets.GEMINI_API_KEY }}
           SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
           GITHUB_TOKEN_BOT: ${{ secrets.GITHUB_TOKEN }}
+          WATCHLIST:        ${{ github.event.inputs.watchlist }}
         run: python bot.py
