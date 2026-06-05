@@ -1168,6 +1168,9 @@ function loadData(){
     if(btn){ btn.textContent='분석 시작'; btn.classList.remove('loading'); btn.disabled=false; }
   }
 
+  // 클릭 전 마지막 추천일시 저장
+  var beforeTime = G.picks.length ? G.picks[G.picks.length-1]['추천일시'] : '';
+
   fetch('https://frosty-mountain-5de4.duseoska.workers.dev/', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -1178,15 +1181,23 @@ function loadData(){
     if(res.ok){
       if(btn){ btn.textContent='봇 실행됨 — 약 3분 후 완료'; }
       setTimeout(function(){
-        hideOverlay();
         autoLoadData();
-        if(btn){
-          btn.textContent='완료';
-          btn.classList.remove('loading');
-          btn.classList.add('done');
-          btn.disabled=false;
-          setTimeout(function(){ btn.textContent='분석 시작'; btn.classList.remove('done'); }, 2000);
-        }
+        // 데이터 로드 완료 후 성공 여부 체크
+        setTimeout(function(){
+          var afterTime = G.picks.length ? G.picks[G.picks.length-1]['추천일시'] : '';
+          if(afterTime === beforeTime){
+            showOverlayError('분석에 실패했습니다. 잠시 후 다시 시도해주세요.');
+          } else {
+            hideOverlay();
+            if(btn){
+              btn.textContent='완료';
+              btn.classList.remove('loading');
+              btn.classList.add('done');
+              btn.disabled=false;
+              setTimeout(function(){ btn.textContent='분석 시작'; btn.classList.remove('done'); }, 2000);
+            }
+          }
+        }, 4000);
       }, 180000);
     } else {
       showOverlayError(res.error||'봇 실행 실패. 잠시 후 다시 시도해주세요.');
@@ -1330,7 +1341,15 @@ function renderCoinNarrative(ticker, p){
    TAB 1: 리포트
    ══════════════════════════════════ */
 function renderTab1(){
-  if(!G.picks.length) return;
+  if(!G.picks.length){
+    var grid = document.getElementById('sig-grid');
+    if(grid) grid.innerHTML =
+      '<div style="grid-column:1/-1;text-align:center;padding:40px 20px;">'+
+        '<div style="font-size:14px;color:var(--txt3);margin-bottom:8px;">아직 분석 데이터가 없어요.</div>'+
+        '<div style="font-size:12px;color:var(--txt3);">분석 시작 버튼을 눌러 첫 분석을 실행해보세요.</div>'+
+      '</div>';
+    return;
+  }
 
   /* 최신 추천일시 기준 6종목 */
   var latest = G.picks[G.picks.length-1]['추천일시']||'';

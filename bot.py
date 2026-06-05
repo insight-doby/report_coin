@@ -223,66 +223,77 @@ def calc_kimchi_premium(ticker: str, krw_price: float, usd_krw_rate: float = 138
 def fetch_rising_star_bithumb_krw_coins():
     print("🔍 빗썸 전체 시세 수집 중 (TOP30 메이저 알트 + TOP31~80 수급급증 필터)...")
     url = "https://api.bithumb.com/public/ticker/ALL_KRW"
-    try:
-        r = requests.get(url, timeout=10)
-        if r.status_code == 200:
+
+    for attempt in range(3):
+        try:
+            if attempt > 0:
+                print(f"  🔄 [재시도 {attempt}/2] {10*attempt}초 대기 후 재시도...")
+                time.sleep(10 * attempt)
+            r = requests.get(url, timeout=15)
+            if r.status_code != 200:
+                print(f"  ⚠️ HTTP {r.status_code} — {r.text[:100]}")
+                continue
             res = r.json()
-            if res.get("status") == "0000":
-                coins_data = {}
-                for ticker, info in res["data"].items():
-                    if ticker == "date" or not isinstance(info, dict):
-                        continue
-                    try:
-                        coins_data[ticker] = {
-                            "price":  int(float(info["closing_price"])),
-                            "change": float(info["fluctate_rate_24H"]),
-                            "volume": float(info["acc_trade_value_24H"]),
-                        }
-                    except (ValueError, KeyError):
-                        continue
+            if res.get("status") != "0000":
+                print(f"  ⚠️ 빗썸 API 상태 오류: status={res.get('status')} msg={res.get('message','')}")
+                continue
 
-                sorted_all = sorted(coins_data.items(), key=lambda x: x[1]["volume"], reverse=True)
+            coins_data = {}
+            for ticker, info in res["data"].items():
+                if ticker == "date" or not isinstance(info, dict):
+                    continue
+                try:
+                    coins_data[ticker] = {
+                        "price":  int(float(info["closing_price"])),
+                        "change": float(info["fluctate_rate_24H"]),
+                        "volume": float(info["acc_trade_value_24H"]),
+                    }
+                except (ValueError, KeyError):
+                    continue
 
-                if len(sorted_all) < CUTOFF_RANK + 1:
-                    print(f"  ⚠️ 데이터 부족: {len(sorted_all)}개 (최소 {CUTOFF_RANK+1}개 필요)")
-                    return [], [], 0, {}
+            sorted_all = sorted(coins_data.items(), key=lambda x: x[1]["volume"], reverse=True)
 
-                top_30_cutoff = sorted_all[CUTOFF_RANK - 1][1]["volume"]
+            if len(sorted_all) < CUTOFF_RANK + 1:
+                print(f"  ⚠️ 데이터 부족: {len(sorted_all)}개 (최소 {CUTOFF_RANK+1}개 필요)")
+                return [], [], 0, {}
 
-                # ── TOP30 메이저 알트 추출 (스테이블·BTC 제외) ──
-                major_alt_pool = [
-                    (t, v) for t, v in sorted_all[:CUTOFF_RANK]
-                    if t not in STABLE_EXCLUDE and t != "BTC"
-                ]
-                top30_targets = major_alt_pool[:TOP30_MAJOR_N]
-                top30_names = ", ".join(f"{t}({i+1}위)" for i, (t, _) in enumerate(top30_targets[:3]))
-                print(f"  📌 TOP30 메이저 알트 {len(top30_targets)}종: {top30_names} ...")
+            top_30_cutoff = sorted_all[CUTOFF_RANK - 1][1]["volume"]
 
-                # ── 31~80위 수급 급증 후보 추출 ──
-                candidates = sorted_all[CUTOFF_RANK:min(SCAN_TOP_N, len(sorted_all))]
-                if not candidates:
-                    print("  ⚠️ 후보 코인 없음")
-                    return [], [], 0, {}
+            major_alt_pool = [
+                (t, v) for t, v in sorted_all[:CUTOFF_RANK]
+                if t not in STABLE_EXCLUDE and t != "BTC"
+            ]
+            top30_targets = major_alt_pool[:TOP30_MAJOR_N]
+            top30_names = ", ".join(f"{t}({i+1}위)" for i, (t, _) in enumerate(top30_targets[:3]))
+            print(f"  📌 TOP30 메이저 알트 {len(top30_targets)}종: {top30_names} ...")
 
-                vols      = [v["volume"] for _, v in candidates]
-                vol_min, vol_max = min(vols), max(vols)
-                vol_range = vol_max - vol_min if vol_max > vol_min else 1
+            candidates = sorted_all[CUTOFF_RANK:min(SCAN_TOP_N, len(sorted_all))]
+            if not candidates:
+                print("  ⚠️ 후보 코인 없음")
+                return [], [], 0, {}
 
-                scored = []
-                for ticker, info in candidates:
-                    vs = (info["volume"] - vol_min) / vol_range
-                    cs = abs(info["change"]) / 100
-                    scored.append((ticker, info, vs * 0.6 + cs * 0.4))
-                scored.sort(key=lambda x: x[2], reverse=True)
+            vols      = [v["volume"] for _, v in candidates]
+            vol_min, vol_max = min(vols), max(vols)
+            vol_range = vol_max - vol_min if vol_max > vol_min else 1
 
-                target = [(t, v) for t, v, _ in scored[:TOP_N_FOR_INDICATORS]]
-                rank_map = {t: i + CUTOFF_RANK + 1 for i, (t, _) in enumerate(candidates)}
-                top5 = ", ".join(f"{t}({rank_map.get(t,'?')}위)" for t, _ in target[:5])
-                print(f"✅ 수급급증 후보 {len(candidates)}개 → 선별 {len(target)}개 | 컷오프: {top_30_cutoff:,.0f}원\n"
-                      f"   상위 5: {top5} ...")
-                return target, top30_targets, top_30_cutoff, coins_data
-    except Exception as e:
-        print(f"❌ 빗썸 API 오류: {e}")
+            scored = []
+            for ticker, info in candidates:
+                vs = (info["volume"] - vol_min) / vol_range
+                cs = abs(info["change"]) / 100
+                scored.append((ticker, info, vs * 0.6 + cs * 0.4))
+            scored.sort(key=lambda x: x[2], reverse=True)
+
+            target = [(t, v) for t, v, _ in scored[:TOP_N_FOR_INDICATORS]]
+            rank_map = {t: i + CUTOFF_RANK + 1 for i, (t, _) in enumerate(candidates)}
+            top5 = ", ".join(f"{t}({rank_map.get(t,'?')}위)" for t, _ in target[:5])
+            print(f"✅ 수급급증 후보 {len(candidates)}개 → 선별 {len(target)}개 | 컷오프: {top_30_cutoff:,.0f}원\n"
+                  f"   상위 5: {top5} ...")
+            return target, top30_targets, top_30_cutoff, coins_data
+
+        except Exception as e:
+            print(f"  ❌ [시도 {attempt+1}] 빗썸 API 오류: {e}")
+
+    print("❌ 빗썸 데이터 수집 3회 모두 실패 — 봇 종료")
     return [], [], 0, {}
 
 
