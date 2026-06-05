@@ -94,6 +94,15 @@ button{cursor:pointer;font-family:inherit;}
 .btn-start.loading{background:var(--txt3);cursor:not-allowed;opacity:1;}
 .btn-start.done{background:var(--pos);}
 
+/* ── 낚시 로딩 오버레이 ── */
+.fishing-overlay{position:fixed;inset:0;z-index:9999;
+  background:rgba(0,0,0,0.75);display:none;
+  flex-direction:column;align-items:center;justify-content:center;gap:8px;}
+.fishing-overlay.show{display:flex;}
+.fishing-overlay svg{max-width:480px;width:90%;}
+.fishing-elapsed{font-size:12px;color:rgba(255,255,255,0.5);
+  font-family:'JetBrains Mono',monospace;letter-spacing:0.04em;}
+
 /* ── Tabs ── */
 .tabs{display:flex;border-bottom:1px solid var(--border);margin-bottom:28px;gap:0;overflow-x:auto;-webkit-overflow-scrolling:touch;}
 .tab{padding:10px 18px;font-size:13px;font-weight:500;color:var(--txt3);
@@ -125,11 +134,18 @@ button{cursor:pointer;font-family:inherit;}
 
 /* ── Narrative Section ── */
 .narr-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
-  padding:18px 20px;margin-bottom:18px;box-shadow:var(--shadow);}
-.narr-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;}
-.narr-title{font-size:13px;font-weight:700;display:flex;align-items:center;gap:6px;}
+  padding:16px 20px;margin-bottom:18px;box-shadow:var(--shadow);}
+.narr-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;cursor:pointer;}
+.narr-header:hover .narr-title{color:var(--accent);}
+.narr-title{font-size:13px;font-weight:700;display:flex;align-items:center;gap:6px;transition:color .15s;}
+.narr-title-left{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
 .narr-theme{font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;
   background:var(--warnm);color:var(--warn);letter-spacing:0.02em;}
+.narr-toggle{font-size:11px;color:var(--txt3);display:flex;align-items:center;gap:4px;}
+.narr-summary-line{font-size:12px;color:var(--txt2);margin-top:8px;line-height:1.6;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+.narr-detail{display:none;margin-top:14px;padding-top:14px;border-top:1px solid var(--border);}
+.narr-detail.open{display:block;}
 .narr-sentiment{font-size:13px;color:var(--txt2);line-height:1.7;margin-bottom:14px;
   padding:10px 14px;background:var(--surface2);border-radius:var(--r2);}
 .narr-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px;}
@@ -144,6 +160,8 @@ button{cursor:pointer;font-family:inherit;}
 .sector-chip.cold{background:var(--negm);color:var(--neg);}
 .narr-risk{font-size:12px;color:var(--warn);background:var(--warnm);
   border-radius:var(--r2);padding:8px 12px;display:flex;align-items:flex-start;gap:6px;}
+.narr-source{font-size:11px;color:var(--txt3);margin-top:10px;padding-top:10px;
+  border-top:1px solid var(--border);display:flex;align-items:center;gap:4px;}
 
 /* ── Coin Narrative in detail panel ── */
 .coin-narr-box{background:var(--accentm);border:1px solid rgba(59,130,246,0.2);
@@ -481,6 +499,95 @@ button{cursor:pointer;font-family:inherit;}
 </head>
 
 <body data-theme="dark">
+
+<!-- 낚시 로딩 오버레이 -->
+<div class="fishing-overlay" id="fishing-overlay">
+<svg width="100%" viewBox="0 0 680 320" role="img" xmlns="http://www.w3.org/2000/svg">
+<style>
+.water{fill:#1a6fa8;opacity:0.18;}
+.water2{fill:#1a6fa8;opacity:0.10;}
+.rod{stroke:#8B6914;stroke-width:3;fill:none;stroke-linecap:round;}
+.fline{stroke:#ccc;stroke-width:1.5;fill:none;}
+.fisher-body{fill:#3C3489;}
+.fisher-head{fill:#F0997B;}
+.fbubble{fill:none;stroke:#378ADD;stroke-width:1.2;opacity:0.5;}
+.ffish{fill:#1D9E75;}
+.ffish2{fill:#D4537E;}
+.flabel{font-family:sans-serif;font-size:15px;fill:#ccc;}
+.flabel-bold{font-family:sans-serif;font-size:18px;font-weight:500;fill:#fff;}
+.fdots{font-family:sans-serif;font-size:18px;font-weight:500;fill:#378ADD;}
+@keyframes fbobLine{0%,100%{transform:translateY(0px);}50%{transform:translateY(7px);}}
+@keyframes fcoinRise{0%{transform:translateY(55px);opacity:0;}25%{opacity:1;}100%{transform:translateY(-8px);opacity:1;}}
+@keyframes fcoinTilt{0%,100%{transform:scaleX(1);}40%,50%{transform:scaleX(0.15);}}
+@keyframes fbubbleUp{0%{transform:translateY(0) scale(1);opacity:0.5;}100%{transform:translateY(-38px) scale(1.4);opacity:0;}}
+@keyframes ffishSwim{0%{transform:translateX(0px);}50%{transform:translateX(28px);}100%{transform:translateX(0px);}}
+@keyframes ffishSwim2{0%{transform:translateX(0px);}50%{transform:translateX(-22px);}100%{transform:translateX(0px);}}
+@keyframes fdotPulse{0%,80%,100%{opacity:0.2;}40%{opacity:1;}}
+@keyframes fripple{0%{r:5;opacity:0.6;}100%{r:24;opacity:0;}}
+@keyframes farmSwing{0%,100%{transform:rotate(0deg);}50%{transform:rotate(5deg);}}
+@keyframes fshine{0%,100%{opacity:0.6;}50%{opacity:1;}}
+.fbob-group{animation:fbobLine 2s ease-in-out infinite;transform-origin:420px 120px;}
+.fcoin-group{animation:fcoinRise 3s ease-out infinite;transform-origin:420px 210px;}
+.fcoin-face{animation:fcoinTilt 3s ease-in-out infinite;transform-origin:420px 210px;}
+.fbubble1{animation:fbubbleUp 2.2s ease-out infinite 0.3s;transform-origin:402px 222px;}
+.fbubble2{animation:fbubbleUp 2.2s ease-out infinite 1.1s;transform-origin:436px 232px;}
+.fbubble3{animation:fbubbleUp 2.2s ease-out infinite 1.8s;transform-origin:416px 242px;}
+.ffish-g1{animation:ffishSwim 4s ease-in-out infinite;transform-origin:200px 250px;}
+.ffish-g2{animation:ffishSwim2 5s ease-in-out infinite 1s;transform-origin:550px 260px;}
+.farm-g{animation:farmSwing 2s ease-in-out infinite;transform-origin:315px 155px;}
+.fripple1{animation:fripple 2s ease-out infinite;}
+.fripple2{animation:fripple 2s ease-out infinite 1s;}
+.fdot1{animation:fdotPulse 1.4s ease-in-out infinite 0s;}
+.fdot2{animation:fdotPulse 1.4s ease-in-out infinite 0.2s;}
+.fdot3{animation:fdotPulse 1.4s ease-in-out infinite 0.4s;}
+.fshine{animation:fshine 1.5s ease-in-out infinite;}
+</style>
+<rect x="0" y="195" width="680" height="125" class="water"/>
+<rect x="0" y="210" width="680" height="110" class="water2"/>
+<path d="M0 200 Q85 193 170 200 Q255 207 340 200 Q425 193 510 200 Q595 207 680 200" stroke="#378ADD" stroke-width="1.2" fill="none" opacity="0.3"/>
+<g class="ffish-g1"><ellipse cx="200" cy="250" rx="22" ry="10" class="ffish"/><polygon points="222,250 235,243 235,257" class="ffish"/><circle cx="193" cy="248" r="2.5" fill="#085041"/></g>
+<g class="ffish-g2"><ellipse cx="550" cy="260" rx="18" ry="8" class="ffish2"/><polygon points="532,260 520,254 520,266" class="ffish2"/><circle cx="557" cy="258" r="2" fill="#4B1528"/></g>
+<rect x="295" y="150" width="40" height="50" rx="6" class="fisher-body"/>
+<circle cx="315" cy="140" r="18" class="fisher-head"/>
+<rect x="298" y="124" width="34" height="8" rx="4" fill="#3C3489"/>
+<rect x="303" y="118" width="24" height="10" rx="3" fill="#534AB7"/>
+<rect x="300" y="196" width="12" height="20" rx="4" fill="#26215C"/>
+<rect x="318" y="196" width="12" height="20" rx="4" fill="#26215C"/>
+<g class="farm-g">
+  <rect x="330" y="158" width="10" height="35" rx="4" fill="#3C3489" transform="rotate(-30,335,165)"/>
+  <line x1="340" y1="148" x2="430" y2="100" class="rod" stroke-width="3.5"/>
+  <line x1="428" y1="102" x2="440" y2="90" class="rod" stroke-width="2"/>
+</g>
+<g class="fbob-group">
+  <line x1="440" y1="90" x2="420" y2="195" class="fline"/>
+  <ellipse cx="420" cy="198" rx="5" ry="10" fill="#E24B4A" opacity="0.9"/>
+  <ellipse cx="420" cy="193" rx="4" ry="4" fill="#FAC775" opacity="0.9"/>
+</g>
+<circle cx="420" cy="200" r="5" fill="none" stroke="#378ADD" stroke-width="1" class="fripple1" opacity="0.6"/>
+<circle cx="420" cy="200" r="5" fill="none" stroke="#378ADD" stroke-width="1" class="fripple2" opacity="0.4"/>
+<circle cx="402" cy="222" r="4" class="fbubble fbubble1"/>
+<circle cx="436" cy="232" r="3" class="fbubble fbubble2"/>
+<circle cx="416" cy="242" r="2.5" class="fbubble fbubble3"/>
+<g class="fcoin-group">
+  <ellipse cx="420" cy="218" rx="20" ry="6" fill="#BA7517"/>
+  <ellipse cx="420" cy="210" rx="20" ry="20" fill="#EF9F27"/>
+  <ellipse cx="420" cy="210" rx="20" ry="20" fill="none" stroke="#BA7517" stroke-width="2.5"/>
+  <ellipse cx="420" cy="210" rx="15" ry="15" fill="none" stroke="#BA7517" stroke-width="1.2"/>
+  <g class="fcoin-face">
+    <ellipse cx="414" cy="204" rx="6" ry="4" fill="#FAC775" opacity="0.7" class="fshine"/>
+    <text x="420" y="215" text-anchor="middle" font-family="Georgia,serif" font-size="16" font-weight="bold" fill="#7A4A00">₿</text>
+  </g>
+  <ellipse cx="420" cy="230" rx="16" ry="4" fill="#BA7517" opacity="0.25"/>
+</g>
+<text x="340" y="290" text-anchor="middle" class="flabel-bold">코인 분석 중</text>
+<text x="390" y="290" class="fdots fdot1">.</text>
+<text x="403" y="290" class="fdots fdot2">.</text>
+<text x="416" y="290" class="fdots fdot3">.</text>
+<text x="340" y="312" text-anchor="middle" class="flabel">Gemini AI가 시장을 낚시하고 있어요</text>
+</svg>
+<div class="fishing-elapsed" id="fishing-elapsed">00:00 경과</div>
+</div>
+
 <div class="wrap">
 
 <!-- ── Header ── -->
@@ -557,7 +664,7 @@ button{cursor:pointer;font-family:inherit;}
     <div class="empty" style="grid-column:1/-1;">
       <div class="empty-icon"></div>
       <h3>리포트 준비 중</h3>
-      <p>매일 오전 10시 KST에 봇이 자동으로 업데이트합니다.</p>
+      <p>매일 오전 10시 KST 자동 실행 — 또는 우측 상단 <strong>분석 시작</strong> 버튼으로 즉시 실행</p>
     </div>
   </div>
 
@@ -951,13 +1058,26 @@ function autoLoadData(){
 /* 분석 시작 버튼 클릭 — 봇 실행 + 데이터 로드 */
 function loadData(){
   var btn = document.getElementById('btn-analyze');
-  if(btn){
-    btn.textContent = '봇 실행 중...';
-    btn.classList.add('loading');
-    btn.disabled = true;
+  var overlay = document.getElementById('fishing-overlay');
+  var elapsed = document.getElementById('fishing-elapsed');
+
+  if(btn){ btn.textContent='봇 실행 중...'; btn.classList.add('loading'); btn.disabled=true; }
+
+  /* 낚시 오버레이 표시 + 경과 시간 카운터 */
+  if(overlay){ overlay.classList.add('show'); }
+  var startTime = Date.now();
+  var timer = setInterval(function(){
+    var sec = Math.floor((Date.now()-startTime)/1000);
+    var mm = String(Math.floor(sec/60)).padStart(2,'0');
+    var ss = String(sec%60).padStart(2,'0');
+    if(elapsed) elapsed.textContent = mm+':'+ss+' 경과';
+  }, 1000);
+
+  function hideOverlay(){
+    clearInterval(timer);
+    if(overlay) overlay.classList.remove('show');
   }
 
-  // Cloudflare Worker로 봇 실행
   fetch('https://frosty-mountain-5de4.duseoska.workers.dev/', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' }
@@ -965,25 +1085,27 @@ function loadData(){
   .then(function(r){ return r.json(); })
   .then(function(res){
     if(res.ok){
-      if(btn){ btn.textContent = '봇 실행됨 — 약 3분 후 완료'; }
-      // 3분 후 최신 데이터 자동 로드
+      if(btn){ btn.textContent='봇 실행됨 — 약 3분 후 완료'; }
       setTimeout(function(){
+        hideOverlay();
         autoLoadData();
         if(btn){
-          btn.textContent = '완료';
+          btn.textContent='완료';
           btn.classList.remove('loading');
           btn.classList.add('done');
-          btn.disabled = false;
+          btn.disabled=false;
           setTimeout(function(){ btn.textContent='분석 시작'; btn.classList.remove('done'); }, 2000);
         }
       }, 180000);
     } else {
-      alert('봇 실행 실패: ' + (res.error||'알 수 없는 오류'));
+      hideOverlay();
+      alert('봇 실행 실패: '+(res.error||'알 수 없는 오류'));
       if(btn){ btn.textContent='분석 시작'; btn.classList.remove('loading'); btn.disabled=false; }
     }
   })
   .catch(function(e){
-    alert('Worker 연결 실패: ' + e.message);
+    hideOverlay();
+    alert('Worker 연결 실패: '+e.message);
     if(btn){ btn.textContent='분석 시작'; btn.classList.remove('loading'); btn.disabled=false; }
   });
 }
@@ -1005,9 +1127,10 @@ function renderNarrative(){
   if(!wrap) return;
   if(!G.narrative || !G.narrative.length){ wrap.style.display='none'; return; }
 
-  var latest = G.narrative[G.narrative.length-1];
-  var mn  = latest.market_narrative || {};
-  var cn  = latest.coin_narratives  || {};
+  var latest   = G.narrative[G.narrative.length-1];
+  var mn       = latest.market_narrative || {};
+  var cn       = latest.coin_narratives  || {};
+  var pubTime  = latest.발행일시 || '';
 
   var sentiment = mn.overall_sentiment || '';
   var keyRisk   = mn.key_risk || '';
@@ -1016,7 +1139,6 @@ function renderNarrative(){
   var macro     = mn.macro || {};
   var btc       = mn.btc   || {};
   var reg       = mn.regulation || {};
-  var kimp      = mn.kimchi_premium || {};
 
   /* 섹터 칩 */
   var hotChips  = (sectors.hot||[]).slice(0,4).map(function(s){
@@ -1034,10 +1156,10 @@ function renderNarrative(){
   ].filter(Boolean).join('<br>') || '—';
 
   var btcVal = [
-    btc.etf_flow    ? 'ETF: '+btc.etf_flow       : '',
-    btc.whale       ? '고래: '+btc.whale          : '',
-    btc.liquidation ? '청산: '+btc.liquidation    : '',
-    btc.institution ? '기관: '+btc.institution    : '',
+    btc.etf_flow    ? 'ETF: '+btc.etf_flow    : '',
+    btc.whale       ? '고래: '+btc.whale       : '',
+    btc.liquidation ? '청산: '+btc.liquidation : '',
+    btc.institution ? '기관: '+btc.institution : '',
   ].filter(Boolean).join('<br>') || '—';
 
   var regVal = [
@@ -1046,27 +1168,46 @@ function renderNarrative(){
     reg.global      ? '글로벌: '+reg.global        : '',
   ].filter(Boolean).join('<br>') || '—';
 
+  /* 요약 첫 줄 (2줄 클램프) */
+  var summaryShort = sentiment ? sentiment.split('.')[0]+'.' : '';
+
   var html =
-    '<div class="narr-header">'+
-      '<div class="narr-title">📰 오늘의 시장 내러티브</div>'+
-      (dominant ? '<span class="narr-theme">'+esc(dominant)+'</span>' : '')+
+    /* 헤더 — 클릭으로 토글 */
+    '<div class="narr-header" onclick="toggleNarrative()" id="narr-hdr">'+
+      '<div class="narr-title-left">'+
+        '<span class="narr-title">📰 오늘의 시장 내러티브</span>'+
+        (dominant ? '<span class="narr-theme">'+esc(dominant)+'</span>' : '')+
+      '</div>'+
+      '<span class="narr-toggle" id="narr-toggle-btn">상세보기 ▼</span>'+
     '</div>'+
-    (sentiment ? '<div class="narr-sentiment">'+esc(sentiment)+'</div>' : '')+
-    '<div class="narr-grid">'+
-      '<div class="narr-box"><div class="narr-box-lbl">거시경제</div><div class="narr-box-val">'+macroVal+'</div></div>'+
-      '<div class="narr-box"><div class="narr-box-lbl">BTC 특이사항</div><div class="narr-box-val">'+btcVal+'</div></div>'+
-      '<div class="narr-box"><div class="narr-box-lbl">규제/정책</div><div class="narr-box-val">'+regVal+'</div></div>'+
-    '</div>'+
-    ((hotChips||coldChips) ?
-      '<div class="narr-sector-row">'+hotChips+coldChips+'</div>' : '')+
-    (keyRisk ?
-      '<div class="narr-risk">⚠️ <span><strong>핵심 리스크:</strong> '+esc(keyRisk)+'</span></div>' : '');
+    /* 요약 한 줄 (항상 보임) */
+    (summaryShort ? '<div class="narr-summary-line">'+esc(summaryShort)+'</div>' : '')+
+    /* 상세 (접힘) */
+    '<div class="narr-detail" id="narr-detail">'+
+      (sentiment ? '<div class="narr-sentiment">'+esc(sentiment)+'</div>' : '')+
+      '<div class="narr-grid">'+
+        '<div class="narr-box"><div class="narr-box-lbl">거시경제</div><div class="narr-box-val">'+macroVal+'</div></div>'+
+        '<div class="narr-box"><div class="narr-box-lbl">BTC 특이사항</div><div class="narr-box-val">'+btcVal+'</div></div>'+
+        '<div class="narr-box"><div class="narr-box-lbl">규제/정책</div><div class="narr-box-val">'+regVal+'</div></div>'+
+      '</div>'+
+      ((hotChips||coldChips) ? '<div class="narr-sector-row">'+hotChips+coldChips+'</div>' : '')+
+      (keyRisk ? '<div class="narr-risk">⚠️ <span><strong>핵심 리스크:</strong> '+esc(keyRisk)+'</span></div>' : '')+
+      '<div class="narr-source">📡 출처: Coinness + Google Search (Gemini AI 분석)'+
+        (pubTime ? ' &nbsp;|&nbsp; '+esc(pubTime) : '')+
+      '</div>'+
+    '</div>';
 
   wrap.innerHTML = html;
   wrap.style.display = 'block';
-
-  /* coin_narratives를 G에 저장해두고 카드 렌더 시 참조 */
   G.coinNarratives = cn;
+}
+
+function toggleNarrative(){
+  var detail = document.getElementById('narr-detail');
+  var btn    = document.getElementById('narr-toggle-btn');
+  if(!detail) return;
+  var isOpen = detail.classList.toggle('open');
+  if(btn) btn.textContent = isOpen ? '접기 ▲' : '상세보기 ▼';
 }
 
 /* 개별 코인 내러티브 HTML 생성 */
@@ -1102,11 +1243,15 @@ function renderTab1(){
   document.getElementById('hdr-time').textContent = latest + ' KST';
 
   /* Summary 업데이트 */
-  var mood = today[0]['시장온도']||'—';
-  var maj  = today[0]['메이저비중']||'—';
-  var alt  = today[0]['알트비중']||'—';
+  var mood    = today[0]['시장온도']||'—';
+  var maj     = today[0]['메이저비중']||'—';
+  var alt     = today[0]['알트비중']||'—';
+  var supply  = today[0]['수급성격']||'—';
+  var totvol  = today[0]['총거래대금']||'';
   document.getElementById('s-mood').innerHTML = '<span class="live"></span><span style="font-size:14px;">'+mood+'</span>';
   document.getElementById('s-ratio').innerHTML = '<span class="mono" style="font-size:16px;">'+maj+'%</span><span style="color:var(--txt3);margin:0 4px;">/</span><span class="mono" style="font-size:16px;">'+alt+'%</span>';
+  document.getElementById('s-supply').innerHTML = '<span style="font-size:14px;">'+esc(supply)+'</span>';
+  if(totvol) document.getElementById('s-vol').innerHTML = '<span class="mono" style="font-size:16px;">'+esc(totvol)+'</span>';
 
   /* 전략 박스 */
   var pct = parseFloat(mood)||0;
