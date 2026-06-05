@@ -665,6 +665,10 @@ def fetch_coin_narratives(target_coins: list, top30_coins: list) -> dict:
                 f, l = cleaned.find("{"), cleaned.rfind("}")
                 if f != -1 and l != -1:
                     parsed = json.loads(cleaned[f:l+1])
+                    # 티커 키 대문자 정규화
+                    cn = parsed.get("coin_narratives", {})
+                    if cn:
+                        parsed["coin_narratives"] = {k.upper(): v for k, v in cn.items()}
                     print("  ✅ 개별 코인 촉매 분석 완료")
                     return parsed
             else:
@@ -684,10 +688,11 @@ def save_narrative_to_github(narrative: dict, coin_narratives: dict, publish_tim
         existing, sha = _gh_read("data/narrative.json")
         if not isinstance(existing, list):
             existing = []
+        raw_cn = coin_narratives.get("coin_narratives", {}) if coin_narratives else {}
         existing.append({
             "발행일시": publish_time,
             "market_narrative": narrative,
-            "coin_narratives": coin_narratives.get("coin_narratives", {}),
+            "coin_narratives": {k.upper(): v for k, v in raw_cn.items()},
         })
         # 최근 30개만 유지
         if len(existing) > 30:
