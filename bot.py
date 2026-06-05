@@ -1074,6 +1074,8 @@ def record_picks_to_github(picks: list, market_activity: dict, publish_time: str
                 "시장온도":    market_activity.get("level_label", ""),
                 "메이저비중":  market_activity.get("major_ratio", ""),
                 "알트비중":    market_activity.get("alt_ratio", ""),
+                "수급성격":    market_activity.get("supply_character", ""),
+                "총거래대금":  f"{market_activity.get('total_volume', 0)/1e12:.2f}조원",
                 "김프":        p.get("kimp", ""),
                 "BTC동조화":   p.get("btc_sync", ""),
                 "방어력":      p.get("defense", ""),
