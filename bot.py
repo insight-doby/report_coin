@@ -507,7 +507,199 @@ def format_indicators_for_prompt(indicators: dict, target_coins: list) -> str:
 
 
 # ==========================================
-# 4. Gemini AI 분석
+# 4-A. 1호출 — 거시/코인니스 시장 내러티브
+# ==========================================
+def fetch_market_narrative() -> dict:
+    print("📰 [1호출] 시장 내러티브 수집 중 (Gemini + 구글서치)...")
+    clean_key = GEMINI_API_KEY.strip()
+    if not clean_key:
+        return {}
+
+    today_str = datetime.now(KST).strftime("%Y년 %m월 %d일")
+
+    prompt = f"""
+오늘({today_str}) 암호화폐 시장의 주요 뉴스와 내러티브를 구글서치로 찾아서 아래 JSON 형식으로 정리해라.
+코인니스(coinness.com) 기사를 우선으로 참고해라.
+반드시 오늘 또는 최근 24시간 이내 뉴스만 사용해라.
+
+검색할 항목:
+1. 거시경제: 미국 금리/연준 발언, 나스닥/S&P500 흐름, 달러인덱스(DXY)
+2. BTC 특이사항: 고래 움직임, 비트코인 현물 ETF 자금 유출입, 온체인 청산 데이터, MSTR 등 기관 동향
+3. 개별 코인 촉매: 오늘 급등/급락한 코인들의 구체적 이유 (프로토콜 업데이트, 파트너십, 언락 등)
+4. 섹터 흐름: 오늘 강한 섹터와 약한 섹터 (AI/DeFi/L2/RWA/GameFi 등)
+5. 김치프리미엄: 국내 수급 특이사항, 빗썸/업비트 거래량 이슈
+6. 규제/정책: SEC/CFTC 동향, 미국 크립토 클래리티 법안, 각국 규제 이슈
+
+출력은 순수 JSON만 반환해라:
+{{
+  "macro": {{
+    "fed": "연준/금리 관련 내용 (없으면 null)",
+    "nasdaq": "나스닥/S&P 흐름 (없으면 null)",
+    "dxy": "달러인덱스 동향 (없으면 null)",
+    "summary": "거시경제 한 줄 요약"
+  }},
+  "btc": {{
+    "whale": "고래 움직임 (없으면 null)",
+    "etf_flow": "ETF 자금 유출입 (없으면 null)",
+    "liquidation": "청산 데이터 (없으면 null)",
+    "institution": "기관 동향 (없으면 null)",
+    "summary": "BTC 특이사항 한 줄 요약"
+  }},
+  "coin_catalysts": [
+    {{"ticker": "티커", "direction": "상승 또는 하락", "reason": "구체적 이유", "source": "출처"}}
+  ],
+  "sectors": {{
+    "hot": [{{"name": "섹터명", "reason": "강한 이유"}}],
+    "cold": [{{"name": "섹터명", "reason": "약한 이유"}}],
+    "dominant_theme": "오늘 시장을 이끄는 핵심 테마 (없으면 '개별 종목장')"
+  }},
+  "kimchi_premium": {{
+    "status": "국내 수급 상태",
+    "notable": "특이사항 (없으면 null)"
+  }},
+  "regulation": {{
+    "us": "미국 규제 동향 (없으면 null)",
+    "clarity_act": "클래리티 법안 진행 상황 (없으면 null)",
+    "global": "기타 국가 규제 (없으면 null)"
+  }},
+  "overall_sentiment": "전체 시장 분위기 2~3줄 요약",
+  "key_risk": "오늘 가장 큰 리스크 요인"
+}}
+"""
+
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "tools": [{"google_search": {}}],
+        "generationConfig": {"temperature": 0.1},
+    }
+    url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
+           f"gemini-2.5-flash:generateContent?key={clean_key}")
+
+    for idx in range(3):
+        try:
+            print(f"  🔄 [시도 {idx+1}/3] 내러티브 수집 중...")
+            resp = requests.post(url, json=payload, timeout=120)
+            if resp.status_code == 200:
+                parts = resp.json()["candidates"][0]["content"]["parts"]
+                text  = next((p["text"] for p in parts if "text" in p), None)
+                if not text:
+                    continue
+                cleaned = re.sub(r"```json|```", "", text).strip()
+                f, l = cleaned.find("{"), cleaned.rfind("}")
+                if f != -1 and l != -1:
+                    parsed = json.loads(cleaned[f:l+1])
+                    print("  ✅ 시장 내러티브 수집 완료")
+                    return parsed
+            else:
+                print(f"  ⚠️ HTTP {resp.status_code}")
+        except Exception as e:
+            print(f"  ⚠️ [시도 {idx+1}] 에러: {e}")
+        time.sleep(3)
+    return {}
+
+
+# ==========================================
+# 4-B. 2호출 — 개별 코인 촉매 분석
+# ==========================================
+def fetch_coin_narratives(target_coins: list, top30_coins: list) -> dict:
+    print("🔍 [2호출] 개별 코인 촉매 분석 중 (Gemini + 구글서치)...")
+    clean_key = GEMINI_API_KEY.strip()
+    if not clean_key:
+        return {}
+
+    today_str = datetime.now(KST).strftime("%Y년 %m월 %d일")
+
+    # 분석 대상 코인 목록 (상위 15개만 — 토큰 절약)
+    all_coins = top30_coins[:5] + target_coins[:10]
+    coin_list = "\n".join(
+        f"- {t}: {v['price']:,}원 / 변동 {v['change']:+.1f}% / 거래대금 {v['volume']/1e8:.0f}억"
+        for t, v in all_coins
+    )
+
+    prompt = f"""
+오늘({today_str}) 아래 코인들의 개별 촉매와 내러티브를 구글서치로 찾아서 분석해라.
+코인니스(coinness.com) 기사를 우선으로 참고해라.
+최근 7일 이내 뉴스만 사용해라.
+
+[분석 대상 코인]
+{coin_list}
+
+각 코인에 대해 아래를 찾아라:
+1. 오늘 움직임의 구체적 촉매 (이벤트/뉴스/업데이트)
+2. 현재 내러티브가 초입인지 중반인지 과열인지
+3. 언락 일정 (있으면)
+4. 진입 시 주의사항
+
+출력은 순수 JSON만 반환해라:
+{{
+  "coin_narratives": {{
+    "티커": {{
+      "catalyst": "구체적 촉매 (없으면 null)",
+      "narrative_phase": "초입 또는 중반 또는 과열 또는 해당없음",
+      "unlock_schedule": "언락 일정 (없으면 null)",
+      "caution": "주의사항 (없으면 null)",
+      "summary": "한 줄 요약"
+    }}
+  }}
+}}
+"""
+
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "tools": [{"google_search": {}}],
+        "generationConfig": {"temperature": 0.1},
+    }
+    url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
+           f"gemini-2.5-flash:generateContent?key={clean_key}")
+
+    for idx in range(3):
+        try:
+            print(f"  🔄 [시도 {idx+1}/3] 코인 촉매 분석 중...")
+            resp = requests.post(url, json=payload, timeout=120)
+            if resp.status_code == 200:
+                parts = resp.json()["candidates"][0]["content"]["parts"]
+                text  = next((p["text"] for p in parts if "text" in p), None)
+                if not text:
+                    continue
+                cleaned = re.sub(r"```json|```", "", text).strip()
+                f, l = cleaned.find("{"), cleaned.rfind("}")
+                if f != -1 and l != -1:
+                    parsed = json.loads(cleaned[f:l+1])
+                    print("  ✅ 개별 코인 촉매 분석 완료")
+                    return parsed
+            else:
+                print(f"  ⚠️ HTTP {resp.status_code}")
+        except Exception as e:
+            print(f"  ⚠️ [시도 {idx+1}] 에러: {e}")
+        time.sleep(3)
+    return {}
+
+
+# ==========================================
+# 4-C. narrative.json GitHub 저장
+# ==========================================
+def save_narrative_to_github(narrative: dict, coin_narratives: dict, publish_time: str):
+    print("💾 내러티브 데이터 저장 중 (GitHub)...")
+    try:
+        existing, sha = _gh_read("data/narrative.json")
+        if not isinstance(existing, list):
+            existing = []
+        existing.append({
+            "발행일시": publish_time,
+            "market_narrative": narrative,
+            "coin_narratives": coin_narratives.get("coin_narratives", {}),
+        })
+        # 최근 30개만 유지
+        if len(existing) > 30:
+            existing = existing[-30:]
+        ok = _gh_write("data/narrative.json", existing, sha, f"내러티브: {publish_time}")
+        print(f"  {'✅' if ok else '❌'} narrative.json 저장")
+    except Exception as e:
+        print(f"  ❌ 내러티브 저장 실패: {e}")
+
+
+# ==========================================
+# 4. Gemini AI 분석 (3호출 — 종목 선별)
 # ==========================================
 def generate_market_insights_via_gemini(
     target_coins: list,
@@ -517,6 +709,8 @@ def generate_market_insights_via_gemini(
     market_activity: dict,
     strengthened_rules: str = "",
     performance_summary: str = "",
+    market_narrative: dict = None,
+    coin_narratives: dict = None,
 ) -> Optional[dict]:
     print("🤖 Gemini AI 분석 중 (TOP30 2종 + 급등후보 4종 = 총 6종목)...")
 
@@ -654,7 +848,8 @@ def generate_market_insights_via_gemini(
         '      "what_if_btc_drop": "BTC 급락 시 대응",\n'
         '      "score": "⭐⭐⭐⭐☆",\n'
         '      "related_coins": ["티커"],\n'
-        '      "source": "출처"\n'
+        '      "source": "출처",\n'
+        '      "coin_narrative": "개별 코인 촉매/내러티브 단계/주의사항 요약"\n'
         '    }\n'
         '  ],\n'
         '  "keywords": ["키워드1"]\n'
@@ -673,6 +868,71 @@ def generate_market_insights_via_gemini(
         "category: 영어 약어 없이 한글만. RWA→실물자산 토큰화, DePIN→분산형 인프라.\n"
     )
 
+    # ── 내러티브 컨텍스트 구성 ──
+    narrative_ctx = ""
+    if market_narrative:
+        mn = market_narrative
+        narrative_ctx += "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        narrative_ctx += "▶ 오늘 시장 내러티브 (코인니스 + 구글서치 기반)\n"
+        narrative_ctx += "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        narrative_ctx += f"[전체 분위기] {mn.get('overall_sentiment','—')}\n"
+        narrative_ctx += f"[핵심 리스크] {mn.get('key_risk','—')}\n\n"
+
+        macro = mn.get("macro", {})
+        if macro:
+            narrative_ctx += f"[거시경제]\n"
+            if macro.get("fed"):    narrative_ctx += f"  • 연준: {macro['fed']}\n"
+            if macro.get("nasdaq"): narrative_ctx += f"  • 나스닥: {macro['nasdaq']}\n"
+            if macro.get("dxy"):    narrative_ctx += f"  • 달러: {macro['dxy']}\n"
+            narrative_ctx += f"  → {macro.get('summary','')}\n\n"
+
+        btc = mn.get("btc", {})
+        if btc:
+            narrative_ctx += f"[BTC 특이사항]\n"
+            if btc.get("etf_flow"):     narrative_ctx += f"  • ETF: {btc['etf_flow']}\n"
+            if btc.get("whale"):        narrative_ctx += f"  • 고래: {btc['whale']}\n"
+            if btc.get("liquidation"):  narrative_ctx += f"  • 청산: {btc['liquidation']}\n"
+            if btc.get("institution"):  narrative_ctx += f"  • 기관: {btc['institution']}\n"
+            narrative_ctx += f"  → {btc.get('summary','')}\n\n"
+
+        sectors = mn.get("sectors", {})
+        if sectors:
+            narrative_ctx += f"[섹터 흐름] 주도 테마: {sectors.get('dominant_theme','—')}\n"
+            hot = sectors.get("hot", [])
+            if hot:
+                narrative_ctx += "  🔥 강한 섹터: " + ", ".join(
+                    f"{s['name']}({s.get('reason','')})" for s in hot[:3]) + "\n"
+            cold = sectors.get("cold", [])
+            if cold:
+                narrative_ctx += "  ❄️ 약한 섹터: " + ", ".join(
+                    f"{s['name']}({s.get('reason','')})" for s in cold[:3]) + "\n"
+            narrative_ctx += "\n"
+
+        reg = mn.get("regulation", {})
+        if reg and any(reg.values()):
+            narrative_ctx += "[규제/정책]\n"
+            if reg.get("clarity_act"): narrative_ctx += f"  • 클래리티: {reg['clarity_act']}\n"
+            if reg.get("us"):          narrative_ctx += f"  • 미국: {reg['us']}\n"
+            if reg.get("global"):      narrative_ctx += f"  • 글로벌: {reg['global']}\n"
+            narrative_ctx += "\n"
+
+    coin_narrative_ctx = ""
+    if coin_narratives:
+        cn = coin_narratives.get("coin_narratives", {})
+        if cn:
+            coin_narrative_ctx = "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            coin_narrative_ctx += "▶ 개별 코인 촉매 분석\n"
+            coin_narrative_ctx += "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            for ticker, info in cn.items():
+                coin_narrative_ctx += f"[{ticker}]\n"
+                coin_narrative_ctx += f"  촉매: {info.get('catalyst','없음')}\n"
+                coin_narrative_ctx += f"  내러티브 단계: {info.get('narrative_phase','—')}\n"
+                if info.get("unlock_schedule"):
+                    coin_narrative_ctx += f"  언락: {info['unlock_schedule']}\n"
+                if info.get("caution"):
+                    coin_narrative_ctx += f"  주의: {info['caution']}\n"
+                coin_narrative_ctx += "\n"
+
     user_query = f"""
 [시장 현황]
 {activity_ctx}
@@ -687,6 +947,9 @@ def generate_market_insights_via_gemini(
 [바이낸스 멀티타임프레임 + BTC 동조화 + 김프 지표]
 {format_indicators_for_prompt(indicators, target_coins + top30_coins)}
 
+{narrative_ctx}
+{coin_narrative_ctx}
+
 ★ 지시사항 ★
 1. TOP30 돌파 1종 + TOP30 눌림목 1종 + 급등후보 돌파 2종 + 급등후보 눌림목 2종 = 총 6종목.
 2. TOP30 종목은 반드시 TOP30 풀(위 목록)에서만 선택.
@@ -694,10 +957,16 @@ def generate_market_insights_via_gemini(
 4. 진입가·T1·T2·손절가는 반드시 원화 숫자로 명시. '시장가' 절대 금지.
 5. what_if_t1_miss와 what_if_btc_drop은 종목별로 각각 다르게 작성.
 6. 시장 온도 '{ma['level_label']}'에 맞게 손절/목표·position_size 조정.
-7. unlock_alert는 구글 검색으로 확인 후 작성.
+7. unlock_alert는 개별 코인 촉매 분석 데이터 참고 후 작성.
 8. ticker_description은 코인을 전혀 모르는 사람도 이해할 수 있게 작성.
 9. editor_pick_ticker는 6종목 중 오늘 시장 온도와 가장 잘 맞는 1종목만 선택.
 10. 순수 JSON만 반환.
+11. 위 시장 내러티브와 개별 코인 촉매를 반드시 종목 선별에 반영해라.
+    - 거시 악재가 크면 TOP30 눌림목 위주 + 급등후보 돌파 자제
+    - 섹터 흐름이 살아있는 코인 우선 선별
+    - 내러티브 단계가 '과열'인 코인은 추격 경고 표시
+    - 촉매 없는 급등 코인은 coin_narrative에 '촉매 미확인 — 추격 주의' 명시
+12. coin_narrative 필드에 개별 코인 촉매 분석 내용을 간결하게 작성.
 """
 
     # google_search 툴 사용 시 responseMimeType 제거 (충돌 방지)
@@ -810,6 +1079,7 @@ def record_picks_to_github(picks: list, market_activity: dict, publish_time: str
                 "what_if":     p.get("what_if_t1_miss", "") or p.get("what_if", ""),
                 "신뢰도":      p.get("score", ""),
                 "현재가":      p.get("current_price_krw", ""),
+                "coin_narrative": p.get("coin_narrative", ""),
                 "기록상태":    "신규",
             })
 
@@ -1196,6 +1466,27 @@ def build_slack_blocks(
             {"type": "divider"},
         ]
 
+    # 시장 내러티브 (1호출 결과)
+    mn = data.get("market_narrative_data", {})
+    if mn:
+        sentiment = mn.get("overall_sentiment", "")
+        key_risk  = mn.get("key_risk", "")
+        sectors   = mn.get("sectors", {})
+        dominant  = sectors.get("dominant_theme", "")
+        hot_list  = "  ".join(f"`{s['name']}`" for s in sectors.get("hot", [])[:3])
+        cold_list = "  ".join(f"`{s['name']}`" for s in sectors.get("cold", [])[:3])
+
+        narrative_text = f"📰 *오늘의 시장 내러티브*\n{sentiment}\n"
+        if dominant:  narrative_text += f"\n🔥 *주도 테마:* {dominant}"
+        if hot_list:  narrative_text += f"\n✅ 강한 섹터: {hot_list}"
+        if cold_list: narrative_text += f"\n❌ 약한 섹터: {cold_list}"
+        if key_risk:  narrative_text += f"\n⚠️ *핵심 리스크:* {key_risk}"
+
+        blocks += [
+            {"type": "section", "text": {"type": "mrkdwn", "text": narrative_text}},
+            {"type": "divider"},
+        ]
+
     blocks.append({"type": "header", "text": {"type": "plain_text",
         "text": "🎯 종목 분석 (TOP30 2종 + 급등후보 4종)", "emoji": True}})
 
@@ -1251,12 +1542,15 @@ def build_slack_blocks(
         # ── 블록 3: 이유 + 대응책 ──
         rel = "  ".join(f"`{c}`" for c in p.get("related_coins", []))
         rel_line = f"\n🔗 함께 볼 코인: {rel}" if rel else ""
+        coin_narr = p.get("coin_narrative", "")
+        coin_narr_line = f"\n\n📌 *개별 내러티브:* {coin_narr}" if coin_narr else ""
         blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": (
             f"⚠️ *왜 싼가?* {p.get('why_down','—')}\n\n"
             f"✅ *왜 사나?* {p.get('why_still','—')}\n\n"
             f"📉 기술신호: {p.get('tech_signal','—')}\n"
             f"🐋 큰손동향: {p.get('whale_signal','—')}\n\n"
             f"💡 *대응책*\n• 1차 목표 못 가면: {what_if_t1}\n• BTC 급락 시: {what_if_btc}"
+            f"{coin_narr_line}"
             f"{rel_line}\n"
             f"⭐ {p.get('score','—')}  보유기간: {p.get('holding_period','—')}"
         )}})
@@ -1306,8 +1600,16 @@ def run_and_send_to_slack():
     all_coins  = target_coins + top30_coins
     indicators = fetch_indicators_for_top_coins(all_coins, btc_closes_1h, btc_vols_1h)
 
+    # [1호출] 거시/코인니스 시장 내러티브
+    market_narrative = fetch_market_narrative()
+
+    # [2호출] 개별 코인 촉매 분석
+    coin_narratives = fetch_coin_narratives(target_coins, top30_coins)
+
+    # [3호출] 종목 선별 (1+2 결과 주입)
     insights = generate_market_insights_via_gemini(
-        target_coins, top30_coins, indicators, cutoff, market_activity, rules, perf_summary
+        target_coins, top30_coins, indicators, cutoff, market_activity,
+        rules, perf_summary, market_narrative, coin_narratives
     )
     if not insights:
         print("❌ AI 분석 실패"); return
@@ -1317,7 +1619,11 @@ def run_and_send_to_slack():
     # [1단계] 추천 기록 저장 (GitHub)
     record_picks_to_github(insights.get("picks", []), market_activity, pub_time)
 
+    # 내러티브 저장 (GitHub)
+    save_narrative_to_github(market_narrative, coin_narratives, pub_time)
+
     # 슬랙 전송
+    insights["market_narrative_data"] = market_narrative
     slack_blocks = build_slack_blocks(insights, pub_time, market_activity, perf_summary)
     client = WebClient(token=SLACK_BOT_TOKEN)
     try:
