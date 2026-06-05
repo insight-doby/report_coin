@@ -591,10 +591,13 @@ def fetch_market_narrative() -> dict:
                     print("  ✅ 시장 내러티브 수집 완료")
                     return parsed
             else:
-                print(f"  ⚠️ HTTP {resp.status_code}")
+                wait = 30 if resp.status_code == 429 else 5
+                print(f"  ⚠️ HTTP {resp.status_code} — {wait}초 대기")
+                time.sleep(wait)
+                continue
         except Exception as e:
             print(f"  ⚠️ [시도 {idx+1}] 에러: {e}")
-        time.sleep(3)
+        time.sleep(5)
     return {}
 
 
@@ -672,10 +675,13 @@ def fetch_coin_narratives(target_coins: list, top30_coins: list) -> dict:
                     print("  ✅ 개별 코인 촉매 분석 완료")
                     return parsed
             else:
-                print(f"  ⚠️ HTTP {resp.status_code}")
+                wait = 30 if resp.status_code == 429 else 5
+                print(f"  ⚠️ HTTP {resp.status_code} — {wait}초 대기")
+                time.sleep(wait)
+                continue
         except Exception as e:
             print(f"  ⚠️ [시도 {idx+1}] 에러: {e}")
-        time.sleep(3)
+        time.sleep(5)
     return {}
 
 
@@ -1609,9 +1615,15 @@ def run_and_send_to_slack():
 
     # [1호출] 거시/코인니스 시장 내러티브
     market_narrative = fetch_market_narrative()
+    if market_narrative:
+        print("  ⏳ 다음 호출까지 15초 대기...")
+        time.sleep(15)
 
     # [2호출] 개별 코인 촉매 분석
     coin_narratives = fetch_coin_narratives(target_coins, top30_coins)
+    if coin_narratives:
+        print("  ⏳ 다음 호출까지 15초 대기...")
+        time.sleep(15)
 
     # [3호출] 종목 선별 (1+2 결과 주입)
     insights = generate_market_insights_via_gemini(
