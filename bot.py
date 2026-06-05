@@ -309,6 +309,24 @@ def fetch_market_activity(coins_data: dict) -> dict:
     avg_total_krw_estimate = None
     level_label = "알 수 없음"
     vs_avg_pct  = None
+    taker_buy_ratio = None
+    market_phase = "unknown"  # panic_sell / accumulation / normal_buy / overheat
+
+    # ── Taker Buy Ratio (바이낸스 BTC 기준, 최근 4시간) ──
+    try:
+        tr = requests.get(
+            "https://fapi.binance.com/futures/data/takerlongshortRatio",
+            params={"symbol": "BTCUSDT", "period": "1h", "limit": 4},
+            timeout=10
+        )
+        if tr.status_code == 200:
+            rows = tr.json()
+            if rows:
+                buy_ratios = [float(r["buyRatio"]) for r in rows]
+                taker_buy_ratio = round(sum(buy_ratios) / len(buy_ratios), 3)
+                print(f"  ✅ Taker Buy Ratio (4h avg): {taker_buy_ratio:.1%}")
+    except Exception as e:
+        print(f"  ⚠️ Taker Buy Ratio 수집 실패: {e}")
 
     try:
         rc = requests.get("https://api.bithumb.com/public/candlestick/BTC_KRW/24h", timeout=10)
@@ -320,22 +338,49 @@ def fetch_market_activity(coins_data: dict) -> dict:
                 if len(recent) >= 7:
                     btc_30d_avg = float(np.mean([float(c[2]) * float(c[5]) for c in recent]))
                     btc_today   = coins_data.get("BTC", {}).get("volume", 0)
+                    btc_change  = coins_data.get("BTC", {}).get("change", 0)
                     btc_share   = (btc_today / total_volume) if btc_today > 0 and total_volume > 0 else 0.40
                     avg_total_krw_estimate = btc_30d_avg / max(btc_share, 0.05)
                     vs_avg_pct = round(total_volume / avg_total_krw_estimate * 100, 1)
                     print(f"  ✅ BTC 30일 평균: {btc_30d_avg/1e8:.0f}억 / 전체 추정 평균: {avg_total_krw_estimate/1e12:.2f}조")
 
-                    if   vs_avg_pct >= 200: level_label = "🚀 과열/광풍 (전월 평균의 2배↑)"
-                    elif vs_avg_pct >= 130: level_label = "🔥 활성화 (전월 평균 이상)"
-                    elif vs_avg_pct >= 70:  level_label = "😊 보통 (전월 평균 수준)"
-                    elif vs_avg_pct >= 40:  level_label = "😴 관망 (전월 평균 이하)"
-                    else:                   level_label = "🧊 냉각 (극도로 한산)"
+                    # ── 시장 국면 판단 (거래량 + Taker Buy Ratio + BTC 방향) ──
+                    tbr = taker_buy_ratio if taker_buy_ratio is not None else 0.5
+
+                    if btc_change <= -3.0 and tbr < 0.40:
+                        # 가격 하락 + 매도 우세 → 패닉셀
+                        market_phase = "panic_sell"
+                        level_label  = "🔴 패닉셀 진행 중 — 진입 금지"
+                    elif btc_change <= -1.5 and tbr >= 0.45:
+                        # 가격 하락인데 매수 비율 회복 → 매집 구간
+                        market_phase = "accumulation"
+                        level_label  = "🟡 하락 중 매집 감지 — 분할 매수 고려"
+                    elif vs_avg_pct >= 200 and tbr >= 0.50:
+                        market_phase = "overheat"
+                        level_label  = "🚀 과열/광풍 (전월 평균의 2배↑)"
+                    elif vs_avg_pct >= 130 and tbr >= 0.48:
+                        market_phase = "normal_buy"
+                        level_label  = "🔥 활성화 (전월 평균 이상)"
+                    elif vs_avg_pct >= 200 and tbr < 0.48:
+                        # 거래량 많지만 매도 우세
+                        market_phase = "panic_sell"
+                        level_label  = "🔴 대량 매도 우세 — 진입 자제"
+                    elif vs_avg_pct >= 70:
+                        market_phase = "normal_buy"
+                        level_label  = "😊 보통 (전월 평균 수준)"
+                    elif vs_avg_pct >= 40:
+                        market_phase = "sideways"
+                        level_label  = "😴 관망 (전월 평균 이하)"
+                    else:
+                        market_phase = "cold"
+                        level_label  = "🧊 냉각 (극도로 한산)"
+
     except Exception as e:
         print(f"  ⚠️ 기준 거래대금 산출 실패: {e}")
 
-    if   major_ratio >= 65: supply = "🔵 메이저 주도장"
-    elif alt_ratio   >= 65: supply = "🟠 알트 주도장"
-    else:                   supply = "⚖️ 혼조장"
+    if   major_ratio >= 65: supply = "메이저 주도장"
+    elif alt_ratio   >= 65: supply = "알트 주도장"
+    else:                   supply = "혼조장"
 
     return {
         "total_volume": total_volume, "major_volume": major_volume, "alt_volume": alt_volume,
@@ -343,6 +388,7 @@ def fetch_market_activity(coins_data: dict) -> dict:
         "major_top5": major_top5, "alt_top5": alt_top5,
         "avg_estimate": avg_total_krw_estimate, "vs_avg_pct": vs_avg_pct,
         "level_label": level_label, "supply_character": supply,
+        "taker_buy_ratio": taker_buy_ratio, "market_phase": market_phase,
     }
 
 
@@ -744,8 +790,11 @@ def generate_market_insights_via_gemini(
 
     ma = market_activity
     vs_str = f"전월 평균 대비 {ma['vs_avg_pct']}%" if ma.get("vs_avg_pct") else "비교 불가"
+    tbr = ma.get('taker_buy_ratio')
+    tbr_str = f"{tbr:.1%} ({'매수 우세' if tbr >= 0.5 else '매도 우세'})" if tbr else "—"
     activity_ctx = (
         f"전체 KRW 거래대금: {ma['total_volume']/1e12:.2f}조원 ({vs_str}) | {ma['level_label']}\n"
+        f"시장 국면: {ma.get('market_phase','unknown')} | Taker Buy Ratio: {tbr_str}\n"
         f"수급 성격: {ma['supply_character']} | 메이저 {ma['major_ratio']}% / 알트 {ma['alt_ratio']}%\n"
     )
 
@@ -994,6 +1043,11 @@ def generate_market_insights_via_gemini(
 12. coin_narrative 필드에 개별 코인 촉매 분석 내용을 간결하게 작성.
 13. ⭐관심종목 표시된 종목은 반드시 분석에 포함하고 가능하면 추천 목록에 넣어라.
     단, 기술적/수급 조건이 매우 불리하면 제외하되 이유를 market_mood에 명시해라.
+14. 시장 국면에 따라 추천 톤을 반드시 조정해라:
+    - panic_sell: 모든 종목에 "패닉셀 구간 — 진입 금지" 경고. 손절가 더 타이트하게.
+    - accumulation: "하락 중 매집 가능 구간" 명시. 분할 매수 전략 권장.
+    - overheat: 신규 진입 자제. 보유 중이라면 익절 검토.
+    - normal_buy: 정상 매매 가능.
 """
 
     # google_search 툴 사용 시 responseMimeType 제거 (충돌 방지)
@@ -1094,6 +1148,8 @@ def record_picks_to_github(picks: list, market_activity: dict, publish_time: str
                 "T2수익률":    _calc_pct(p.get("entry"), p.get("t2")),
                 "손절률":      _calc_pct(p.get("entry"), p.get("stop_loss"), abs_val=True),
                 "시장온도":    market_activity.get("level_label", ""),
+                "market_phase": market_activity.get("market_phase", ""),
+                "taker_buy_ratio": market_activity.get("taker_buy_ratio", ""),
                 "메이저비중":  market_activity.get("major_ratio", ""),
                 "알트비중":    market_activity.get("alt_ratio", ""),
                 "수급성격":    market_activity.get("supply_character", ""),

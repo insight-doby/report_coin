@@ -1355,11 +1355,22 @@ function renderTab1(){
 
   /* Summary 업데이트 */
   var mood    = today[0]['시장온도']||'—';
+  var phase   = today[0]['market_phase']||'';
   var maj     = today[0]['메이저비중']||'—';
   var alt     = today[0]['알트비중']||'—';
   var supply  = today[0]['수급성격']||'—';
   var totvol  = today[0]['총거래대금']||'';
-  document.getElementById('s-mood').innerHTML = '<span class="live"></span><span style="font-size:14px;">'+mood+'</span>';
+  var tbr     = today[0]['taker_buy_ratio']||'';
+
+  // 시장 국면별 색상
+  var moodColor = phase==='panic_sell' ? 'var(--neg)' :
+                  phase==='accumulation' ? 'var(--warn)' :
+                  phase==='overheat' ? '#f97316' :
+                  phase==='normal_buy' ? 'var(--pos)' : 'var(--txt)';
+
+  document.getElementById('s-mood').innerHTML =
+    '<span class="live" style="background:'+moodColor+';"></span>'+
+    '<span style="font-size:13px;color:'+moodColor+';">'+esc(mood)+'</span>';
   document.getElementById('s-ratio').innerHTML = '<span class="mono" style="font-size:16px;">'+maj+'%</span><span style="color:var(--txt3);margin:0 4px;">/</span><span class="mono" style="font-size:16px;">'+alt+'%</span>';
   document.getElementById('s-supply').innerHTML = '<span style="font-size:14px;">'+esc(supply)+'</span>';
   if(totvol) document.getElementById('s-vol').innerHTML = '<span class="mono" style="font-size:16px;">'+esc(totvol)+'</span>';
