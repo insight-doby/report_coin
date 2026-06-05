@@ -502,6 +502,21 @@ button{cursor:pointer;font-family:inherit;}
 ::-webkit-scrollbar{width:4px;height:4px;}
 ::-webkit-scrollbar-track{background:transparent;}
 ::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px;}
+
+/* ── Watchlist ── */
+.wl-chip{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;
+  background:var(--accentm);border:1px solid rgba(59,130,246,0.3);
+  border-radius:20px;font-size:12px;font-weight:600;color:var(--accent);}
+.wl-chip-del{cursor:pointer;color:var(--txt3);font-size:14px;line-height:1;}
+.wl-chip-del:hover{color:var(--neg);}
+.wl-result-item{padding:10px 14px;cursor:pointer;display:flex;align-items:center;
+  justify-content:space-between;font-size:13px;border-bottom:1px solid var(--border);}
+.wl-result-item:last-child{border-bottom:none;}
+.wl-result-item:hover{background:var(--surface2);}
+.wl-result-item .wl-ticker{font-weight:700;color:var(--txt);}
+.wl-result-item .wl-name{font-size:11px;color:var(--txt3);margin-left:6px;}
+.wl-result-item .wl-add{font-size:11px;color:var(--accent);font-weight:600;}
+.wl-result-item.added{opacity:0.5;pointer-events:none;}
 </style>
 </head>
 
@@ -619,6 +634,7 @@ button{cursor:pointer;font-family:inherit;}
 <!-- ── Tabs ── -->
 <nav class="tabs">
   <button class="tab active" data-tab="t1">리포트</button>
+  <button class="tab" data-tab="t6">관심종목</button>
   <button class="tab" data-tab="t2">성과 분석</button>
   <button class="tab" data-tab="t3">복기</button>
   <button class="tab" data-tab="t4">강화규칙</button>
@@ -687,6 +703,55 @@ button{cursor:pointer;font-family:inherit;}
 <!-- ════════════════════════════════
      TAB 2: 성과 분석
      ════════════════════════════════ -->
+<div id="t6" class="tab-pane">
+  <div class="section-card">
+    <div class="section-title">
+      <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:-2px;margin-right:6px;"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>관심종목 관리
+    </div>
+    <p style="font-size:13px;color:var(--txt2);margin-bottom:16px;">
+      등록한 종목은 다음 <strong>분석 시작</strong> 시 자동으로 함께 분석됩니다. 최대 10종목.
+    </p>
+
+    <!-- 검색창 -->
+    <div style="position:relative;margin-bottom:16px;">
+      <div style="position:relative;">
+        <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"
+          style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--txt3);pointer-events:none;">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input id="wl-search" type="text" placeholder="종목명 또는 티커 검색 (예: BTC, 이더리움)"
+          style="width:100%;box-sizing:border-box;padding:10px 14px 10px 34px;font-size:13px;
+          background:var(--surface2);border:1px solid var(--border);border-radius:var(--r2);
+          color:var(--txt);outline:none;"
+          oninput="searchWatchlist(this.value)"
+          onfocus="showWLResults()"
+        />
+      </div>
+      <div id="wl-results" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:100;
+        background:var(--surface);border:1px solid var(--border);border-radius:var(--r2);
+        max-height:240px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,0.3);">
+      </div>
+    </div>
+
+    <!-- 등록된 관심종목 -->
+    <div style="margin-bottom:16px;">
+      <div style="font-size:11px;font-weight:700;color:var(--txt3);text-transform:uppercase;
+        letter-spacing:0.06em;margin-bottom:8px;" id="wl-count-label">등록된 관심종목 (0/10)</div>
+      <div id="wl-chips" style="display:flex;flex-wrap:wrap;gap:8px;min-height:36px;">
+        <div style="font-size:13px;color:var(--txt3);" id="wl-empty-msg">아직 등록된 종목이 없어요.</div>
+      </div>
+    </div>
+
+    <!-- 안내 -->
+    <div class="narr-risk" style="margin-top:8px;">
+      <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px;">
+        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+      <span>분석 시작 버튼을 눌러야 관심종목이 반영됩니다. 자동 실행(오전 10시)에는 포함되지 않아요.</span>
+    </div>
+  </div>
+</div>
+
 <div id="t2" class="tab-pane">
 
   <!-- KPI 4개 -->
@@ -993,6 +1058,7 @@ document.addEventListener('DOMContentLoaded', function(){
   initFilters();
   autoLoadData();
   initPortfolio();
+  initWatchlist();
   setInterval(refreshLivePrices, 15000);
 });
 
@@ -1104,7 +1170,8 @@ function loadData(){
 
   fetch('https://frosty-mountain-5de4.duseoska.workers.dev/', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' }
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ watchlist: getWatchlist() })
   })
   .then(function(r){ return r.json(); })
   .then(function(res){
@@ -1269,6 +1336,19 @@ function renderTab1(){
   var latest = G.picks[G.picks.length-1]['추천일시']||'';
   var today  = G.picks.filter(function(p){ return p['추천일시']===latest; });
   if(!today.length) today = G.picks.slice(-6);
+
+  /* 신뢰도 순 정렬 — 별 개수 기준 */
+  function scoreToNum(s){
+    if(!s) return 0;
+    // "⭐⭐⭐⭐☆" 형태에서 채워진 별 개수 세기
+    var filled = (s.match(/⭐/g)||[]).length;
+    if(filled) return filled;
+    // 숫자 형태 "4.5" 등
+    return parseFloat(s)||0;
+  }
+  today = today.slice().sort(function(a,b){
+    return scoreToNum(b['신뢰도']) - scoreToNum(a['신뢰도']);
+  });
 
   document.getElementById('pub-time').textContent = latest;
   document.getElementById('hdr-time').textContent = latest + ' KST';
@@ -1737,22 +1817,47 @@ function renderTab4(){
   /* Change Log */
   if(rules.length){
     var clHtml = '';
-    rules.slice().reverse().slice(0,20).forEach(function(r,i){
+
+    // changelog 타입 항목 (업데이트 요약)
+    var logs = rules.filter(function(r){ return r['_type']==='changelog'; }).slice().reverse().slice(0,10);
+    // 일반 규칙 항목
+    var ruleItems = rules.filter(function(r){ return r['_type']!=='changelog'; }).slice().reverse().slice(0,20);
+
+    if(logs.length){
+      clHtml += '<div style="font-size:11px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px;">업데이트 이력</div>';
+      logs.forEach(function(r){
+        clHtml +=
+          '<div class="cl-item">'+
+            '<div class="cl-dot-wrap"><div class="cl-dot" style="background:var(--accent);"></div></div>'+
+            '<div class="cl-body">'+
+              '<div class="cl-date">'+esc(r['일시']||'')+'</div>'+
+              '<div class="cl-text">'+esc(r['내용']||'')+'</div>'+
+            '</div>'+
+          '</div>';
+      });
+      clHtml += '<div style="margin:14px 0 10px;border-top:1px solid var(--border);"></div>';
+      clHtml += '<div style="font-size:11px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px;">규칙 목록</div>';
+    }
+
+    ruleItems.forEach(function(r,i){
       var isActive = r['적용여부']==='적용중';
-      var dotColor = isActive?'var(--pos)':'var(--txt3)';
+      var isExpired = r['적용여부']==='폐기';
+      var dotColor = isActive?'var(--pos)':isExpired?'var(--neg)':'var(--txt3)';
       clHtml +=
-        '<div class="cl-item">'+
+        '<div class="cl-item" style="'+(isExpired?'opacity:0.5;':'')+'">'+
           '<div class="cl-dot-wrap">'+
             '<div class="cl-dot" style="background:'+dotColor+';"></div>'+
-            (i<19?'<div class="cl-line"></div>':'')+
+            (i<ruleItems.length-1?'<div class="cl-line"></div>':'')+
           '</div>'+
           '<div class="cl-body">'+
-            '<div class="cl-date">'+(r['업데이트일시']||'')+'<span class="cl-perspective">'+(r['관점']||'공통')+'</span></div>'+
+            '<div class="cl-date">'+esc(r['업데이트일시']||'')+'<span class="cl-perspective">'+(r['관점']||'공통')+'</span>'+
+            (isExpired?'<span style="font-size:10px;color:var(--neg);margin-left:6px;">폐기됨</span>':'')+
+            '</div>'+
             '<div class="cl-text">'+esc(r['규칙내용']||'')+(r['근거']?'<br><span style="font-size:10px;color:var(--txt3);">근거: '+esc(r['근거'])+'</span>':'')+'</div>'+
           '</div>'+
         '</div>';
     });
-    document.getElementById('changelog').innerHTML = clHtml;
+    document.getElementById('changelog').innerHTML = clHtml || '<div class="empty"><p>변경 이력 없음</p></div>';
   }
 }
 
@@ -1929,6 +2034,103 @@ function clearPortfolio(){
     renderTab1();
   }
 }
+
+/* ══════════════════════════════════
+   TAB 6: 관심종목
+   ══════════════════════════════════ */
+var WL_KEY = 'kzb-watchlist';
+var WL_ALL = []; // 빗썸 전체 종목 캐시
+
+function getWatchlist(){ try{ return JSON.parse(localStorage.getItem(WL_KEY)||'[]'); }catch(e){ return []; } }
+function saveWatchlist(arr){ localStorage.setItem(WL_KEY, JSON.stringify(arr)); }
+
+function initWatchlist(){
+  renderWLChips();
+  // 빗썸 전체 종목 미리 로드
+  fetch('https://api.bithumb.com/public/ticker/ALL_KRW')
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      if(!data||!data.data) return;
+      WL_ALL = Object.keys(data.data).filter(function(k){ return k!=='date'; }).map(function(k){
+        return { ticker: k, name: k };
+      });
+    }).catch(function(){});
+}
+
+function searchWatchlist(query){
+  var results = document.getElementById('wl-results');
+  if(!query||query.length<1){ results.style.display='none'; return; }
+  var q = query.toUpperCase();
+  var filtered = WL_ALL.filter(function(c){
+    return c.ticker.toUpperCase().indexOf(q)!==-1;
+  }).slice(0,10);
+
+  if(!filtered.length){ results.style.display='none'; return; }
+
+  var wl = getWatchlist();
+  var html = filtered.map(function(c){
+    var isAdded = wl.indexOf(c.ticker)!==-1;
+    return '<div class="wl-result-item'+(isAdded?' added':'')+'" onclick="addToWatchlist(\''+c.ticker+'\')">'+
+      '<div><span class="wl-ticker">'+c.ticker+'</span></div>'+
+      '<span class="wl-add">'+(isAdded?'등록됨':'+ 추가')+'</span>'+
+    '</div>';
+  }).join('');
+  results.innerHTML = html;
+  results.style.display = 'block';
+}
+
+function showWLResults(){
+  var q = document.getElementById('wl-search').value;
+  if(q) searchWatchlist(q);
+}
+
+function addToWatchlist(ticker){
+  var wl = getWatchlist();
+  if(wl.length >= 10){ alert('관심종목은 최대 10개까지 등록할 수 있어요.'); return; }
+  if(wl.indexOf(ticker)!==-1) return;
+  wl.push(ticker);
+  saveWatchlist(wl);
+  renderWLChips();
+  // 검색 결과 새로고침
+  searchWatchlist(document.getElementById('wl-search').value);
+}
+
+function removeFromWatchlist(ticker){
+  var wl = getWatchlist().filter(function(t){ return t!==ticker; });
+  saveWatchlist(wl);
+  renderWLChips();
+}
+
+function renderWLChips(){
+  var wl = getWatchlist();
+  var chips = document.getElementById('wl-chips');
+  var empty = document.getElementById('wl-empty-msg');
+  var label = document.getElementById('wl-count-label');
+  if(!chips) return;
+  if(label) label.textContent = '등록된 관심종목 ('+wl.length+'/10)';
+  if(!wl.length){
+    chips.innerHTML = '';
+    if(empty) empty.style.display='block';
+    return;
+  }
+  if(empty) empty.style.display='none';
+  chips.innerHTML = wl.map(function(t){
+    return '<div class="wl-chip">'+t+
+      '<span class="wl-chip-del" onclick="removeFromWatchlist(\''+t+'\')">'+
+        '<svg viewBox="0 0 24 24" width="11" height="11" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'+
+      '</span>'+
+    '</div>';
+  }).join('');
+}
+
+// 검색창 외부 클릭 시 결과 숨기기
+document.addEventListener('click', function(e){
+  var search = document.getElementById('wl-search');
+  var results = document.getElementById('wl-results');
+  if(results && search && !search.contains(e.target) && !results.contains(e.target)){
+    results.style.display='none';
+  }
+});
 
 /* ══════════════════════════════════
    TAB 5: 시뮬레이션
