@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>차기 주도주 리포트 — 2026년 06월 06일 18:38</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+          background: #f5f5f5; color: #1a1a1a; line-height: 1.6; }
+  .container { max-width: 900px; margin: 0 auto; padding: 24px 16px; }
+  .report-header { background: #fff; border-radius: 12px; padding: 24px; margin-bottom: 16px;
+                    border: 1px solid #e5e5e5; }
+  .report-title { font-size: 20px; font-weight: 600; margin-bottom: 4px; }
+  .report-sub { font-size: 13px; color: #888; }
+  .temp-badge { display:inline-block; padding:4px 12px; border-radius:20px;
+                 background:#FEF3C7; color:#92400E; font-size:12px; font-weight:500; margin-top:8px; }
+  .section { background:#fff; border-radius:12px; padding:20px 24px;
+              margin-bottom:16px; border:1px solid #e5e5e5; }
+  .section h2 { font-size:16px; font-weight:600; margin-bottom:16px; }
+  .metric-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; }
+  .metric { background:#f8f8f8; border-radius:8px; padding:12px; }
+  .metric-label { font-size:11px; color:#888; margin-bottom:4px; }
+  .metric-value { font-size:20px; font-weight:600; }
+  .strategy-box { background:#FFFBEB; border:1px solid #FDE68A; border-radius:8px;
+                   padding:12px 16px; font-size:13px; color:#92400E; margin-top:12px; }
+  .editor-pick { background:#F0FDF4; border:1px solid #BBF7D0; border-radius:8px;
+                  padding:14px 16px; margin-bottom:16px; }
+  .pick-card { background:#fff; border-radius:12px; padding:20px 24px;
+                margin-bottom:14px; border:1px solid #e5e5e5; }
+  .pick-header { display:flex; align-items:center; justify-content:space-between;
+                  margin-bottom:8px; flex-wrap:wrap; gap:6px; }
+  .persp-badge { display:inline-block; padding:3px 10px; border-radius:20px;
+                  font-size:12px; font-weight:500; }
+  .category-badge { display:inline-block; background:#f0f0f0; color:#555;
+                     padding:3px 10px; border-radius:20px; font-size:12px; margin-left:6px; }
+  .pick-title { display:flex; align-items:baseline; gap:8px; margin:8px 0 4px; flex-wrap:wrap; }
+  .ticker { font-size:22px; font-weight:700; }
+  .full-name { font-size:13px; color:#888; }
+  .price { font-size:18px; font-weight:500; margin-left:4px; }
+  .trade-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
+                 gap:10px; margin:14px 0; }
+  .trade-box { background:#fafafa; border:1px solid #e5e5e5; border-radius:8px; padding:12px; }
+  .trade-label { font-size:11px; color:#888; margin-bottom:4px; }
+  .trade-value { font-size:16px; font-weight:600; }
+  .trade-sub { font-size:11px; color:#aaa; margin-top:2px; }
+  .rr-section { background:#fafafa; border-radius:8px; padding:12px 14px; margin:12px 0; }
+  .rr-label-row { display:flex; justify-content:space-between; align-items:center;
+                   margin-bottom:8px; flex-wrap:wrap; gap:6px; }
+  .rr-verdict { font-size:13px; font-weight:600; }
+  .info-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
+                gap:10px; margin:14px 0; font-size:13px; }
+  .info-label { font-weight:500; margin-right:4px; display:block; font-size:11px;
+                 color:#888; margin-bottom:2px; }
+  .reason-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin:12px 0; }
+  @media(max-width:600px) { .reason-grid { grid-template-columns:1fr; } }
+  .reason-box { background:#fafafa; border-radius:8px; padding:12px; font-size:13px; }
+  .reason-title { font-weight:600; font-size:12px; margin-bottom:6px; color:#555; }
+  .whatif-box { background:#EFF6FF; border-radius:8px; padding:12px 14px;
+                 font-size:13px; color:#1e40af; margin-top:10px; line-height:1.8; }
+  .alert-box { background:#FEF2F2; border:1px solid #FECACA; border-radius:8px;
+                padding:10px 14px; font-size:13px; color:#991B1B; margin:10px 0; }
+  .review-block { background:#f8f8f8; border-radius:8px; padding:12px 14px; margin-bottom:10px; }
+  .review-title { font-weight:600; font-size:13px; margin-bottom:6px; }
+  .review-block p { font-size:13px; color:#555; }
+  .rule-item { padding:10px 0; border-bottom:1px solid #eee; font-size:13px; }
+  .rule-item:last-child { border-bottom:none; }
+  .rule-tag { background:#f0f0f0; color:#555; padding:2px 8px; border-radius:6px;
+               font-size:11px; margin-right:6px; }
+  .kw-badge { background:#EFF6FF; color:#1D4ED8; padding:3px 10px;
+               border-radius:20px; font-size:12px; margin:2px; display:inline-block; }
+  .nav-bar { background:#fff; border-radius:12px; padding:12px 16px; margin-bottom:16px;
+              border:1px solid #e5e5e5; display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .nav-bar span { font-size:12px; color:#888; margin-right:4px; }
+  .nav-btn { padding:5px 14px; border-radius:20px; border:1px solid #e5e5e5;
+              font-size:12px; cursor:pointer; background:#fff; color:#333;
+              text-decoration:none; transition:all 0.15s; }
+  .nav-btn:hover { background:#f0f0f0; }
+  .nav-btn.active { background:#1a1a1a; color:#fff; border-color:#1a1a1a; }
+  @media(max-width:600px) {
+    .trade-grid { grid-template-columns:1fr 1fr; }
+    .info-grid  { grid-template-columns:1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- 헤더 -->
+  <div class="report-header">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;">
+      <div>
+        <p style="font-size:12px;color:#888;margin-bottom:4px;">차기 주도주 리포트</p>
+        <div class="report-title">🚀 2026년 06월 06일 18:38</div>
+        <div class="report-sub">빗썸 31~80위 스캔 · Gemini AI · BTC 동조화 · 김프</div>
+        <span class="temp-badge">🟡 하락 중 매집 감지 — 분할 매수 고려</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 시장 온도계 -->
+  <div class="section">
+    <h2>🌡️ 시장 온도계</h2>
+    <div class="metric-grid">
+      <div class="metric">
+        <div class="metric-label">전체 거래대금</div>
+        <div class="metric-value">1.25조원</div>
+        <div style="font-size:11px;color:#888;margin-top:2px;">전월 평균 대비 189.1%</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">수급 주도</div>
+        <div class="metric-value" style="font-size:16px;">혼조장</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">메이저 / 알트</div>
+        <div class="metric-value" style="font-size:16px;">41.5% / 58.5%</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">시장 분위기</div>
+        <div class="metric-value" style="font-size:13px;line-height:1.4;">현재 암호화폐 시장은 비트코인 현물 ETF 자금 유출과 미국 고용지표 호...</div>
+      </div>
+    </div>
+    <div class="strategy-box">📌 오늘의 전략: 수급 유입 중 — 모멘텀 코인 대응 가능</div>
+  </div>
+
+  <!-- 편집장 픽 -->
+  <div class="editor-pick">
+    ⭐ <strong>편집장 픽 — 오늘 1종목만 골라야 한다면?</strong><br>
+    <span style="font-size:15px;font-weight:600;">XRP</span>
+    <span style="font-size:13px;color:#555;margin-left:8px;">현재 시장은 하락 중 매집 감지 국면으로, 안정적인 대형 코인의 눌림목이 가장 안전하고 효과적인 전략입니다. XRP는 TOP30 중 변동성이 가장 적고 거래대금이 높아 시장 방어력이 우수하며, 저점 매수 기회를 제공합니다.</span>
+  </div>
+
+  <!-- 종목 분석 -->
+  <div class="section">
+    <h2>🎯 종목 분석 (6종목 — TOP30 2종 + 급등후보 4종)</h2>
+  </div>
+  
+        <div class="pick-card" style="border-left:4px solid #8B5CF6;">
+          <div class="pick-header">
+            <div>
+              <span class="persp-badge" style="background:#8B5CF620;color:#8B5CF6;">🏆 TOP30 돌파</span>
+              <span class="category-badge">결제</span>
+              
+            </div>
+          </div>
+          <div class="pick-title">
+            <span class="ticker">XLM</span>
+            <span class="full-name">스텔라루멘</span>
+            <span class="price">308원</span>
+            <span style="color:#1D9E75;font-weight:500;">+6.6%</span>
+          </div>
+          <p style="font-size:13px;color:#666;margin:4px 0 12px;">빠르고 저렴한 국제 송금을 돕는 블록체인 기반의 디지털 화폐입니다.</p>
+          
+
+          <div class="trade-grid">
+            <div class="trade-box">
+              <div class="trade-label">🎯 진입가</div>
+              <div class="trade-value">310원</div>
+              <div class="trade-sub">현재가 대비 0.65% 상승한 가격으로, 볼린저밴드 중단 돌파 초입을 노리는 가격입니다.</div>
+            </div>
+            <div class="trade-box" style="border-color:#1D9E75;">
+              <div class="trade-label">🥇 1차 목표 (절반 매도)</div>
+              <div class="trade-value" style="color:#1D9E75;">335원</div>
+              <div class="trade-sub">+8.1%</div>
+            </div>
+            <div class="trade-box" style="border-color:#1D9E75;">
+              <div class="trade-label">🏆 2차 목표 (나머지 홀딩)</div>
+              <div class="trade-value" style="color:#1D9E75;">357원</div>
+              <div class="trade-sub">+15.2%</div>
+            </div>
+            <div class="trade-box" style="border-color:#E24B4A;">
+              <div class="trade-label">🛑 손절가 (이 가격이면 포기)</div>
+              <div class="trade-value" style="color:#E24B4A;">294원</div>
+              <div class="trade-sub">--5.2%</div>
+            </div>
+          </div>
+
+          <div class="rr-section">
+            <div class="rr-label-row">
+              <span style="font-size:12px;color:#666;">⚖️ 손익비 — 얼마나 유리한 거래인가</span>
+              <span class="rr-verdict" style="color:#E24B4A;">
+                ❌ 불리 0:1
+              </span>
+            </div>
+            <div style="margin:6px 0 2px;">
+              <span style="font-size:11px;color:#888;display:inline-block;width:70px;">벌 수 있음</span>
+              <div style="display:inline-block;width:90px;height:8px;background:#1D9E75;border-radius:4px;vertical-align:middle;"></div>
+              <span style="font-size:12px;color:#1D9E75;margin-left:6px;">최대 +15.2%</span>
+            </div>
+            <div>
+              <span style="font-size:11px;color:#888;display:inline-block;width:70px;">잃을 수 있음</span>
+              <div style="display:inline-block;width:-30px;height:8px;background:#E24B4A;border-radius:4px;vertical-align:middle;"></div>
+              <span style="font-size:12px;color:#E24B4A;margin-left:6px;">최대 --5.2%</span>
+            </div>
+          </div>
+
+          <div class="info-grid">
+            <div><span class="info-label">🏷️ 김프</span><span>+2.26%</span><br><span style="font-size:11px;color:#888;">정상 김프 — 중립</span></div>
+            <div><span class="info-label">🔗 BTC 동조화</span><span>비동조화</span></div>
+            <div><span class="info-label">🛡️ 방어력</span><span>상</span></div>
+            <div><span class="info-label">📊 독자 수급</span><span>상승 추세 중 거래량 증가 추정</span></div>
+          </div>
+
+          <div class="reason-grid">
+            <div class="reason-box">
+              <div class="reason-title">⚠️ 왜 지금 싸게 거래되나?</div>
+              <p>전반적인 암호화폐 시장의 약세와 비트코인 하락에 따른 투자 심리 위축으로 인해 일부 차익 실현 매물이 출회되었습니다.</p>
+            </div>
+            <div class="reason-box">
+              <div class="reason-title">✅ 그럼에도 지금 사는 이유</div>
+              <p>2026년 5월 27일 DTCC가 스텔라 블록체인을 토큰화 플랫폼에 통합한다는 소식이 있었으며, 이는 전통 금융과의 연계를 강화하는 강력한 호재입니다. 시장 전반의 약세에도 불구하고 개별 재료에 힘입어 독자적인 강세를 보이고 있습니다.</p>
+            </div>
+          </div>
+
+          <div class="whatif-box">
+            <strong>💡 예상과 다를 때 대응책</strong><br>
+            • 1차 목표 못 가면: T1 미달성 시, 진입가 부근에서 절반 익절 후 남은 물량은 손절가 상향 조정하여 리스크를 관리합니다.<br>
+            • 비트코인 급락 시: BTC 급락 시, 손절가 도달 여부와 관계없이 비중을 축소하거나 전량 매도하여 추가 손실을 방지합니다.
+          </div>
+
+          <div style="margin-top:12px;font-size:12px;color:#888;">
+            💼 권장 비중: 중상 &nbsp;|&nbsp;
+            ⏱️ 보유기간: 단기 &nbsp;|&nbsp;
+            ⭐⭐⭐⭐☆
+          </div>
+        </div>
+        <div class="pick-card" style="border-left:4px solid #378ADD;">
+          <div class="pick-header">
+            <div>
+              <span class="persp-badge" style="background:#378ADD20;color:#378ADD;">🏛️ TOP30 눌림목</span>
+              <span class="category-badge">결제</span>
+              <span style="background:#FEF3C7;color:#92400E;padding:2px 8px;border-radius:6px;font-size:11px;margin-left:6px;">⭐ 편집장 픽</span>
+            </div>
+          </div>
+          <div class="pick-title">
+            <span class="ticker">XRP</span>
+            <span class="full-name">리플</span>
+            <span class="price">1,674원</span>
+            <span style="color:#E24B4A;font-weight:500;">-1.8%</span>
+          </div>
+          <p style="font-size:13px;color:#666;margin:4px 0 12px;">은행 간 빠르고 저렴한 국제 송금을 목표로 하는 블록체인 기반의 디지털 자산입니다.</p>
+          <div class="alert-box">🚨 <strong>이벤트 경보</strong> 2026년 6월 1일 10억 XRP 언락 (대부분 재락업)</div>
+
+          <div class="trade-grid">
+            <div class="trade-box">
+              <div class="trade-label">🎯 진입가</div>
+              <div class="trade-value">1,660원</div>
+              <div class="trade-sub">현재가보다 약간 낮은 가격으로, 주요 지지선 부근에서 반등을 노리는 눌림목 매수 전략입니다.</div>
+            </div>
+            <div class="trade-box" style="border-color:#1D9E75;">
+              <div class="trade-label">🥇 1차 목표 (절반 매도)</div>
+              <div class="trade-value" style="color:#1D9E75;">1,793원</div>
+              <div class="trade-sub">+8.0%</div>
+            </div>
+            <div class="trade-box" style="border-color:#1D9E75;">
+              <div class="trade-label">🏆 2차 목표 (나머지 홀딩)</div>
+              <div class="trade-value" style="color:#1D9E75;">1,909원</div>
+              <div class="trade-sub">+15.0%</div>
+            </div>
+            <div class="trade-box" style="border-color:#E24B4A;">
+              <div class="trade-label">🛑 손절가 (이 가격이면 포기)</div>
+              <div class="trade-value" style="color:#E24B4A;">1,577원</div>
+              <div class="trade-sub">--5.0%</div>
+            </div>
+          </div>
+
+          <div class="rr-section">
+            <div class="rr-label-row">
+              <span style="font-size:12px;color:#666;">⚖️ 손익비 — 얼마나 유리한 거래인가</span>
+              <span class="rr-verdict" style="color:#E24B4A;">
+                ❌ 불리 0:1
+              </span>
+            </div>
+            <div style="margin:6px 0 2px;">
+              <span style="font-size:11px;color:#888;display:inline-block;width:70px;">벌 수 있음</span>
+              <div style="display:inline-block;width:90px;height:8px;background:#1D9E75;border-radius:4px;vertical-align:middle;"></div>
+              <span style="font-size:12px;color:#1D9E75;margin-left:6px;">최대 +15.0%</span>
+            </div>
+            <div>
+              <span style="font-size:11px;color:#888;display:inline-block;width:70px;">잃을 수 있음</span>
+              <div style="display:inline-block;width:-30px;height:8px;background:#E24B4A;border-radius:4px;vertical-align:middle;"></div>
+              <span style="font-size:12px;color:#E24B4A;margin-left:6px;">최대 --5.0%</span>
+            </div>
+          </div>
+
+          <div class="info-grid">
+            <div><span class="info-label">🏷️ 김프</span><span>-2.46%</span><br><span style="font-size:11px;color:#888;">역김프 — 진입 유리</span></div>
+            <div><span class="info-label">🔗 BTC 동조화</span><span>동조화</span></div>
+            <div><span class="info-label">🛡️ 방어력</span><span>중상</span></div>
+            <div><span class="info-label">📊 독자 수급</span><span>확인 어려움</span></div>
+          </div>
+
+          <div class="reason-grid">
+            <div class="reason-box">
+              <div class="reason-title">⚠️ 왜 지금 싸게 거래되나?</div>
+              <p>최근 비트코인 현물 ETF 자금 유출과 미국 규제 불확실성, 그리고 대형 고래들의 매도 압력으로 인해 주간 14% 급락을 기록했습니다.</p>
+            </div>
+            <div class="reason-box">
+              <div class="reason-title">✅ 그럼에도 지금 사는 이유</div>
+              <p>5월 바이낸스 유입 물량이 올해 최저치를 기록하며 즉각적인 매도 의도가 줄어들고 있다는 분석이 있습니다. 리플의 파트너십 확장과 CLARITY Act 논의가 단기 반등 가능성을 높이며, 양자컴퓨터 방어 구조에서 비트코인 대비 상대적 우위를 가집니다.</p>
+            </div>
+          </div>
+
+          <div class="whatif-box">
+            <strong>💡 예상과 다를 때 대응책</strong><br>
+            • 1차 목표 못 가면: T1 미달성 시, 진입가 부근에서 절반 익절 후 남은 물량은 손절가를 진입가로 상향 조정하여 리스크를 최소화합니다.<br>
+            • 비트코인 급락 시: BTC 급락 시, XRP는 시장 동조화 경향이 있으므로 손절가 도달 시 즉시 청산하고, 시장 상황을 재평가하여 재진입 기회를 모색합니다.
+          </div>
+
+          <div style="margin-top:12px;font-size:12px;color:#888;">
+            💼 권장 비중: 상 &nbsp;|&nbsp;
+            ⏱️ 보유기간: 중단기 &nbsp;|&nbsp;
+            ⭐⭐⭐⭐☆
+          </div>
+        </div>
+        <div class="pick-card" style="border-left:4px solid #1D9E75;">
+          <div class="pick-header">
+            <div>
+              <span class="persp-badge" style="background:#1D9E7520;color:#1D9E75;">🚀 급등후보 돌파</span>
+              <span class="category-badge">디파이</span>
+              
+            </div>
+          </div>
+          <div class="pick-title">
+            <span class="ticker">INJ</span>
+            <span class="full-name">인젝티브</span>
+            <span class="price">8,170원</span>
+            <span style="color:#1D9E75;font-weight:500;">+9.0%</span>
+          </div>
+          <p style="font-size:13px;color:#666;margin:4px 0 12px;">탈중앙화 금융(DeFi) 애플리케이션을 위한 레이어1 블록체인으로, 빠른 거래와 낮은 수수료가 특징입니다.</p>
+          
+
+          <div class="trade-grid">
+            <div class="trade-box">
+              <div class="trade-label">🎯 진입가</div>
+              <div class="trade-value">8,210원</div>
+              <div class="trade-sub">현재가 대비 0.48% 상승한 가격으로, 강한 상승 모멘텀을 따라 돌파 매수를 시도합니다.</div>
+            </div>
+            <div class="trade-box" style="border-color:#1D9E75;">
+              <div class="trade-label">🥇 1차 목표 (절반 매도)</div>
+              <div class="trade-value" style="color:#1D9E75;">8,867원</div>
+              <div class="trade-sub">+8.0%</div>
+            </div>
+            <div class="trade-box" style="border-color:#1D9E75;">
+              <div class="trade-label">🏆 2차 목표 (나머지 홀딩)</div>
+              <div class="trade-value" style="color:#1D9E75;">9,442원</div>
+              <div class="trade-sub">+15.0%</div>
+            </div>
+            <div class="trade-box" style="border-color:#E24B4A;">
+              <div class="trade-label">🛑 손절가 (이 가격이면 포기)</div>
+              <div class="trade-value" style="color:#E24B4A;">7,800원</div>
+              <div class="trade-sub">--5.0%</div>
+            </div>
+          </div>
+
+          <div class="rr-section">
+            <div class="rr-label-row">
+              <span style="font-size:12px;color:#666;">⚖️ 손익비 — 얼마나 유리한 거래인가</span>
+              <span class="rr-verdict" style="color:#E24B4A;">
+                ❌ 불리 0:1
+              </span>
+            </div>
+            <div style="margin:6px 0 2px;">
+              <span style="font-size:11px;color:#888;display:inline-block;width:70px;">벌 수 있음</span>
+              <div style="display:inline-block;width:90px;height:8px;background:#1D9E75;border-radius:4px;vertical-align:middle;"></div>
+              <span style="font-size:12px;color:#1D9E75;margin-left:6px;">최대 +15.0%</span>
+            </div>
+            <div>
+              <span style="font-size:11px;color:#888;display:inline-block;width:70px;">잃을 수 있음</span>
+              <div style="display:inline-block;width:-30px;height:8px;background:#E24B4A;border-radius:4px;vertical-align:middle;"></div>
+              <span style="font-size:12px;color:#E24B4A;margin-left:6px;">최대 --5.0%</span>
+            </div>
+          </div>
+
+          <div class="info-grid">
+            <div><span class="info-label">🏷️ 김프</span><span>확인 어려움</span><br><span style="font-size:11px;color:#888;">정상 김프 — 중립</span></div>
+            <div><span class="info-label">🔗 BTC 동조화</span><span>비동조화</span></div>
+            <div><span class="info-label">🛡️ 방어력</span><span>상</span></div>
+            <div><span class="info-label">📊 독자 수급</span><span>상승 추세 중 거래량 증가 추정</span></div>
+          </div>
+
+          <div class="reason-grid">
+            <div class="reason-box">
+              <div class="reason-title">⚠️ 왜 지금 싸게 거래되나?</div>
+              <p>전반적인 알트코인 시장의 위험 회피 심리와 비트코인 ETF 자금 유출로 인한 시장 조정 시 이익 실현 매물이 출회되었습니다.</p>
+            </div>
+            <div class="reason-box">
+              <div class="reason-title">✅ 그럼에도 지금 사는 이유</div>
+              <p>INJ 3.0 거버넌스 제안 통과로 토큰 유통량을 대폭 감소시키는 디플레이션 정책이 도입되어, 가장 강력한 디플레이션 자산으로 자리매김할 전망입니다. 워싱턴 DC에 인젝티브 정책 연구소 개설 등 생태계 발전과 규제 당국과의 협력 강화도 긍정적입니다.</p>
+            </div>
+          </div>
+
+          <div class="whatif-box">
+            <strong>💡 예상과 다를 때 대응책</strong><br>
+            • 1차 목표 못 가면: T1 미달성 시, 진입가 부근에서 절반 익절 후 남은 물량은 손절가를 진입가로 상향 조정하여 리스크를 관리하고 추가 상승을 기다립니다.<br>
+            • 비트코인 급락 시: BTC 급락 시, 급등 후보 돌파 종목은 변동성이 크므로 손절가 도달 시 즉시 청산하고, 시장 안정 후 재진입 기회를 모색합니다.
+          </div>
+
+          <div style="margin-top:12px;font-size:12px;color:#888;">
+            💼 권장 비중: 중하 &nbsp;|&nbsp;
+            ⏱️ 보유기간: 단기 &nbsp;|&nbsp;
+            ⭐⭐⭐⭐☆
+          </div>
+        </div>
+        <div class="pick-card" style="border-left:4px solid #1D9E75;">
+          <div class="pick-header">
+            <div>
+              <span class="persp-badge" style="background:#1D9E7520;color:#1D9E75;">🚀 급등후보 돌파</span>
+              <span class="category-badge">플랫폼</span>
+              
+            </div>
+          </div>
+          <div class="pick-title">
+            <span class="ticker">ARDR</span>
+            <span class="full-name">아더</span>
+            <span class="price">46원</span>
+            <span style="color:#1D9E75;font-weight:500;">+5.6%</span>
+          </div>
+          <p style="font-size:13px;color:#666;margin:4px 0 12px;">하나의 메인체인 위에 여러 개의 독립적인 서브체인을 만들 수 있는 확장성 높은 블록체인 플랫폼입니다.</p>
+          
+
+          <div class="trade-grid">
+            <div class="trade-box">
+              <div class="trade-label">🎯 진입가</div>
+              <div class="trade-value">47원</div>
+              <div class="trade-sub">현재가 대비 2.17% 상승한 가격으로, 강한 상승 흐름에 편승하여 돌파 매수를 시도합니다.</div>
+            </div>
+            <div class="trade-box" style="border-color:#1D9E75;">
+              <div class="trade-label">🥇 1차 목표 (절반 매도)</div>
+              <div class="trade-value" style="color:#1D9E75;">51원</div>
+              <div class="trade-sub">+8.5%</div>
+            </div>
+            <div class="trade-box" style="border-color:#1D9E75;">
+              <div class="trade-label">🏆 2차 목표 (나머지 홀딩)</div>
+              <div class="trade-value" style="color:#1D9E75;">54원</div>
+              <div class="trade-sub">+14.9%</div>
+            </div>
+            <div class="trade-box" style="border-color:#E24B4A;">
+              <div class="trade-label">🛑 손절가 (이 가격이면 포기)</div>
+              <div class="trade-value" style="color:#E24B4A;">44원</div>
+              <div class="trade-sub">--6.4%</div>
+            </div>
+          </div>
+
+          <div class="rr-section">
+            <div class="rr-label-row">
+              <span style="font-size:12px;color:#666;">⚖️ 손익비 — 얼마나 유리한 거래인가</span>
+              <span class="rr-verdict" style="color:#E24B4A;">
+                ❌ 불리 0:1
+              </span>
+            </div>
+            <div style="margin:6px 0 2px;">
+              <span style="font-size:11px;color:#888;display:inline-block;width:70px;">벌 수 있음</span>
+              <div style="display:inline-block;width:89px;height:8px;background:#1D9E75;border-radius:4px;vertical-align:middle;"></div>
+              <span style="font-size:12px;color:#1D9E75;margin-left:6px;">최대 +14.9%</span>
+            </div>
+            <div>
+              <span style="font-size:11px;color:#888;display:inline-block;width:70px;">잃을 수 있음</span>
+              <div style="display:inline-block;width:-38px;height:8px;background:#E24B4A;border-radius:4px;vertical-align:middle;"></div>
+              <span style="font-size:12px;color:#E24B4A;margin-left:6px;">최대 --6.4%</span>
+            </div>
+          </div>
+
+          <div class="info-grid">
+            <div><span class="info-label">🏷️ 김프</span><span>+2.18%</span><br><span style="font-size:11px;color:#888;">정상 김프 — 중립</span></div>
+            <div><span class="info-label">🔗 BTC 동조화</span><span>비동조화</span></div>
+            <div><span class="info-label">🛡️ 방어력</span><span>상</span></div>
+            <div><span class="info-label">📊 독자 수급</span><span>상승 추세 중 거래량 증가 추정</span></div>
+          </div>
+
+          <div class="reason-grid">
+            <div class="reason-box">
+              <div class="reason-title">⚠️ 왜 지금 싸게 거래되나?</div>
+              <p>전반적인 암호화폐 시장의 약세와 비트코인 하락에 따른 투자 심리 위축으로 인해 일부 차익 실현 매물이 출회되었습니다.</p>
+            </div>
+            <div class="reason-box">
+              <div class="reason-title">✅ 그럼에도 지금 사는 이유</div>
+              <p>아더는 넥시오(Nxt) 블록체인 기술 기반의 플랫폼 코인으로, 스마트 계약과 다양한 서브체인을 지원합니다. 최근 대형 거래소 재상장 및 거래쌍 확대, 2025년 메인넷 업데이트 기대감, 저평가 코인에 대한 관심 증가가 급등의 원인입니다. 대형 에너지 기업과의 파트너십 체결과 친환경 블록체인 테마 부각도 긍정적입니다.</p>
+            </div>
+          </div>
+
+          <div class="whatif-box">
+            <strong>💡 예상과 다를 때 대응책</strong><br>
+            • 1차 목표 못 가면: T1 미달성 시, 진입가 부근에서 절반 익절 후 남은 물량은 손절가를 진입가로 상향 조정하여 리스크를 관리하고 추가 상승을 기다립니다.<br>
+            • 비트코인 급락 시: BTC 급락 시, 소형주인 아더는 변동성이 매우 클 수 있으므로 손절가 도달 시 즉시 청산하고, 시장 안정 후 재진입 기회를 모색합니다.
+          </div>
+
+          <div style="margin-top:12px;font-size:12px;color:#888;">
+            💼 권장 비중: 중하 &nbsp;|&nbsp;
+            ⏱️ 보유기간: 단기 &nbsp;|&nbsp;
+            ⭐⭐⭐⭐☆
+          </div>
+        </div>
+        <div class="pick-card" style="border-left:4px solid #F59E0B;">
+          <div class="pick-header">
+            <div>
+              <span class="persp-badge" style="background:#F59E0B20;color:#F59E0B;">📉 급등후보 눌림목</span>
+              <span class="category-badge">디파이</span>
+              
+            </div>
+          </div>
+          <div class="pick-title">
+            <span class="ticker">LINK</span>
+            <span class="full-name">체인링크</span>
+            <span class="price">11,310원</span>
+            <span style="color:#E24B4A;font-weight:500;">-1.4%</span>
+          </div>
+          <p style="font-size:13px;color:#666;margin:4px 0 12px;">블록체인과 외부 데이터를 연결하여 스마트 계약이 실제 세상의 정보를 활용할 수 있도록 돕는 오라클 네트워크입니다.</p>
+          
+
+          <div class="trade-grid">
+            <div class="trade-box">
+              <div class="trade-label">🎯 진입가</div>
+              <div class="trade-value">11,200원</div>
+              <div class="trade-sub">현재가보다 약간 낮은 가격으로, 주요 지지선 부근에서 반등을 노리는 눌림목 매수 전략입니다.</div>
+            </div>
+            <div class="trade-box" style="border-color:#1D9E75;">
+              <div class="trade-label">🥇 1차 목표 (절반 매도)</div>
+              <div class="trade-value" style="color:#1D9E75;">12,096원</div>
+              <div class="trade-sub">+8.0%</div>
+            </div>
+            <div class="trade-box" style="border-color:#1D9E75;">
+              <div class="trade-label">🏆 2차 목표 (나머지 홀딩)</div>
+              <div class="trade-value" style="color:#1D9E75;">12,880원</div>
+              <div class="trade-sub">+15.0%</div>
+            </div>
+            <div class="trade-box" style="border-color:#E24B4A;">
+              <div class="trade-label">🛑 손절가 (이 가격이면 포기)</div>
+              <div class="trade-value" style="color:#E24B4A;">10,640원</div>
+              <div class="trade-sub">--5.0%</div>
+            </div>
+          </div>
+
+          <div class="rr-section">
+            <div class="rr-label-row">
+              <span style="font-size:12px;color:#666;">⚖️ 손익비 — 얼마나 유리한 거래인가</span>
+              <span class="rr-verdict" style="color:#E24B4A;">
+                ❌ 불리 0:1
+              </span>
+            </div>
+            <div style="margin:6px 0 2px;">
+              <span style="font-size:11px;color:#888;display:inline-block;width:70px;">벌 수 있음</span>
+              <div style="display:inline-block;width:90px;height:8px;background:#1D9E75;border-radius:4px;vertical-align:middle;"></div>
+              <span style="font-size:12px;color:#1D9E75;margin-left:6px;">최대 +15.0%</span>
+            </div>
+            <div>
+              <span style="font-size:11px;color:#888;display:inline-block;width:70px;">잃을 수 있음</span>
+              <div style="display:inline-block;width:-30px;height:8px;background:#E24B4A;border-radius:4px;vertical-align:middle;"></div>
+              <span style="font-size:12px;color:#E24B4A;margin-left:6px;">최대 --5.0%</span>
+            </div>
+          </div>
+
+          <div class="info-grid">
+            <div><span class="info-label">🏷️ 김프</span><span>확인 어려움</span><br><span style="font-size:11px;color:#888;">정상 김프 — 중립</span></div>
+            <div><span class="info-label">🔗 BTC 동조화</span><span>동조화</span></div>
+            <div><span class="info-label">🛡️ 방어력</span><span>중상</span></div>
+            <div><span class="info-label">📊 독자 수급</span><span>확인 어려움</span></div>
+          </div>
+
+          <div class="reason-grid">
+            <div class="reason-box">
+              <div class="reason-title">⚠️ 왜 지금 싸게 거래되나?</div>
+              <p>최근 15달러 구간에서 지지를 잃고 상승 채널 아래로 내려가며 매도세가 우세해졌습니다. 약세 시장 분위기가 LINK의 상승을 제한하고 있습니다.</p>
+            </div>
+            <div class="reason-box">
+              <div class="reason-title">✅ 그럼에도 지금 사는 이유</div>
+              <p>디파이 핵심 인프라 코인으로, 블록체인 생태계에서 필수적인 역할을 수행하며 장기적인 가치와 활용성이 높습니다. 시장 하락에도 비교적 견조한 흐름을 보이며, 매집 관점에서 유효합니다. 최근 생태계 확장이 투자자 활동을 촉발했습니다.</p>
+            </div>
+          </div>
+
+          <div class="whatif-box">
+            <strong>💡 예상과 다를 때 대응책</strong><br>
+            • 1차 목표 못 가면: T1 미달성 시, 진입가 부근에서 절반 익절 후 남은 물량은 손절가를 진입가로 상향 조정하여 리스크를 최소화합니다.<br>
+            • 비트코인 급락 시: BTC 급락 시, LINK는 시장 동조화 경향이 있으므로 손절가 도달 시 즉시 청산하고, 시장 안정 후 재진입 기회를 모색합니다.
+          </div>
+
+          <div style="margin-top:12px;font-size:12px;color:#888;">
+            💼 권장 비중: 중 &nbsp;|&nbsp;
+            ⏱️ 보유기간: 중단기 &nbsp;|&nbsp;
+            ⭐⭐⭐⭐☆
+          </div>
+        </div>
+        <div class="pick-card" style="border-left:4px solid #F59E0B;">
+          <div class="pick-header">
+            <div>
+              <span class="persp-badge" style="background:#F59E0B20;color:#F59E0B;">📉 급등후보 눌림목</span>
+              <span class="category-badge">결제</span>
+              
+            </div>
+          </div>
+          <div class="pick-title">
+            <span class="ticker">BCH</span>
+            <span class="full-name">비트코인 캐시</span>
+            <span class="price">340,100원</span>
+            <span style="color:#E24B4A;font-weight:500;">-0.1%</span>
+          </div>
+          <p style="font-size:13px;color:#666;margin:4px 0 12px;">비트코인에서 하드포크되어 더 빠른 거래 처리와 낮은 수수료를 목표로 하는 디지털 화폐입니다.</p>
+          
+
+          <div class="trade-grid">
+            <div class="trade-box">
+              <div class="trade-label">🎯 진입가</div>
+              <div class="trade-value">339,000원</div>
+              <div class="trade-sub">현재가보다 약간 낮은 가격으로, 강력한 지지선 부근에서 반등을 노리는 눌림목 매수 전략입니다.</div>
+            </div>
+            <div class="trade-box" style="border-color:#1D9E75;">
+              <div class="trade-label">🥇 1차 목표 (절반 매도)</div>
+              <div class="trade-value" style="color:#1D9E75;">366,120원</div>
+              <div class="trade-sub">+8.0%</div>
+            </div>
+            <div class="trade-box" style="border-color:#1D9E75;">
+              <div class="trade-label">🏆 2차 목표 (나머지 홀딩)</div>
+              <div class="trade-value" style="color:#1D9E75;">390,000원</div>
+              <div class="trade-sub">+15.0%</div>
+            </div>
+            <div class="trade-box" style="border-color:#E24B4A;">
+              <div class="trade-label">🛑 손절가 (이 가격이면 포기)</div>
+              <div class="trade-value" style="color:#E24B4A;">322,050원</div>
+              <div class="trade-sub">--5.0%</div>
+            </div>
+          </div>
+
+          <div class="rr-section">
+            <div class="rr-label-row">
+              <span style="font-size:12px;color:#666;">⚖️ 손익비 — 얼마나 유리한 거래인가</span>
+              <span class="rr-verdict" style="color:#E24B4A;">
+                ❌ 불리 0:1
+              </span>
+            </div>
+            <div style="margin:6px 0 2px;">
+              <span style="font-size:11px;color:#888;display:inline-block;width:70px;">벌 수 있음</span>
+              <div style="display:inline-block;width:90px;height:8px;background:#1D9E75;border-radius:4px;vertical-align:middle;"></div>
+              <span style="font-size:12px;color:#1D9E75;margin-left:6px;">최대 +15.0%</span>
+            </div>
+            <div>
+              <span style="font-size:11px;color:#888;display:inline-block;width:70px;">잃을 수 있음</span>
+              <div style="display:inline-block;width:-30px;height:8px;background:#E24B4A;border-radius:4px;vertical-align:middle;"></div>
+              <span style="font-size:12px;color:#E24B4A;margin-left:6px;">최대 --5.0%</span>
+            </div>
+          </div>
+
+          <div class="info-grid">
+            <div><span class="info-label">🏷️ 김프</span><span>확인 어려움</span><br><span style="font-size:11px;color:#888;">정상 김프 — 중립</span></div>
+            <div><span class="info-label">🔗 BTC 동조화</span><span>비동조화</span></div>
+            <div><span class="info-label">🛡️ 방어력</span><span>상</span></div>
+            <div><span class="info-label">📊 독자 수급</span><span>확인 어려움</span></div>
+          </div>
+
+          <div class="reason-grid">
+            <div class="reason-box">
+              <div class="reason-title">⚠️ 왜 지금 싸게 거래되나?</div>
+              <p>최근 비트코인 캐시는 모든 주요 이동평균선 아래에서 거래되며 약세 압력을 받았고, 모멘텀 지표가 과매도 상태를 나타내며 매도 활동이 우세했습니다.</p>
+            </div>
+            <div class="reason-box">
+              <div class="reason-title">✅ 그럼에도 지금 사는 이유</div>
+              <p>시장 하락에도 불구하고 거의 변동 없는 강력한 방어력을 보여주고 있습니다. 비트코인 하드포크 코인으로서 안정성을 지니며, 2026년 5월 스마트 계약 기능 확장을 위한 네트워크 업그레이드가 완료되어 긍정적인 촉매로 작용할 수 있습니다. 강세 발산 신호가 나타나 폭발적 반등을 기대할 수 있다는 분석도 있습니다.</p>
+            </div>
+          </div>
+
+          <div class="whatif-box">
+            <strong>💡 예상과 다를 때 대응책</strong><br>
+            • 1차 목표 못 가면: T1 미달성 시, 진입가 부근에서 절반 익절 후 남은 물량은 손절가를 진입가로 상향 조정하여 리스크를 최소화합니다.<br>
+            • 비트코인 급락 시: BTC 급락 시, BCH는 비트코인 하드포크 코인으로 어느 정도 연동될 수 있으므로 손절가 도달 시 즉시 청산하고, 시장 안정 후 재진입 기회를 모색합니다.
+          </div>
+
+          <div style="margin-top:12px;font-size:12px;color:#888;">
+            💼 권장 비중: 중 &nbsp;|&nbsp;
+            ⏱️ 보유기간: 중단기 &nbsp;|&nbsp;
+            ⭐⭐⭐⭐☆
+          </div>
+        </div>
+
+  <!-- 성과 -->
+  
+
+  <!-- 복기 -->
+  
+        <div class="section">
+          <h2>🔬 AI 복기 분석</h2>
+          <div class="review-block">
+            <div class="review-title">수익 종목 공통 패턴</div>
+            <p>현재까지의 유일한 수익 종목(B3)은 모두 '급등후보 돌파' 관점에서 T2를 달성했습니다. 이는 특정 테마(급등후보)의 돌파 매매가 현재 시장에서 유효할 수 있음을 시사합니다. 다만, 진입가/T1/T2/손절가 데이터가 '1' 또는 '0'으로 비현실적인 부분이 있어 정확한 수치 분석은 어렵습니다.</p>
+          </div>
+          <div class="review-block">
+            <div class="review-title">손절 종목 공통 패턴</div>
+            <p>유일하게 손절 처리된 종목(RENDER)은 '급등후보 눌림목' 관점이었습니다. 또한, 현재 '손실 중'인 FET 역시 '급등후보 눌림목' 관점입니다. 이는 '급등후보' 종목에 대한 눌림목 전략이 현재 시장 환경에서 높은 리스크를 가질 수 있음을 보여줍니다. '손실 중'인 WLD는 'TOP30 돌파' 관점으로, 돌파 관점도 손실 위험이 있음을 나타냅니다.</p>
+          </div>
+          <div class="review-block">
+            <div class="review-title">다음 추천 핵심 포인트</div>
+            <p>수익을 낸 '급등후보 돌파' 관점의 성공 요인을 심층 분석하고, 이 패턴을 다른 종목에도 적용할 수 있는지 연구한다. 동시에 '눌림목' 전략의 실패 원인을 파악하여 개선 방안을 모색하거나, 해당 전략의 비중을 줄인다. 모든 거래에 대해 명확하고 현실적인 리스크 관리 (손절가) 원칙을 철저히 준수하며, '진행중' 및 '손실 중'인 종목들에 대한 면밀한 후속 조치 계획을 수립한다.</p>
+          </div>
+          <h3 style="margin-top:16px;font-size:14px;">현재 적용 중인 강화규칙</h3>
+            <div class="rule-item">
+              <span class="rule-tag">급등후보 돌파</span>
+              현재까지 유일하게 수익을 낸 '급등후보 돌파' 관점의 성공 요인을 심층 분석하고, 이 패턴을 다른 종목에도 적용할 수 있는지 연구한다. 특히, 명확한 진입/손절/익절가 설정 및 준수를 강화한다.
+              <span style="font-size:11px;color:#aaa;margin-left:6px;">근거: 두 건의 B3 수익 종목이 모두 이 관점에서 T2를 달성했으므로, 이 전략의 유효성을 최대한 활용해야 한다.</span>
+            </div>
+            <div class="rule-item">
+              <span class="rule-tag">급등후보 눌림목</span>
+              손절된 RENDER와 손실 중인 FET가 모두 '급등후보 눌림목' 관점이므로, 이 전략에 대한 추가적인 시장 분석 또는 더 보수적인 손절가 설정이 필요하다. 혹은 해당 관점의 비중을 줄이는 것을 고려한다.
+              <span style="font-size:11px;color:#aaa;margin-left:6px;">근거: 현재 데이터 상 '급등후보 눌림목' 관점은 손실 위험이 높게 나타나고 있다.</span>
+            </div>
+            <div class="rule-item">
+              <span class="rule-tag">전반적인 리스크 관리</span>
+              모든 추천 종목에 대해 현실적이고 명확한 손절가를 반드시 설정하고, 손절가 도달 시 기계적으로 손절하여 추가 손실을 방지한다. '손실 중'인 종목들에 대한 모니터링을 강화하고, 손절 원칙을 철저히 준수한다.
+              <span style="font-size:11px;color:#aaa;margin-left:6px;">근거: B3의 손절가 '0'과 같은 비현실적인 설정은 피해야 하며, WLD와 FET가 '손실 중' 상태로 손절가에 근접해 있어 손절 원칙 준수의 중요성이 부각된다.</span>
+            </div>
+        </div>
+
+  <!-- 키워드 -->
+  <div class="section">
+    <h2>🌟 트렌드 키워드</h2>
+    <div><span class="kw-badge">하락장 매집</span>  <span class="kw-badge">분할 매수</span>  <span class="kw-badge">눌림목</span>  <span class="kw-badge">돌파</span>  <span class="kw-badge">리스크 관리</span>  <span class="kw-badge">디플레이션</span>  <span class="kw-badge">RWA</span>  <span class="kw-badge">결제</span></div>
+  </div>
+
+  <p style="text-align:center;font-size:12px;color:#aaa;padding:20px 0;">
+    ⚠️ 본 리포트는 투자 참고용이며, 투자 손실에 대한 책임은 본인에게 있습니다.
+  </p>
+</div>
+</body>
+</html>
