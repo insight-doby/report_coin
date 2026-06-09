@@ -631,7 +631,7 @@ def fetch_market_narrative() -> dict:
         "generationConfig": {"temperature": 0.1},
     }
     url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
-           f"gemini-2.5-flash:generateContent?key={clean_key}")
+           f"gemini-3.5-flash:generateContent?key={clean_key}")
 
     for idx in range(3):
         try:
@@ -711,7 +711,7 @@ def fetch_coin_narratives(target_coins: list, top30_coins: list) -> dict:
         "generationConfig": {"temperature": 0.1},
     }
     url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
-           f"gemini-2.5-flash:generateContent?key={clean_key}")
+           f"gemini-3.5-flash:generateContent?key={clean_key}")
 
     for idx in range(3):
         try:
@@ -1069,7 +1069,7 @@ def generate_market_insights_via_gemini(
         "generationConfig":  {"temperature": 0.2},
     }
     url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
-           f"gemini-2.5-flash:generateContent?key={clean_key}")
+           f"gemini-3.5-flash:generateContent?key={clean_key}")
 
     for idx in range(3):
         try:
@@ -1086,10 +1086,14 @@ def generate_market_insights_via_gemini(
                     print("✅ Gemini 분석 완료")
                     return parsed
             else:
+                wait = 40 if resp.status_code in (503, 429) else 5
                 print(f"  ⚠️ Gemini HTTP {resp.status_code}: {resp.text[:200]}")
+                print(f"  ⏳ {wait}초 대기 후 재시도...")
+                time.sleep(wait)
+                continue
         except Exception as e:
             print(f"⚠️ [시도 {idx+1}] 에러: {e}")
-        time.sleep(3)
+        time.sleep(5)
     return None
 
 
@@ -1176,6 +1180,7 @@ def record_picks_to_github(picks: list, market_activity: dict, publish_time: str
                 "신뢰도":      p.get("score", ""),
                 "현재가":      p.get("current_price_krw", ""),
                 "coin_narrative": p.get("coin_narrative", ""),
+                "is_watchlist": p.get("ticker", "") in WATCHLIST,
                 "기록상태":    "신규",
             })
 
@@ -1356,7 +1361,7 @@ def run_ml_review(results: list) -> dict:
 }}"""
 
         url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
-               f"gemini-2.5-flash:generateContent?key={GEMINI_API_KEY.strip()}")
+               f"gemini-3.5-flash:generateContent?key={GEMINI_API_KEY.strip()}")
         r = requests.post(url, json={
             "contents": [{"parts": [{"text": prompt}]}],
             "generationConfig": {"temperature": 0.1}
@@ -1487,7 +1492,7 @@ def update_rules(review: dict) -> str:
             "generationConfig": {"temperature": 0.1},
         }
         url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
-               f"gemini-2.5-flash:generateContent?key={clean_key}")
+               f"gemini-3.5-flash:generateContent?key={clean_key}")
 
         for idx in range(3):
             try:
@@ -1824,14 +1829,14 @@ def run_and_send_to_slack():
     # [1호출] 거시/코인니스 시장 내러티브
     market_narrative = fetch_market_narrative()
     if market_narrative:
-        print("  ⏳ 다음 호출까지 5초 대기...")
-        time.sleep(5)
+        print("  ⏳ 다음 호출까지 10초 대기...")
+        time.sleep(10)
 
     # [2호출] 개별 코인 촉매 분석
     coin_narratives = fetch_coin_narratives(target_coins, top30_coins)
     if coin_narratives:
-        print("  ⏳ 다음 호출까지 5초 대기...")
-        time.sleep(5)
+        print("  ⏳ 다음 호출까지 10초 대기...")
+        time.sleep(10)
 
     # [3호출] 종목 선별 (1+2 결과 주입)
     insights = generate_market_insights_via_gemini(
