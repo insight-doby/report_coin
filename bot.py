@@ -631,7 +631,7 @@ def fetch_market_narrative() -> dict:
         "generationConfig": {"temperature": 0.1},
     }
     url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
-           f"gemini-3.5-flash:generateContent?key={clean_key}")
+           f"gemini-2.5-flash:generateContent?key={clean_key}")
 
     for idx in range(3):
         try:
@@ -711,7 +711,7 @@ def fetch_coin_narratives(target_coins: list, top30_coins: list) -> dict:
         "generationConfig": {"temperature": 0.1},
     }
     url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
-           f"gemini-3.5-flash:generateContent?key={clean_key}")
+           f"gemini-2.5-flash:generateContent?key={clean_key}")
 
     for idx in range(3):
         try:
@@ -1068,7 +1068,7 @@ def generate_market_insights_via_gemini(
         "generationConfig":  {"temperature": 0.2},
     }
     url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
-           f"gemini-3.5-flash:generateContent?key={clean_key}")
+           f"gemini-2.5-flash:generateContent?key={clean_key}")
 
     for idx in range(3):
         try:
@@ -1360,7 +1360,7 @@ def run_ml_review(results: list) -> dict:
 }}"""
 
         url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
-               f"gemini-3.5-flash:generateContent?key={GEMINI_API_KEY.strip()}")
+               f"gemini-2.5-flash:generateContent?key={GEMINI_API_KEY.strip()}")
         r = requests.post(url, json={
             "contents": [{"parts": [{"text": prompt}]}],
             "generationConfig": {"temperature": 0.1}
@@ -1491,7 +1491,7 @@ def update_rules(review: dict) -> str:
             "generationConfig": {"temperature": 0.1},
         }
         url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
-               f"gemini-3.5-flash:generateContent?key={clean_key}")
+               f"gemini-2.5-flash:generateContent?key={clean_key}")
 
         for idx in range(3):
             try:
