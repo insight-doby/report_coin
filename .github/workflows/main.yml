@@ -29,4 +29,4 @@ jobs:
           SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
           GITHUB_TOKEN_BOT: ${{ secrets.GITHUB_TOKEN }}
           WATCHLIST:        ${{ github.event.inputs.watchlist }}
-        run: python bot.py
+        run: python -u bot.py
