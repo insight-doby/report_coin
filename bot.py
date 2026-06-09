@@ -196,9 +196,31 @@ def fetch_btc_1h_base() -> tuple:
 # ==========================================
 # ── 김프(KRW 프리미엄) 계산
 # ==========================================
-def calc_kimchi_premium(ticker: str, krw_price: float, usd_krw_rate: float = 1380.0) -> dict:
+_USDT_KRW_CACHE = {"rate": None}
+
+def get_usdt_krw_rate() -> float:
+    """빗썸 USDT/KRW 실시간 가격 (환율 + 테더 프리미엄 자동 반영). 1회만 호출 후 캐싱."""
+    if _USDT_KRW_CACHE["rate"] is not None:
+        return _USDT_KRW_CACHE["rate"]
+    try:
+        r = requests.get("https://api.bithumb.com/public/ticker/USDT_KRW", timeout=5)
+        if r.status_code == 200 and r.json().get("status") == "0000":
+            rate = float(r.json()["data"]["closing_price"])
+            if rate > 0:
+                _USDT_KRW_CACHE["rate"] = rate
+                print(f"  💱 USDT/KRW 실시간: {rate:,.0f}원 (빗썸 기준)")
+                return rate
+    except Exception as e:
+        print(f"  ⚠️ USDT/KRW 조회 실패, 폴백 1530 사용: {e}")
+    _USDT_KRW_CACHE["rate"] = 1530.0
+    return 1530.0
+
+
+def calc_kimchi_premium(ticker: str, krw_price: float, usd_krw_rate: float = None) -> dict:
     result = {"kimp_pct": None, "kimp_label": "계산불가", "binance_krw": None}
     try:
+        if usd_krw_rate is None:
+            usd_krw_rate = get_usdt_krw_rate()
         url = f"https://api.binance.com/api/v3/ticker/price?symbol={ticker}USDT"
         r   = requests.get(url, timeout=5)
         if r.status_code == 200:
@@ -350,10 +372,10 @@ def fetch_market_activity(coins_data: dict) -> dict:
                     btc_30d_avg = float(np.mean([float(c[2]) * float(c[5]) for c in recent]))
                     btc_today   = coins_data.get("BTC", {}).get("volume", 0)
                     btc_change  = coins_data.get("BTC", {}).get("change", 0)
-                    btc_share   = (btc_today / total_volume) if btc_today > 0 and total_volume > 0 else 0.40
-                    avg_total_krw_estimate = btc_30d_avg / max(btc_share, 0.05)
-                    vs_avg_pct = round(total_volume / avg_total_krw_estimate * 100, 1)
-                    print(f"  ✅ BTC 30일 평균: {btc_30d_avg/1e8:.0f}억 / 전체 추정 평균: {avg_total_krw_estimate/1e12:.2f}조")
+                    # 전체 추정 대신 BTC 거래대금을 30일 평균과 직접 비교 (도미넌스 변동 영향 제거)
+                    vs_avg_pct = round(btc_today / btc_30d_avg * 100, 1) if btc_30d_avg > 0 else 100
+                    avg_total_krw_estimate = btc_30d_avg
+                    print(f"  ✅ BTC 30일 평균: {btc_30d_avg/1e8:.0f}억 / BTC 오늘: {btc_today/1e8:.0f}억 (평균 대비 {vs_avg_pct}%)")
 
                     # ── 시장 국면 판단 (거래량 + Taker Buy Ratio + BTC 방향) ──
                     tbr = taker_buy_ratio if taker_buy_ratio is not None else 0.5
@@ -631,7 +653,7 @@ def fetch_market_narrative() -> dict:
         "generationConfig": {"temperature": 0.1},
     }
     url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
-           f"gemini-2.5-flash:generateContent?key={clean_key}")
+           f"gemini-3.5-flash:generateContent?key={clean_key}")
 
     for idx in range(3):
         try:
@@ -711,7 +733,7 @@ def fetch_coin_narratives(target_coins: list, top30_coins: list) -> dict:
         "generationConfig": {"temperature": 0.1},
     }
     url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
-           f"gemini-2.5-flash:generateContent?key={clean_key}")
+           f"gemini-3.5-flash:generateContent?key={clean_key}")
 
     for idx in range(3):
         try:
@@ -1068,7 +1090,7 @@ def generate_market_insights_via_gemini(
         "generationConfig":  {"temperature": 0.2},
     }
     url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
-           f"gemini-2.5-flash:generateContent?key={clean_key}")
+           f"gemini-3.5-flash:generateContent?key={clean_key}")
 
     for idx in range(3):
         try:
@@ -1142,7 +1164,52 @@ def _gh_write(path: str, data, sha: str = None, msg: str = "데이터 업데이�
 # ==========================================
 # [1단계] 추천 기록 저장
 # ==========================================
-def record_picks_to_github(picks: list, market_activity: dict, publish_time: str):
+def _calc_anchor_and_divergence(ticker: str, perspective: str, entry_price, krw_price: float, indicators: dict) -> dict:
+    """LLM 진입가와 실제 기술적 기준선 간 괴리율 계산.
+    돌파 관점 → 볼밴 상단 기준 / 눌림목 관점 → EMA20 기준.
+    지표는 USDT 기준이라 현재가 대비 비율로 환산해 원화 기준선 산출."""
+    result = {"anchor_price": None, "anchor_type": None, "divergence": None, "divergence_label": None}
+    try:
+        iv = indicators.get(ticker, {})
+        # 6시간봉 우선, 없으면 1시간봉
+        tf = iv.get("6h") or iv.get("1h") or {}
+        usdt_cur = tf.get("current")
+        if not usdt_cur or krw_price <= 0:
+            return result
+
+        is_break = "돌파" in perspective
+        if is_break:
+            anchor_usdt = tf.get("bb_upper")
+            result["anchor_type"] = "볼밴 상단"
+        else:
+            anchor_usdt = (tf.get("emas", {}) or {}).get("EMA20") or tf.get("bb_mid")
+            result["anchor_type"] = "EMA20"
+
+        if not anchor_usdt:
+            return result
+
+        # USDT 기준선을 현재가 대비 비율로 원화 환산
+        ratio = anchor_usdt / usdt_cur
+        anchor_krw = krw_price * ratio
+        result["anchor_price"] = round(anchor_krw, 2)
+
+        entry = float(str(entry_price).replace(",", "")) if entry_price else 0
+        if entry > 0 and anchor_krw > 0:
+            div = round((entry - anchor_krw) / anchor_krw * 100, 2)
+            result["divergence"] = div
+            abs_div = abs(div)
+            if abs_div <= 1:
+                result["divergence_label"] = "정상"
+            elif abs_div <= 3:
+                result["divergence_label"] = "주의"
+            else:
+                result["divergence_label"] = "경고"
+    except Exception:
+        pass
+    return result
+
+
+def record_picks_to_github(picks: list, market_activity: dict, publish_time: str, indicators: dict = None, coin_price_map: dict = None):
     print("📝 [1단계] 추천 기록 저장 중 (GitHub)...")
     try:
         existing, sha = _gh_read("data/picks.json")
@@ -1150,9 +1217,15 @@ def record_picks_to_github(picks: list, market_activity: dict, publish_time: str
             existing = []
 
         for p in picks:
+            ticker = p.get("ticker", "")
+            krw_price = (coin_price_map or {}).get(ticker, 0)
+            anchor = _calc_anchor_and_divergence(
+                ticker, p.get("perspective", ""), p.get("entry"),
+                krw_price, indicators or {}
+            )
             existing.append({
                 "추천일시":     publish_time,
-                "티커":        p.get("ticker", ""),
+                "티커":        ticker,
                 "관점":        p.get("perspective", ""),
                 "진입가":      p.get("entry", ""),
                 "T1":          p.get("t1", ""),
@@ -1161,6 +1234,10 @@ def record_picks_to_github(picks: list, market_activity: dict, publish_time: str
                 "T1수익률":    _calc_pct(p.get("entry"), p.get("t1")),
                 "T2수익률":    _calc_pct(p.get("entry"), p.get("t2")),
                 "손절률":      _calc_pct(p.get("entry"), p.get("stop_loss"), abs_val=True),
+                "기준선가격":  anchor["anchor_price"],
+                "기준선유형":  anchor["anchor_type"],
+                "괴리율":      anchor["divergence"],
+                "괴리율등급":  anchor["divergence_label"],
                 "시장온도":    market_activity.get("level_label", ""),
                 "market_phase": market_activity.get("market_phase", ""),
                 "taker_buy_ratio": market_activity.get("taker_buy_ratio", ""),
@@ -1360,7 +1437,7 @@ def run_ml_review(results: list) -> dict:
 }}"""
 
         url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
-               f"gemini-2.5-flash:generateContent?key={GEMINI_API_KEY.strip()}")
+               f"gemini-3.5-flash:generateContent?key={GEMINI_API_KEY.strip()}")
         r = requests.post(url, json={
             "contents": [{"parts": [{"text": prompt}]}],
             "generationConfig": {"temperature": 0.1}
@@ -1491,7 +1568,7 @@ def update_rules(review: dict) -> str:
             "generationConfig": {"temperature": 0.1},
         }
         url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
-               f"gemini-2.5-flash:generateContent?key={clean_key}")
+               f"gemini-3.5-flash:generateContent?key={clean_key}")
 
         for idx in range(3):
             try:
@@ -1848,7 +1925,9 @@ def run_and_send_to_slack():
     pub_time = datetime.now(KST).strftime("%Y년 %m월 %d일 %H:%M")
 
     # [1단계] 추천 기록 저장 (GitHub)
-    record_picks_to_github(insights.get("picks", []), market_activity, pub_time)
+    coin_price_map = {t: v["price"] for t, v in (target_coins + top30_coins)}
+    record_picks_to_github(insights.get("picks", []), market_activity, pub_time,
+                           indicators, coin_price_map)
 
     # 내러티브 저장 (GitHub)
     save_narrative_to_github(market_narrative, coin_narratives, pub_time)
