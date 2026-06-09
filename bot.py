@@ -649,13 +649,13 @@ def fetch_market_narrative() -> dict:
                     print("  ✅ 시장 내러티브 수집 완료")
                     return parsed
             else:
-                wait = 30 if resp.status_code == 429 else 5
+                wait = 40 if resp.status_code in (429, 503) else 5
                 print(f"  ⚠️ HTTP {resp.status_code} — {wait}초 대기")
                 time.sleep(wait)
                 continue
         except Exception as e:
             print(f"  ⚠️ [시도 {idx+1}] 에러: {e}")
-        time.sleep(5)
+        time.sleep(10)
     return {}
 
 
@@ -733,15 +733,14 @@ def fetch_coin_narratives(target_coins: list, top30_coins: list) -> dict:
                     print("  ✅ 개별 코인 촉매 분석 완료")
                     return parsed
             else:
-                wait = 30 if resp.status_code == 429 else 5
+                wait = 40 if resp.status_code in (429, 503) else 5
                 print(f"  ⚠️ HTTP {resp.status_code} — {wait}초 대기")
                 time.sleep(wait)
                 continue
         except Exception as e:
             print(f"  ⚠️ [시도 {idx+1}] 에러: {e}")
-        time.sleep(5)
+        time.sleep(10)
     return {}
-
 
 # ==========================================
 # 4-C. narrative.json GitHub 저장
