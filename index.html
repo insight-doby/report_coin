@@ -1491,7 +1491,8 @@ function renderTab1(){
 }
 
 /* 단일 카드 DOM 생성 (리포트/관심종목 공용) */
-function createCardElement(p){
+function createCardElement(p, idPrefix){
+    idPrefix = idPrefix || '';
     var persp  = p['관점']||'';
     var color  = PERSP_COLOR[persp]||'#71717a';
     var t1p    = parseFloat(p['T1수익률']||0);
@@ -1504,7 +1505,7 @@ function createCardElement(p){
     var loseW  = Math.min(Math.round(slp*5),100);
     var ticker = p['티커']||'';
     var isVB   = isVirtualBuying(ticker);
-    var detailId = 'detail-'+ticker;
+    var detailId = idPrefix+'detail-'+ticker;
 
     var el = document.createElement('article');
     el.className = 'sig-card' + (isVB?' active-trade':'');
@@ -2188,7 +2189,7 @@ function renderWatchlistAnalysis(){
   if(empty) empty.style.display='none';
   grid.innerHTML = '';
   wlPicks.forEach(function(p){
-    grid.appendChild(createCardElement(p));
+    grid.appendChild(createCardElement(p, 'wl-'));
   });
 }
 var WL_KEY = 'kzb-watchlist';
