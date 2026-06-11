@@ -788,11 +788,20 @@ def save_narrative_to_github(narrative: dict, coin_narratives: dict, publish_tim
         print(f"  ❌ 내러티브 저장 실패: {e}")
 
 
+def _num(v) -> float:
+    """문자열에서 숫자만 추출 ('761원', '1,720원', '2.5' 등 처리)"""
+    try:
+        s = re.sub(r"[^\d.]", "", str(v))  # 숫자와 점만 남김
+        return float(s) if s else 0.0
+    except Exception:
+        return 0.0
+
+
 def _calc_pct(entry, target, abs_val=False) -> float:
     """진입가 대비 목표가/손절가 수익률 계산"""
     try:
-        e = float(str(entry).replace(",", ""))
-        t = float(str(target).replace(",", ""))
+        e = _num(entry)
+        t = _num(target)
         if e <= 0: return 0.0
         pct = round((t - e) / e * 100, 1)
         return round(abs(pct), 1) if abs_val else pct
@@ -936,13 +945,13 @@ def generate_market_insights_via_gemini(
         '      "vol_divergence": "거래량 다이버전스",\n'
         '      "trend_reverse": "추세 역행 분석",\n'
         '      "rank_change": "순위 변화 또는 null",\n'
-        '      "entry": "원화 숫자",\n'
+        '      "entry": 숫자 (단위/쉼표 없이, 예: 761),\n'
         '      "entry_logic": "진입 근거 (쉬운 말로)",\n'
-        '      "t1": "1차 목표가",\n'
+        '      "t1": 숫자 (1차 목표가, 단위 없이),\n'
         '      "t1_pct": 0.0,\n'
-        '      "t2": "2차 목표가",\n'
+        '      "t2": 숫자 (2차 목표가, 단위 없이),\n'
         '      "t2_pct": 0.0,\n'
-        '      "stop_loss": "손절가",\n'
+        '      "stop_loss": 숫자 (손절가, 단위 없이),\n'
         '      "stop_loss_pct": 0.0,\n'
         '      "position_size": "권장 비중",\n'
         '      "holding_period": "기간",\n'
@@ -1060,7 +1069,7 @@ def generate_market_insights_via_gemini(
 1. TOP30 돌파 1종 + TOP30 눌림목 1종 + 급등후보 돌파 2종 + 급등후보 눌림목 2종 = 총 6종목.
 2. TOP30 종목은 반드시 TOP30 풀(위 목록)에서만 선택.
 3. 급등후보 종목은 31~80위 풀에서만 선택.
-4. 진입가·T1·T2·손절가는 반드시 원화 숫자로 명시. '시장가' 절대 금지.
+4. 진입가·T1·T2·손절가는 반드시 순수 숫자만. '원', 쉼표(,), 단위 절대 금지. (예: 761 O / "761원" X / "1,720" X)
 5. what_if_t1_miss와 what_if_btc_drop은 종목별로 각각 다르게 작성.
 6. 시장 온도 '{ma['level_label']}'에 맞게 손절/목표·position_size 조정.
 7. unlock_alert는 개별 코인 촉매 분석 데이터 참고 후 작성.
@@ -1193,7 +1202,7 @@ def _calc_anchor_and_divergence(ticker: str, perspective: str, entry_price, krw_
         anchor_krw = krw_price * ratio
         result["anchor_price"] = round(anchor_krw, 2)
 
-        entry = float(str(entry_price).replace(",", "")) if entry_price else 0
+        entry = _num(entry_price)
         if entry > 0 and anchor_krw > 0:
             div = round((entry - anchor_krw) / anchor_krw * 100, 2)
             result["divergence"] = div
@@ -1768,10 +1777,10 @@ def build_slack_blocks(
 
         # 가격 기반으로 직접 재계산 (Gemini가 0으로 채울 경우 대비)
         try:
-            entry_price = float(str(p.get("entry", 0)).replace(",", ""))
-            t1_price    = float(str(p.get("t1", 0)).replace(",", ""))
-            t2_price    = float(str(p.get("t2", 0)).replace(",", ""))
-            sl_price    = float(str(p.get("stop_loss", 0)).replace(",", ""))
+            entry_price = _num(p.get("entry", 0))
+            t1_price    = _num(p.get("t1", 0))
+            t2_price    = _num(p.get("t2", 0))
+            sl_price    = _num(p.get("stop_loss", 0))
             if entry_price > 0:
                 if t1_price > 0:  t1_pct = round((t1_price - entry_price) / entry_price * 100, 1)
                 if t2_price > 0:  t2_pct = round((t2_price - entry_price) / entry_price * 100, 1)
@@ -2091,10 +2100,10 @@ def generate_html_report(insights: dict, pub_time: str, market_activity: dict,
 
         # 가격 기반으로 직접 재계산
         try:
-            entry_price = float(str(p.get("entry", 0)).replace(",", ""))
-            t1_price    = float(str(p.get("t1", 0)).replace(",", ""))
-            t2_price    = float(str(p.get("t2", 0)).replace(",", ""))
-            sl_price    = float(str(p.get("stop_loss", 0)).replace(",", ""))
+            entry_price = _num(p.get("entry", 0))
+            t1_price    = _num(p.get("t1", 0))
+            t2_price    = _num(p.get("t2", 0))
+            sl_price    = _num(p.get("stop_loss", 0))
             if entry_price > 0:
                 if t1_price > 0: t1_pct = round((t1_price - entry_price) / entry_price * 100, 1)
                 if t2_price > 0: t2_pct = round((t2_price - entry_price) / entry_price * 100, 1)
