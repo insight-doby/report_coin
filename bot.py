@@ -1,7 +1,7 @@
 import time
 import json
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import pytz
@@ -498,11 +498,27 @@ def fetch_binance_indicators(ticker: str, btc_closes_1h: np.ndarray, btc_vols_1h
             vr = float(np.mean(vols[-3:])) / float(np.mean(vols[-13:-3])) * 100 \
                  if len(vols) >= 13 and np.mean(vols[-13:-3]) > 0 else None
 
+            # 볼밴 밴드폭 백분위 — 현재 밴드폭이 과거 대비 얼마나 좁은지 (스퀴즈 판정용)
+            bb_width_pctile = None
+            if len(closes) >= 45:
+                widths = []
+                for _i in range(20, len(closes) + 1):
+                    _w = closes[_i-20:_i]
+                    _m = float(np.mean(_w)); _s = float(np.std(_w, ddof=1))
+                    if _m > 0:
+                        widths.append((4 * _s) / _m * 100)
+                if len(widths) >= 15:
+                    cur_width = widths[-1]
+                    bb_width_pctile = round(
+                        sum(1 for x in widths if x < cur_width) / len(widths) * 100, 1
+                    )
+
             result[interval] = {
                 "label": cfg["label"], "current": round(cur, 6),
                 "emas": {k: round(v, 6) if v else None for k, v in emas.items()},
                 "rsi": _calc_rsi(closes),
                 "bb_upper": bbu, "bb_mid": bbm, "bb_lower": bbl, "bb_position": bb_pos,
+                "bb_width_pctile": bb_width_pctile,
                 "vol_ratio": f"{round(vr,1)}%" if vr else "계산불가",
                 "ma_align": _ma_align(closes, periods),
             }
@@ -684,7 +700,7 @@ def fetch_market_narrative() -> dict:
 # ==========================================
 # 4-B. 2호출 — 개별 코인 촉매 분석
 # ==========================================
-def fetch_coin_narratives(target_coins: list, top30_coins: list) -> dict:
+def fetch_coin_narratives(target_coins: list, top30_coins: list, potential_tickers: list = None) -> dict:
     print("🔍 [2호출] 개별 코인 촉매 분석 중 (Gemini + 구글서치)...")
     clean_key = GEMINI_API_KEY.strip()
     if not clean_key:
@@ -694,8 +710,16 @@ def fetch_coin_narratives(target_coins: list, top30_coins: list) -> dict:
 
     # 분석 대상 코인 목록 (상위 15개만 — 토큰 절약)
     all_coins = top30_coins[:5] + target_coins[:10]
+    base_tickers = {t for t, _ in all_coins}
+
+    # 선취매 후보 중 누락된 종목 추가 (스퀴즈 후보의 재료 분석용)
+    pt_set = set(potential_tickers or [])
+    price_map = {t: v for t, v in target_coins + top30_coins}
+    extra = [(t, price_map[t]) for t in pt_set if t not in base_tickers and t in price_map]
+    all_coins = all_coins + extra
+
     coin_list = "\n".join(
-        f"- {t}: {v['price']:,}원 / 변동 {v['change']:+.1f}% / 거래대금 {v['volume']/1e8:.0f}억"
+        f"- {t}{' ⚡선취매후보' if t in pt_set else ''}: {v['price']:,}원 / 변동 {v['change']:+.1f}% / 거래대금 {v['volume']/1e8:.0f}억"
         for t, v in all_coins
     )
 
@@ -712,12 +736,22 @@ def fetch_coin_narratives(target_coins: list, top30_coins: list) -> dict:
 2. 현재 내러티브가 초입인지 중반인지 과열인지
 3. 언락 일정 (있으면)
 4. 진입 시 주의사항
+5. ⚡선취매후보 표시 종목은 특히 "예정된 이벤트"를 집중적으로 찾아라
+   (메인넷/업그레이드/상장/언락/컨퍼런스 등 날짜가 있는 일정)
+
+촉매 분류 기준:
+- catalyst_type: "scheduled"(날짜가 정해진 이벤트), "flow"(섹터 자금흐름/루머/분위기), "none"(촉매 없음)
+- catalyst_date: scheduled인 경우만 YYYY-MM-DD 형식. 날짜를 모르면 null.
+- catalyst_strength: "강"(가격을 움직일 만한 명확한 재료), "중"(보조적 재료), "약"(약한 재료), "없음"
 
 출력은 순수 JSON만 반환해라:
 {{
   "coin_narratives": {{
     "티커": {{
       "catalyst": "구체적 촉매 (없으면 null)",
+      "catalyst_type": "scheduled 또는 flow 또는 none",
+      "catalyst_date": "YYYY-MM-DD 또는 null",
+      "catalyst_strength": "강 또는 중 또는 약 또는 없음",
       "narrative_phase": "초입 또는 중반 또는 과열 또는 해당없음",
       "unlock_schedule": "언락 일정 (없으면 null)",
       "caution": "주의사항 (없으면 null)",
@@ -1493,7 +1527,15 @@ def run_ml_review(results: list) -> dict:
     except Exception as e:
         print(f"  ⚠️ ML 오류: {e}")
 
-    # 복기 결과 저장
+    # 복기 결과 저장 (내용이 있을 때만 — 빈 레코드가 쌓이면 대시보드에 '데이터 없음'으로 표시됨)
+    has_content = bool(
+        review.get("win_pattern") or review.get("lose_pattern")
+        or review.get("next_focus") or review.get("rule_improvements")
+    )
+    if not has_content:
+        print("  ℹ️ 복기 내용 없음 — review.json 저장 스킵")
+        return review
+
     try:
         existing, sha = _gh_read("data/review.json")
         if not isinstance(existing, list): existing = []
@@ -1504,6 +1546,7 @@ def run_ml_review(results: list) -> dict:
             "never_do":       review.get("never_do", ""),
             "market_insight": review.get("market_insight", ""),
             "next_focus":     review.get("next_focus", ""),
+            "rule_improvements": review.get("rule_improvements", []),
             "ml_accuracy":    review.get("ml_accuracy", ""),
         })
         _gh_write("data/review.json", existing, sha, "복기분석 저장")
@@ -1858,6 +1901,252 @@ def build_slack_blocks(
 # ==========================================
 # 6. 메인 파이프라인
 # ==========================================
+# ==========================================
+# [5단계] 잠재 폭발 후보 (선취매 스캔)
+# ==========================================
+# 흐름:
+#   1) scan_potential_candidates  — 차트 조건만으로 후보 스캔 (LLM 호출 없음)
+#   2) score_potential_with_narrative — 코인 촉매 + 거시 환경 융합 점수/등급/동적 시한
+#   3) record_potential_to_github — data/potential.json 저장 (관찰중 중복 방지)
+#   4) track_potential            — 매 실행마다 관찰중 후보의 적중/실패/만료 판정
+#   5) mark_potential_promotions  — AI 추천(picks)으로 승격된 후보 표시
+
+POTENTIAL_FILE     = "data/potential.json"
+POTENTIAL_HIT_PCT  = 10.0   # 포착가 대비 최고 +10% 도달 시 '적중'
+POTENTIAL_FAIL_PCT = -7.0   # 포착가 대비 -7% 이탈 시 '실패 (하방 이탈)'
+POTENTIAL_MAX_DAYS = 7      # 관찰 시한 상한
+
+
+def _parse_kst_dt(s: str):
+    try:
+        return KST.localize(datetime.strptime(str(s), "%Y년 %m월 %d일 %H:%M"))
+    except Exception:
+        return None
+
+
+def scan_potential_candidates(target_coins: list, indicators: dict) -> list:
+    """거래량은 들어왔는데 가격은 아직 안 움직인 + 볼밴 스퀴즈 + RSI 중립 종목 스캔.
+    target_coins는 거래대금 31~80위 풀에서 선별된 종목이라 '작은 코인' 조건은 풀 자체로 충족."""
+    print("⚡ [5단계] 잠재 폭발 후보 스캔 중...")
+    out = []
+    for ticker, info in target_coins:
+        iv = indicators.get(ticker, {}) or {}
+        tf = iv.get("6h") or {}
+        if not tf or "error" in tf:
+            continue
+
+        change = float(info.get("change", 0) or 0)
+        rsi    = tf.get("rsi")
+        pctile = tf.get("bb_width_pctile")
+        try:
+            vol_ratio = float(str(tf.get("vol_ratio", "")).replace("%", ""))
+        except Exception:
+            vol_ratio = 0
+
+        # ── 기본 게이트: 거래량 유입 + 가격 미반영 + 스퀴즈 + RSI 중립 ──
+        if not (-3 <= change <= 6):           continue   # 가격 아직 +5% 미만 (약간 여유)
+        if vol_ratio < 130:                   continue   # 거래량 유입
+        if pctile is None or pctile > 40:     continue   # 밴드폭 하위 40% 이내
+        if rsi is None or not (35 <= rsi <= 62): continue  # 과열 아님
+
+        # ── 차트 점수 (0~50) ──
+        score = 0
+        score += 20 if pctile <= 10 else 15 if pctile <= 20 else 10 if pctile <= 30 else 5
+        score += 15 if vol_ratio >= 200 else 10 if vol_ratio >= 150 else 5
+        score += 10 if 45 <= rsi <= 58 else 5
+        if "수렴" in str(tf.get("ma_align", "")):
+            score += 5
+
+        out.append({
+            "티커":        ticker,
+            "포착가":      info.get("price", 0),
+            "변동24h":     round(change, 2),
+            "거래량배율":   round(vol_ratio, 1),
+            "밴드폭백분위": pctile,
+            "rsi":         rsi,
+            "차트점수":    score,
+        })
+
+    out.sort(key=lambda x: -x["차트점수"])
+    out = out[:8]
+    print(f"  ✅ 차트 조건 충족 {len(out)}종: {', '.join(c['티커'] for c in out) or '없음'}")
+    return out
+
+
+def score_potential_with_narrative(cands: list, coin_narr: dict, market_narr: dict,
+                                   market_activity: dict) -> list:
+    """차트 점수(코드) + 재료 점수(LLM 촉매 분석) + 거시 페널티 → 등급/동적 시한 산출."""
+    if not cands:
+        return cands
+
+    cn_map = {k.upper(): v for k, v in ((coin_narr or {}).get("coin_narratives", {}) or {}).items()}
+    phase  = market_activity.get("market_phase", "")
+    macro_pen = -20 if phase == "panic_sell" else -5 if phase == "overheat" else 0
+    now = datetime.now(KST)
+
+    for c in cands:
+        n = cn_map.get(str(c["티커"]).upper(), {}) or {}
+        strength = (n.get("catalyst_strength") or "없음").strip()
+        ctype    = (n.get("catalyst_type") or "none").strip()
+        cphase   = (n.get("narrative_phase") or "").strip()
+        catalyst = n.get("catalyst") or ""
+        cdate    = n.get("catalyst_date") or ""
+
+        # ── 재료 점수 (0~50) ──
+        ns  = {"강": 25, "중": 15, "약": 8}.get(strength, 0)
+        ns += 10 if ctype == "scheduled" else 5 if ctype == "flow" else 0
+        ns += 10 if cphase == "초입" else 5 if cphase == "중반" else 0
+        ns  = min(ns, 50)
+
+        total = max(0, min(100, c["차트점수"] + ns + macro_pen))
+        grade = "폭발임박" if total >= 80 else "주목" if total >= 60 else "응축관찰"
+
+        # ── 동적 관찰 시한 ──
+        deadline, reason = None, ""
+        if ctype == "scheduled" and cdate:
+            try:
+                d = KST.localize(datetime.strptime(cdate, "%Y-%m-%d")) + timedelta(days=1, hours=23, minutes=59)
+                if now < d <= now + timedelta(days=POTENTIAL_MAX_DAYS):
+                    deadline, reason = d, "재료 발표 다음날까지"
+            except Exception:
+                pass
+        if deadline is None:
+            if strength in ("강", "중"):
+                deadline, reason = now + timedelta(days=5), "재료 있음 — 기본 5일"
+            else:
+                deadline, reason = now + timedelta(days=4), "차트 응축만 — 기본 4일"
+
+        c.update({
+            "재료점수":     ns,
+            "거시페널티":   macro_pen,
+            "총점":        total,
+            "등급":        grade,
+            "촉매":        catalyst,
+            "촉매유형":     ctype,
+            "촉매강도":     strength,
+            "촉매일":       cdate,
+            "내러티브단계": cphase,
+            "주의사항":     n.get("caution") or "",
+            "관찰시한":     deadline.strftime("%Y년 %m월 %d일 %H:%M"),
+            "시한사유":     reason,
+        })
+        print(f"  ⚡ {c['티커']}: 차트 {c['차트점수']} + 재료 {ns} + 거시 {macro_pen} = {total}점 [{grade}] / 시한 {c['관찰시한']}")
+    return cands
+
+
+def record_potential_to_github(cands: list, pub_time: str):
+    """potential.json에 신규 후보 저장. 이미 관찰중인 티커는 중복 등록하지 않음."""
+    if not cands:
+        print("  ℹ️ 저장할 선취매 후보 없음")
+        return
+    try:
+        data, sha = _gh_read(POTENTIAL_FILE)
+        if not isinstance(data, list):
+            data = []
+        watching = {str(c.get("티커", "")).upper() for c in data if c.get("상태") == "관찰중"}
+
+        added = 0
+        for c in cands:
+            if str(c["티커"]).upper() in watching:
+                continue
+            rec = dict(c)
+            rec.update({
+                "포착일시":     pub_time,
+                "상태":        "관찰중",
+                "최고수익률":   0.0,
+                "현재수익률":   0.0,
+                "결과":        None,
+                "결과확정일시": None,
+                "승격":        False,
+            })
+            data.append(rec)
+            added += 1
+
+        # 최근 200건만 유지
+        if len(data) > 200:
+            data = data[-200:]
+
+        ok = _gh_write(POTENTIAL_FILE, data, sha, f"선취매 후보: {pub_time}")
+        print(f"  {'✅' if ok else '❌'} 선취매 후보 {added}건 신규 저장 (관찰중 중복 {len(cands)-added}건 스킵)")
+    except Exception as e:
+        print(f"  ❌ 선취매 후보 저장 실패: {e}")
+
+
+def track_potential():
+    """관찰중인 선취매 후보들의 적중/실패/만료 판정 — 매 실행 시 호출."""
+    print("⚡ 선취매 후보 추적 중...")
+    try:
+        data, sha = _gh_read(POTENTIAL_FILE)
+        if not isinstance(data, list) or not data:
+            print("  ℹ️ 추적할 후보 없음")
+            return
+
+        now     = datetime.now(KST)
+        now_str = now.strftime("%Y년 %m월 %d일 %H:%M")
+        updated = False
+
+        for c in data:
+            if c.get("상태") != "관찰중":
+                continue
+            ticker = str(c.get("티커", "")).upper()
+            anchor = _num(c.get("포착가"))
+            if anchor <= 0:
+                continue
+
+            cur = fetch_current_price_bithumb(ticker)
+            if not cur:
+                continue
+
+            pnl = round((cur - anchor) / anchor * 100, 2)
+            c["현재수익률"] = pnl
+            c["최고수익률"] = max(float(c.get("최고수익률", 0) or 0), pnl)
+            updated = True
+
+            deadline = _parse_kst_dt(c.get("관찰시한"))
+
+            # 판정 — 최고수익률 기준 적중 / 현재가 기준 실패 / 시한 만료
+            if c["최고수익률"] >= POTENTIAL_HIT_PCT:
+                c["상태"], c["결과"] = "적중", f"🎯 폭발 (+{POTENTIAL_HIT_PCT:.0f}% 도달)"
+            elif pnl <= POTENTIAL_FAIL_PCT:
+                c["상태"], c["결과"] = "실패", "🔻 하방 이탈"
+            elif deadline and now >= deadline:
+                c["상태"] = "만료"
+                c["결과"] = "📈 소폭 상승" if c["최고수익률"] >= 5 else "😴 불발"
+
+            if c["상태"] != "관찰중":
+                c["결과확정일시"] = now_str
+                print(f"  {c['결과']} {ticker} (최고 {c['최고수익률']:+.1f}%)")
+            time.sleep(0.1)
+
+        if updated:
+            _gh_write(POTENTIAL_FILE, data, sha, f"선취매 추적: {now_str}")
+            print("  ✅ 선취매 추적 업데이트 완료")
+    except Exception as e:
+        print(f"  ⚠️ 선취매 추적 오류: {e}")
+
+
+def mark_potential_promotions(picked_tickers: set):
+    """이번 추천(picks)에 선취매 후보가 포함됐으면 '승격' 표시 — 스캐너의 선행성 검증용."""
+    if not picked_tickers:
+        return
+    try:
+        data, sha = _gh_read(POTENTIAL_FILE)
+        if not isinstance(data, list) or not data:
+            return
+        changed = False
+        for c in data:
+            if c.get("승격"):
+                continue
+            if str(c.get("티커", "")).upper() in picked_tickers and c.get("상태") in ("관찰중", "적중"):
+                c["승격"] = True
+                changed = True
+                print(f"  🚀 선취매 후보 → AI 추천 승격: {c['티커']}")
+        if changed:
+            _gh_write(POTENTIAL_FILE, data, sha, "선취매 승격 표시")
+    except Exception as e:
+        print(f"  ⚠️ 승격 표시 오류: {e}")
+
+
 def run_and_send_to_slack():
     print("🚀 차기 주도주 발굴 봇 v4 시작 (GitHub DB 연동)")
     print("=" * 60)
@@ -1865,6 +2154,9 @@ def run_and_send_to_slack():
     # [2단계] 성과 추적
     perf_results = track_performance()
     perf_summary = performance_summary_text(perf_results)
+
+    # [2-B단계] 선취매 후보 추적 (적중/실패/만료 판정)
+    track_potential()
 
     # [3단계] 복기
     review = run_ml_review(perf_results)
@@ -1911,14 +2203,20 @@ def run_and_send_to_slack():
     all_coins  = target_coins + top30_coins
     indicators = fetch_indicators_for_top_coins(all_coins, btc_closes_1h, btc_vols_1h)
 
+    # [5단계-1] 잠재 폭발 후보 차트 스캔 (LLM 호출 전 — 촉매 분석 대상에 포함시키기 위해 먼저 실행)
+    potential_raw = scan_potential_candidates(target_coins, indicators)
+
     # [1호출] 거시/코인니스 시장 내러티브
     market_narrative = fetch_market_narrative()
     if market_narrative:
         print("  ⏳ 다음 호출까지 10초 대기...")
         time.sleep(10)
 
-    # [2호출] 개별 코인 촉매 분석
-    coin_narratives = fetch_coin_narratives(target_coins, top30_coins)
+    # [2호출] 개별 코인 촉매 분석 (선취매 후보 포함)
+    coin_narratives = fetch_coin_narratives(
+        target_coins, top30_coins,
+        potential_tickers=[c["티커"] for c in potential_raw]
+    )
     if coin_narratives:
         print("  ⏳ 다음 호출까지 10초 대기...")
         time.sleep(10)
@@ -1937,6 +2235,15 @@ def run_and_send_to_slack():
     coin_price_map = {t: v["price"] for t, v in (target_coins + top30_coins)}
     record_picks_to_github(insights.get("picks", []), market_activity, pub_time,
                            indicators, coin_price_map)
+
+    # [5단계-2] 선취매 후보 — 점수 융합 + 저장 + 승격 체크
+    picked_tickers = {str(p.get("ticker", "")).upper() for p in insights.get("picks", [])}
+    final_cands = [c for c in potential_raw if str(c["티커"]).upper() not in picked_tickers]
+    final_cands = score_potential_with_narrative(
+        final_cands, coin_narratives, market_narrative, market_activity
+    )
+    record_potential_to_github(final_cands, pub_time)
+    mark_potential_promotions(picked_tickers)
 
     # 내러티브 저장 (GitHub)
     save_narrative_to_github(market_narrative, coin_narratives, pub_time)

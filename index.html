@@ -526,6 +526,69 @@ button{cursor:pointer;font-family:inherit;}
 .wl-result-item .wl-name{font-size:11px;color:var(--txt3);margin-left:6px;}
 .wl-result-item .wl-add{font-size:11px;color:var(--accent);font-weight:600;}
 .wl-result-item.added{opacity:0.5;pointer-events:none;}
+
+/* ── ⚡ 선취매 후보 ── */
+.pt-strip{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;}
+.pt-card{background:var(--surface);border:1px solid var(--border);border-left:3px solid #8B5CF6;
+  border-radius:var(--r);padding:18px 20px;box-shadow:var(--shadow);}
+.pt-card.grade-s{border-left-color:#f97316;}
+.pt-card.grade-a{border-left-color:#8B5CF6;}
+.pt-card.grade-b{border-left-color:var(--txt3);}
+.pt-top{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;flex-wrap:wrap;}
+.pt-tk{font-size:19px;font-weight:800;font-family:'JetBrains Mono',monospace;letter-spacing:-0.03em;}
+.pt-grade{padding:4px 11px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap;}
+.pt-grade.s{background:rgba(249,115,22,0.14);color:#f97316;}
+.pt-grade.a{background:rgba(139,92,246,0.14);color:#8B5CF6;}
+.pt-grade.b{background:var(--surface2);color:var(--txt3);}
+.pt-price{font-size:13px;color:var(--txt2);font-family:'JetBrains Mono',monospace;margin-bottom:10px;}
+.pt-oneliner{font-size:13px;color:var(--txt2);line-height:1.7;background:var(--surface2);
+  border-radius:var(--r2);padding:10px 13px;margin-bottom:12px;}
+.pt-rows{display:flex;flex-direction:column;gap:7px;margin-bottom:12px;}
+.pt-row{display:flex;gap:8px;font-size:12.5px;line-height:1.55;}
+.pt-row-ico{flex-shrink:0;}
+.pt-row-lbl{flex-shrink:0;width:62px;font-weight:700;color:var(--txt2);}
+.pt-row-txt{color:var(--txt2);}
+.pt-row-txt .pt-dim{color:var(--txt3);font-size:11px;}
+.pt-deadline{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--warn);
+  background:var(--warnm);border-radius:var(--r2);padding:8px 12px;margin-bottom:8px;}
+.pt-live{display:flex;align-items:center;justify-content:space-between;font-size:12px;
+  color:var(--txt3);padding-top:8px;border-top:1px solid var(--border);}
+.pt-live-pnl{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:14px;}
+.pt-kpi{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
+  padding:14px 18px;margin-bottom:14px;font-size:13px;color:var(--txt2);line-height:1.7;box-shadow:var(--shadow);}
+.pt-kpi strong{color:var(--txt);}
+.pt-history{margin-top:18px;}
+.pt-hist-item{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:9px 0;border-bottom:1px solid var(--border);font-size:12.5px;flex-wrap:wrap;}
+.pt-hist-item:last-child{border-bottom:none;}
+.pt-hist-tk{font-weight:700;font-family:'JetBrains Mono',monospace;}
+.pt-hist-meta{font-size:11px;color:var(--txt3);}
+.pt-guide{font-size:12px;color:var(--txt3);line-height:1.7;background:var(--surface2);
+  border-radius:var(--r2);padding:10px 14px;margin-bottom:14px;}
+
+/* ── 성과분석 코인별 뷰 ── */
+.pv-toggle{display:flex;gap:4px;background:var(--surface2);border-radius:var(--r2);padding:3px;width:fit-content;}
+.pv-btn{padding:5px 14px;font-size:11.5px;font-weight:600;border:none;border-radius:6px;
+  background:transparent;color:var(--txt3);transition:all .15s;}
+.pv-btn.active{background:var(--txt);color:var(--bg);}
+.pg-item{border:1px solid var(--border);border-radius:var(--r2);margin-bottom:8px;overflow:hidden;background:var(--bg);}
+.pg-head{display:flex;align-items:center;gap:12px;padding:12px 14px;cursor:pointer;flex-wrap:wrap;}
+.pg-head:hover{background:var(--surface2);}
+.pg-tk{font-size:15px;font-weight:800;font-family:'JetBrains Mono',monospace;min-width:72px;}
+.pg-cnt{font-size:11px;font-weight:700;color:var(--accent);background:var(--accentm);
+  padding:2px 8px;border-radius:10px;white-space:nowrap;}
+.pg-stats{display:flex;gap:12px;font-size:11.5px;color:var(--txt3);flex-wrap:wrap;margin-left:auto;align-items:center;}
+.pg-avg{font-family:'JetBrains Mono',monospace;font-weight:700;font-size:13px;}
+.pg-arrow{color:var(--txt3);font-size:11px;}
+.pg-body{display:none;border-top:1px solid var(--border);padding:6px 14px 12px;}
+.pg-body.open{display:block;}
+.pg-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border2);
+  font-size:12px;flex-wrap:wrap;}
+.pg-row:last-child{border-bottom:none;}
+
+@media(max-width:760px){
+  .pt-strip{grid-template-columns:1fr;}
+}
 </style>
 </head>
 
@@ -687,6 +750,9 @@ button{cursor:pointer;font-family:inherit;}
     <button id="rt-btn-picks" onclick="switchReportTab('picks')"
       style="padding:6px 16px;font-size:12px;font-weight:600;border:none;cursor:pointer;
       border-radius:6px;background:var(--txt);color:var(--bg);transition:all .15s;">오늘의 추천</button>
+    <button id="rt-btn-potential" onclick="switchReportTab('potential')"
+      style="padding:6px 16px;font-size:12px;font-weight:600;border:none;cursor:pointer;
+      border-radius:6px;background:transparent;color:var(--txt3);transition:all .15s;">⚡ 선취매 후보</button>
     <button id="rt-btn-watchlist" onclick="switchReportTab('watchlist')"
       style="padding:6px 16px;font-size:12px;font-weight:600;border:none;cursor:pointer;
       border-radius:6px;background:transparent;color:var(--txt3);transition:all .15s;">관심종목 분석</button>
@@ -722,6 +788,19 @@ button{cursor:pointer;font-family:inherit;}
       <div style="font-size:14px;color:var(--txt3);margin-bottom:8px;">등록된 관심종목이 없거나 아직 분석 데이터가 없어요.</div>
       <div style="font-size:12px;color:var(--txt3);">관심종목 탭에서 종목을 추가하고 분석 시작 버튼을 눌러보세요.</div>
     </div>
+  </div>
+
+  <!-- ⚡ 선취매 후보 -->
+  <div id="rt-potential-pane" style="display:none;">
+    <div class="pt-guide">
+      💡 <strong>선취매 후보란?</strong> 아직 가격은 안 올랐지만, 거래량이 먼저 들어오고 차트가 응축돼서
+      <strong>곧 크게 움직일 가능성이 있는 코인</strong>을 미리 찍어둔 목록이에요.
+      "지금 사라"는 추천이 아니라 <strong>"지켜보라"는 관찰 후보</strong>입니다 —
+      응축된 에너지는 아래로 터질 수도 있으니 시한과 결과 기록을 함께 확인하세요.
+    </div>
+    <div id="pt-kpi"></div>
+    <div class="pt-strip" id="pt-strip"></div>
+    <div id="pt-history" class="pt-history"></div>
   </div>
 
   <!-- Keywords -->
@@ -862,8 +941,15 @@ button{cursor:pointer;font-family:inherit;}
 
   <!-- 상세 테이블 -->
   <div class="section-card">
-    <div class="section-title">상세 내역</div>
-    <div style="overflow-x:auto;">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:16px;">
+      <div class="section-title" style="margin-bottom:0;">상세 내역</div>
+      <div class="pv-toggle">
+        <button class="pv-btn active" id="pv-btn-coin" onclick="setPerfView('coin')">코인별</button>
+        <button class="pv-btn" id="pv-btn-time" onclick="setPerfView('time')">시간순</button>
+      </div>
+    </div>
+    <div id="perf-group"></div>
+    <div style="overflow-x:auto;display:none;" id="perf-table-wrap">
       <table class="ptable" id="perf-table">
         <thead><tr>
           <th>티커</th><th>관점</th><th>결과</th><th>수익률</th><th>시장온도</th><th>확인일시</th>
@@ -1077,7 +1163,7 @@ var PERSP_COLOR = {
   'TOP30 돌파':'#8B5CF6','TOP30 눌림목':'#3B82F6',
   '급등후보 돌파':'#22C55E','급등후보 눌림목':'#F59E0B'
 };
-var G = { picks:[], perf:[], review:[], rules:[], narrative:[] };
+var G = { picks:[], perf:[], review:[], rules:[], narrative:[], potential:[] };
 var liveIntervals = {};
 
 /* ══════════════════════════════════
@@ -1150,13 +1236,15 @@ function autoLoadData(){
       fetch(BASE+'performance.json?t='+Date.now()).then(function(r){ return r.ok?r.json():[]; }).catch(function(){ return []; }),
       fetch(BASE+'review.json?t='+Date.now()).then(function(r){ return r.ok?r.json():[]; }).catch(function(){ return []; }),
       fetch(BASE+'rules.json?t='+Date.now()).then(function(r){ return r.ok?r.json():[]; }).catch(function(){ return []; }),
-      fetch(BASE+'narrative.json?t='+Date.now()).then(function(r){ return r.ok?r.json():[]; }).catch(function(){ return []; })
+      fetch(BASE+'narrative.json?t='+Date.now()).then(function(r){ return r.ok?r.json():[]; }).catch(function(){ return []; }),
+      fetch(BASE+'potential.json?t='+Date.now()).then(function(r){ return r.ok?r.json():[]; }).catch(function(){ return []; })
     ]);
   }).then(function(res){
     G.perf      = res[0]||[];
     G.review    = res[1]||[];
     G.rules     = res[2]||[];
     G.narrative = res[3]||[];
+    G.potential = res[4]||[];
     renderAll();
   }).catch(function(e){ console.warn('자동 로드 실패:', e); });
 }
@@ -1256,6 +1344,7 @@ function renderAll(){
   renderTab2();
   renderTab3();
   renderTab4();
+  renderPotential();
   /* Tab5는 localStorage 기반으로 이미 initPortfolio에서 처리 */
 }
 
@@ -1498,6 +1587,13 @@ function createCardElement(p, idPrefix){
     var t1p    = parseFloat(p['T1수익률']||0);
     var t2p    = parseFloat(p['T2수익률']||0);
     var slp    = Math.abs(parseFloat(p['손절률']||0));
+    /* 봇이 0으로 저장한 경우 — 가격 문자열에서 직접 재계산 (폴백) */
+    var entryN = priceNum(p['진입가']);
+    if(entryN > 0){
+      if(!t1p){ var t1N = priceNum(p['T1']);   if(t1N>0) t1p = Math.round((t1N-entryN)/entryN*1000)/10; }
+      if(!t2p){ var t2N = priceNum(p['T2']);   if(t2N>0) t2p = Math.round((t2N-entryN)/entryN*1000)/10; }
+      if(!slp){ var slN = priceNum(p['손절가']); if(slN>0) slp = Math.abs(Math.round((slN-entryN)/entryN*1000)/10); }
+    }
     var rr     = slp>0 ? Math.round(t2p/slp*10)/10 : 0;
     var rrC    = rr>=2?'var(--pos)':rr>=1.5?'var(--warn)':'var(--neg)';
     var rrL    = rr>=2?'유리':rr>=1.5?'보통':'불리';
@@ -1602,11 +1698,11 @@ function renderTab2(){
   var perf = G.perf;
   if(!perf.length){
     document.getElementById('perf-empty').style.display='block';
-    document.getElementById('perf-table').style.display='none';
+    document.getElementById('perf-table-wrap').style.display='none';
+    document.getElementById('perf-group').style.display='none';
     return;
   }
   document.getElementById('perf-empty').style.display='none';
-  document.getElementById('perf-table').style.display='table';
 
   var wins   = perf.filter(function(r){ return r['결과']&&r['결과'].indexOf('달성')!==-1; });
   var losses = perf.filter(function(r){ return r['결과']&&r['결과'].indexOf('손절')!==-1; });
@@ -1733,24 +1829,123 @@ function renderTab2(){
     document.getElementById('t-cheaper').textContent = '—';
   }
 
-  /* 테이블 */
-  var tbody = '';
-  perf.slice().reverse().forEach(function(r){
-    var res = r['결과']||'';
-    var bc  = res.indexOf('달성')!==-1?'b-win':res.indexOf('손절')!==-1?'b-lose':'b-ing';
-    var pnlN= parseFloat((r['수익률']||'0').replace('%','').replace('+',''))||0;
-    var pc  = pnlN>=0?'var(--pos)':'var(--neg)';
-    tbody +=
-      '<tr>'+
-        '<td class="mono" style="font-weight:700;">'+(r['티커']||'—')+'</td>'+
-        '<td style="font-size:11px;color:var(--txt3);">'+(r['관점']||'—')+'</td>'+
-        '<td><span class="badge '+bc+'">'+res+'</span></td>'+
-        '<td class="mono" style="color:'+pc+';font-weight:600;">'+(r['수익률']||'—')+'</td>'+
-        '<td style="font-size:11px;color:var(--txt3);">'+(r['시장온도']||'—')+'</td>'+
-        '<td style="font-size:11px;color:var(--txt3);">'+(r['확인일시']||'—')+'</td>'+
-      '</tr>';
+  /* 상세 내역 (코인별 / 시간순) */
+  renderPerfDetail();
+}
+
+/* ── 성과 상세: 코인별 그룹 / 시간순 토글 ── */
+var PERF_VIEW = 'coin';
+
+function setPerfView(v){
+  PERF_VIEW = v;
+  var bc = document.getElementById('pv-btn-coin');
+  var bt = document.getElementById('pv-btn-time');
+  if(bc) bc.className = 'pv-btn'+(v==='coin'?' active':'');
+  if(bt) bt.className = 'pv-btn'+(v==='time'?' active':'');
+  renderPerfDetail();
+}
+
+function perfPnlNum(r){
+  return parseFloat((r['수익률']||'0').replace('%','').replace('+',''))||0;
+}
+
+function renderPerfDetail(){
+  var perf  = G.perf;
+  var group = document.getElementById('perf-group');
+  var wrap  = document.getElementById('perf-table-wrap');
+  if(!group || !wrap) return;
+  if(!perf.length){ group.style.display='none'; wrap.style.display='none'; return; }
+
+  if(PERF_VIEW === 'time'){
+    group.style.display='none';
+    wrap.style.display='block';
+    var tbody = '';
+    perf.slice().reverse().forEach(function(r){
+      var res = r['결과']||'';
+      var bc  = res.indexOf('달성')!==-1?'b-win':res.indexOf('손절')!==-1?'b-lose':'b-ing';
+      var pnlN= perfPnlNum(r);
+      var pc  = pnlN>=0?'var(--pos)':'var(--neg)';
+      tbody +=
+        '<tr>'+
+          '<td class="mono" style="font-weight:700;">'+(r['티커']||'—')+'</td>'+
+          '<td style="font-size:11px;color:var(--txt3);">'+(r['관점']||'—')+'</td>'+
+          '<td><span class="badge '+bc+'">'+res+'</span></td>'+
+          '<td class="mono" style="color:'+pc+';font-weight:600;">'+(r['수익률']||'—')+'</td>'+
+          '<td style="font-size:11px;color:var(--txt3);">'+(r['시장온도']||'—')+'</td>'+
+          '<td style="font-size:11px;color:var(--txt3);">'+(r['확인일시']||'—')+'</td>'+
+        '</tr>';
+    });
+    document.getElementById('perf-tbody').innerHTML = tbody;
+    return;
+  }
+
+  /* ── 코인별 그룹 뷰 ── */
+  wrap.style.display='none';
+  group.style.display='block';
+
+  var byTicker = {};
+  perf.forEach(function(r){
+    var t = r['티커']||'—';
+    (byTicker[t] = byTicker[t]||[]).push(r);
   });
-  document.getElementById('perf-tbody').innerHTML = tbody;
+
+  var groups = Object.keys(byTicker).map(function(t){
+    var rows = byTicker[t];
+    var wins   = rows.filter(function(r){ return (r['결과']||'').indexOf('달성')!==-1; }).length;
+    var losses = rows.filter(function(r){ return (r['결과']||'').indexOf('손절')!==-1; }).length;
+    var ing    = rows.length - wins - losses;
+    var avg    = rows.reduce(function(a,r){ return a+perfPnlNum(r); },0)/rows.length;
+    /* 최근 결과 = 확인일시 기준 마지막 행 */
+    var last   = rows[rows.length-1];
+    return { ticker:t, rows:rows, wins:wins, losses:losses, ing:ing,
+             avg:Math.round(avg*10)/10, last:last };
+  });
+
+  /* 정렬: 추천 횟수 많은 순 → 평균 수익률 순 */
+  groups.sort(function(a,b){
+    return (b.rows.length - a.rows.length) || (b.avg - a.avg);
+  });
+
+  var html = groups.map(function(g,gi){
+    var ac = g.avg>=0?'var(--pos)':'var(--neg)';
+    var lastRes = (g.last['결과']||'—');
+    var lastCls = lastRes.indexOf('달성')!==-1?'b-win':lastRes.indexOf('손절')!==-1?'b-lose':'b-ing';
+    var detail = g.rows.slice().reverse().map(function(r){
+      var pnlN = perfPnlNum(r);
+      var pc   = pnlN>=0?'var(--pos)':'var(--neg)';
+      var bc   = (r['결과']||'').indexOf('달성')!==-1?'b-win':(r['결과']||'').indexOf('손절')!==-1?'b-lose':'b-ing';
+      return '<div class="pg-row">'+
+        '<span style="font-size:11px;color:var(--txt3);min-width:140px;" class="mono">'+(r['추천일시']||'—')+'</span>'+
+        '<span style="font-size:11px;color:var(--txt3);">'+(r['관점']||'—')+'</span>'+
+        '<span class="badge '+bc+'">'+(r['결과']||'—')+'</span>'+
+        '<span class="mono" style="color:'+pc+';font-weight:600;margin-left:auto;">'+(r['수익률']||'—')+'</span>'+
+      '</div>';
+    }).join('');
+
+    return '<div class="pg-item">'+
+      '<div class="pg-head" onclick="togglePerfGroup('+gi+')">'+
+        '<span class="pg-tk">'+esc(g.ticker)+'</span>'+
+        '<span class="pg-cnt">추천 '+g.rows.length+'회</span>'+
+        '<div class="pg-stats">'+
+          '<span>✅ '+g.wins+' · ❌ '+g.losses+(g.ing?' · ⏳ '+g.ing:'')+'</span>'+
+          '<span class="pg-avg" style="color:'+ac+';">평균 '+(g.avg>=0?'+':'')+g.avg+'%</span>'+
+          '<span class="badge '+lastCls+'" style="font-size:10px;">최근 '+lastRes+'</span>'+
+          '<span class="pg-arrow" id="pg-arrow-'+gi+'">▼</span>'+
+        '</div>'+
+      '</div>'+
+      '<div class="pg-body" id="pg-body-'+gi+'">'+detail+'</div>'+
+    '</div>';
+  }).join('');
+
+  group.innerHTML = html;
+}
+
+function togglePerfGroup(i){
+  var body  = document.getElementById('pg-body-'+i);
+  var arrow = document.getElementById('pg-arrow-'+i);
+  if(!body) return;
+  var open = body.classList.toggle('open');
+  if(arrow) arrow.textContent = open ? '▲' : '▼';
 }
 
 function drawCurve(pnls){
@@ -1786,7 +1981,11 @@ function drawCurve(pnls){
    ══════════════════════════════════ */
 function renderTab3(){
   if(!G.review.length) return;
-  var latest = G.review[G.review.length-1];
+  /* 빈 복기 레코드가 마지막일 수 있으므로 — 내용이 있는 가장 최근 항목으로 폴백 */
+  var filled = G.review.filter(function(r){
+    return r['win_pattern'] || r['lose_pattern'] || r['next_focus'] || r['market_insight'];
+  });
+  var latest = filled.length ? filled[filled.length-1] : G.review[G.review.length-1];
 
   /* Gemini's Voice */
   var voice = [latest['next_focus'],latest['market_insight']].filter(Boolean).join('\n\n');
@@ -1818,7 +2017,11 @@ function renderTab3(){
 }
 
 function renderCondCards(latest){
-  var improvements = G.review.slice(-3).reduce(function(acc,r){
+  /* rule_improvements가 있는 복기만 골라 최근 3건 합산 (빈 레코드 건너뜀) */
+  var withRules = G.review.filter(function(r){
+    return (r['rule_improvements']||[]).length;
+  });
+  var improvements = withRules.slice(-3).reduce(function(acc,r){
     return acc.concat(r['rule_improvements']||[]);
   },[]);
 
@@ -2138,28 +2341,220 @@ function clearPortfolio(){
 
 /* ── 리포트 미니 탭 전환 ── */
 function switchReportTab(tab){
-  var picksPan = document.getElementById('rt-picks-pane');
-  var wlPan    = document.getElementById('rt-watchlist-pane');
-  var filter   = document.getElementById('picks-filter');
-  var btnP     = document.getElementById('rt-btn-picks');
-  var btnW     = document.getElementById('rt-btn-watchlist');
-  var activeStyle  = 'background:var(--txt);color:var(--bg);';
+  var panes = {
+    picks:     document.getElementById('rt-picks-pane'),
+    potential: document.getElementById('rt-potential-pane'),
+    watchlist: document.getElementById('rt-watchlist-pane')
+  };
+  var btns = {
+    picks:     document.getElementById('rt-btn-picks'),
+    potential: document.getElementById('rt-btn-potential'),
+    watchlist: document.getElementById('rt-btn-watchlist')
+  };
+  var filter = document.getElementById('picks-filter');
+  var activeStyle   = 'background:var(--txt);color:var(--bg);';
   var inactiveStyle = 'background:transparent;color:var(--txt3);';
 
-  if(tab === 'picks'){
-    if(picksPan) picksPan.style.display='block';
-    if(wlPan)    wlPan.style.display='none';
-    if(filter)   filter.style.display='flex';
-    if(btnP) btnP.style.cssText += activeStyle;
-    if(btnW) btnW.style.cssText += inactiveStyle;
-  } else {
-    if(picksPan) picksPan.style.display='none';
-    if(wlPan)    wlPan.style.display='block';
-    if(filter)   filter.style.display='none';
-    if(btnP) btnP.style.cssText += inactiveStyle;
-    if(btnW) btnW.style.cssText += activeStyle;
-    renderWatchlistAnalysis();
+  Object.keys(panes).forEach(function(k){
+    if(panes[k]) panes[k].style.display = (k===tab) ? 'block' : 'none';
+    if(btns[k])  btns[k].style.cssText += (k===tab) ? activeStyle : inactiveStyle;
+  });
+  if(filter) filter.style.display = (tab==='picks') ? 'flex' : 'none';
+
+  if(tab==='watchlist') renderWatchlistAnalysis();
+  if(tab==='potential'){ renderPotential(); refreshPotentialPrices(); }
+}
+
+/* ══════════════════════════════════
+   ⚡ 선취매 후보 (잠재 폭발 스캔)
+   ══════════════════════════════════ */
+var PT_GRADE = {
+  '폭발임박': { label:'🔥 폭발 임박', cls:'s', cardCls:'grade-s' },
+  '주목':     { label:'👀 주목',     cls:'a', cardCls:'grade-a' },
+  '응축관찰': { label:'💤 응축 관찰', cls:'b', cardCls:'grade-b' }
+};
+
+function ptParseKST(s){
+  /* "2026년 06월 12일 10:00" → Date */
+  var m = String(s||'').match(/(\d{4})년\s*(\d{2})월\s*(\d{2})일\s*(\d{2}):(\d{2})/);
+  if(!m) return null;
+  return new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5]);
+}
+
+function ptElapsedText(s){
+  var d = ptParseKST(s);
+  if(!d) return '';
+  var h = Math.floor((Date.now()-d.getTime())/3600000);
+  if(h < 1)  return '방금 포착';
+  if(h < 24) return h+'시간 경과';
+  return Math.floor(h/24)+'일 '+(h%24)+'시간 경과';
+}
+
+function ptDeadlineText(c){
+  var d = ptParseKST(c['관찰시한']);
+  if(!d) return '';
+  var label = (d.getMonth()+1)+'월 '+d.getDate()+'일';
+  var remainH = Math.floor((d.getTime()-Date.now())/3600000);
+  var remain = remainH<=0 ? '곧 판정' : remainH<24 ? remainH+'시간 남음' : 'D-'+Math.ceil(remainH/24);
+  return label+'까지 지켜봐요 · '+remain+(c['시한사유'] ? ' ('+c['시한사유']+')' : '');
+}
+
+/* 조건 조합 → 쉬운 한 줄 설명 (LLM 없이 템플릿으로 생성) */
+function ptOneliner(c){
+  var vol = (c['거래량배율']||0)/100;
+  var base = '가격은 아직 조용한데 평소보다 '+vol.toFixed(1)+'배 많은 돈이 먼저 들어오고, 차트는 한 점으로 모이는 중이에요.';
+  var strength = c['촉매강도']||'';
+  if(c['촉매'] && c['촉매유형']==='scheduled' && c['촉매일']){
+    return base+' 게다가 날짜가 정해진 재료까지 잡혀 있어요.';
   }
+  if(c['촉매'] && (strength==='강'||strength==='중')){
+    return base+' 뉴스·섹터 흐름도 우호적이에요.';
+  }
+  return base+' 다만 확인된 재료는 아직 없어서, 차트 신호만으로 지켜보는 단계예요.';
+}
+
+/* 지표 → 친절한 설명 행 4개 */
+function ptRows(c){
+  var rows = [];
+  var vol = (c['거래량배율']||0)/100;
+  rows.push({ ok:true, lbl:'돈의 흐름',
+    txt:'평소보다 <strong>'+vol.toFixed(1)+'배</strong> 많은 거래량이 들어오는 중' });
+
+  var pct = c['밴드폭백분위'];
+  var sq;
+  if(pct!=null && pct<=10)      sq='가격 폭이 <strong>극도로 좁아짐</strong> — 터지기 직전 형태';
+  else if(pct!=null && pct<=20) sq='가격 폭이 많이 좁아짐 — 에너지 응축 중';
+  else                          sq='가격 폭이 좁아지는 중 — 움직임 준비 단계';
+  rows.push({ ok:true, lbl:'차트 모양', txt:sq+(pct!=null?' <span class="pt-dim">(밴드폭 하위 '+pct+'%)</span>':'') });
+
+  var rsi = c['rsi'];
+  var heat = (rsi!=null && rsi<=58)
+    ? '아직 안 달아오름 — 지금이 초입'
+    : '살짝 달아오르는 중 — 추격은 주의';
+  rows.push({ ok:rsi!=null && rsi<=58, lbl:'과열 여부', txt:heat+(rsi!=null?' <span class="pt-dim">(RSI '+rsi+')</span>':'') });
+
+  if(c['촉매']){
+    var sMap = {'강':'강한 재료','중':'보조 재료','약':'약한 재료'};
+    var sTxt = sMap[c['촉매강도']]||'';
+    var dTxt = c['촉매일'] ? c['촉매일'].slice(5).replace('-','/')+' ' : '';
+    rows.push({ ok:true, lbl:'호재 재료', txt:dTxt+esc(c['촉매'])+(sTxt?' <span class="pt-dim">— '+sTxt+'</span>':'') });
+  } else {
+    rows.push({ ok:false, lbl:'호재 재료', txt:'확인된 재료 없음 — 차트만 보고 찍은 후보예요' });
+  }
+  return rows;
+}
+
+function buildPotentialCard(c){
+  var g = PT_GRADE[c['등급']] || PT_GRADE['응축관찰'];
+  var rowsHtml = ptRows(c).map(function(r){
+    return '<div class="pt-row">'+
+      '<span class="pt-row-ico">'+(r.ok?'✅':'⚪')+'</span>'+
+      '<span class="pt-row-lbl">'+r.lbl+'</span>'+
+      '<span class="pt-row-txt">'+r.txt+'</span>'+
+    '</div>';
+  }).join('');
+
+  var ticker = c['티커']||'';
+  var pnl = parseFloat(c['현재수익률']||0);
+  var pc  = pnl>=0?'var(--pos)':'var(--neg)';
+  var caution = c['주의사항'] ? '<div class="pt-row" style="color:var(--warn);"><span class="pt-row-ico">⚠️</span><span class="pt-row-txt" style="color:var(--warn);">'+esc(c['주의사항'])+'</span></div>' : '';
+
+  return '<div class="pt-card '+g.cardCls+'">'+
+    '<div class="pt-top">'+
+      '<span class="pt-tk">⚡ '+esc(ticker)+'</span>'+
+      '<span class="pt-grade '+g.cls+'">'+g.label+' · '+(c['총점']||c['차트점수']||0)+'점</span>'+
+    '</div>'+
+    '<div class="pt-price">'+fmtNum(c['포착가'])+'원 포착 · 당시 24시간 '+(c['변동24h']>=0?'+':'')+(c['변동24h']||0)+'%</div>'+
+    '<div class="pt-oneliner">💬 '+ptOneliner(c)+'</div>'+
+    '<div class="pt-rows">'+rowsHtml+caution+'</div>'+
+    '<div class="pt-deadline">⏳ '+ptDeadlineText(c)+'</div>'+
+    '<div class="pt-live">'+
+      '<span>📊 포착 후 <span class="pt-live-pnl" id="pt-pnl-'+esc(ticker)+'" style="color:'+pc+';">'+(pnl>=0?'+':'')+pnl.toFixed(1)+'%</span></span>'+
+      '<span>'+ptElapsedText(c['포착일시'])+'</span>'+
+    '</div>'+
+  '</div>';
+}
+
+function renderPotential(){
+  var strip = document.getElementById('pt-strip');
+  var kpi   = document.getElementById('pt-kpi');
+  var hist  = document.getElementById('pt-history');
+  if(!strip) return;
+
+  var data    = G.potential||[];
+  var active  = data.filter(function(c){ return c['상태']==='관찰중'; });
+  var closed  = data.filter(function(c){ return c['상태'] && c['상태']!=='관찰중'; });
+
+  /* ── KPI: 스캐너 자체의 성적표 ── */
+  if(closed.length){
+    var hits = closed.filter(function(c){ return c['상태']==='적중'; }).length;
+    var fails = closed.filter(function(c){ return c['상태']==='실패'; }).length;
+    var promoted = data.filter(function(c){ return c['승격']; }).length;
+    var hr = Math.round(hits/closed.length*100);
+    kpi.innerHTML =
+      '지금까지 관찰이 끝난 후보 <strong>'+closed.length+'개</strong> 중 <strong style="color:var(--pos);">'+hits+'개가 실제로 +10% 폭발</strong>했어요 '+
+      '(적중률 <strong>'+hr+'%</strong> · 하방 이탈 '+fails+'개)'+
+      (promoted ? ' · AI 정식 추천으로 승격 <strong style="color:var(--accent);">'+promoted+'건</strong>' : '')+
+      ' — 이 숫자가 이 스캐너를 믿어도 되는지 알려주는 성적표예요.';
+    kpi.style.display='block';
+  } else {
+    kpi.innerHTML = '아직 결과가 확정된 후보가 없어요. 후보들이 관찰 시한을 거치면 여기에 <strong>적중률 성적표</strong>가 쌓입니다.';
+    kpi.style.display='block';
+  }
+
+  /* ── 관찰중 후보 카드 ── */
+  if(!active.length){
+    strip.innerHTML = '<div class="empty" style="grid-column:1/-1;padding:36px 20px;">'+
+      '<h3>지금은 관찰 중인 후보가 없어요</h3>'+
+      '<p>다음 분석 실행 때 조건(거래량 유입 + 차트 응축 + 과열 아님)에 맞는 코인이 나타나면 자동으로 등록됩니다.</p></div>';
+  } else {
+    /* 등급순 정렬: 폭발임박 → 주목 → 응축관찰 */
+    var order = {'폭발임박':0,'주목':1,'응축관찰':2};
+    active.sort(function(a,b){
+      var oa = (order[a['등급']]!==undefined) ? order[a['등급']] : 9;
+      var ob = (order[b['등급']]!==undefined) ? order[b['등급']] : 9;
+      return (oa-ob) !== 0 ? (oa-ob) : (b['총점']||0)-(a['총점']||0);
+    });
+    strip.innerHTML = active.map(buildPotentialCard).join('');
+  }
+
+  /* ── 지난 후보 결과 (최근 12건) ── */
+  if(closed.length){
+    var rows = closed.slice(-12).reverse().map(function(c){
+      var col = c['상태']==='적중'?'var(--pos)':c['상태']==='실패'?'var(--neg)':'var(--txt3)';
+      var bestPnl = parseFloat(c['최고수익률'])||0;
+      return '<div class="pt-hist-item">'+
+        '<span class="pt-hist-tk">'+esc(c['티커'])+'</span>'+
+        '<span style="color:'+col+';font-weight:600;">'+esc(c['결과']||'')+'</span>'+
+        '<span class="mono" style="color:'+col+';">최고 '+(bestPnl>=0?'+':'')+bestPnl.toFixed(1)+'%</span>'+
+        '<span class="pt-hist-meta">'+esc(c['포착일시']||'')+' 포착'+(c['승격']?' · 🚀 AI 승격':'')+'</span>'+
+      '</div>';
+    }).join('');
+    hist.innerHTML = '<div class="section-card"><div class="section-title">지난 후보 결과 — 스캐너 검증 기록</div>'+rows+'</div>';
+  } else {
+    hist.innerHTML = '';
+  }
+}
+
+/* 관찰중 후보 실시간 수익률 갱신 (빗썸) */
+function refreshPotentialPrices(){
+  (G.potential||[]).filter(function(c){ return c['상태']==='관찰중'; }).forEach(function(c){
+    var ticker = c['티커'];
+    var anchor = parseFloat(c['포착가'])||0;
+    if(!anchor) return;
+    fetch('https://api.bithumb.com/public/ticker/'+ticker+'_KRW')
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        var price = data&&data.data ? parseFloat(data.data.closing_price) : 0;
+        if(!price) return;
+        var pnl = Math.round((price-anchor)/anchor*1000)/10;
+        var el = document.getElementById('pt-pnl-'+ticker);
+        if(el){
+          el.textContent = (pnl>=0?'+':'')+pnl.toFixed(1)+'%';
+          el.style.color = pnl>=0?'var(--pos)':'var(--neg)';
+        }
+      }).catch(function(){});
+  });
 }
 
 function renderWatchlistAnalysis(){
@@ -2419,6 +2814,7 @@ function confirmDeleteReport(date){
     .catch(function(e){ alert('오류: '+e.message); renderTab1(); });
 }
 function calcPnl(entry, cur){ return entry>0 ? Math.round((cur-entry)/entry*10000)/100 : 0; }
+function priceNum(s){ return parseFloat(String(s||'').replace(/[^\d.]/g,''))||0; }
 function fmtNum(n){ return n ? Math.round(n).toLocaleString() : '—'; }
 function fmtPrice(s){ return s||'—'; }
 function esc(s){ var d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
