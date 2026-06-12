@@ -2606,23 +2606,40 @@ function saveWatchlist(arr){ localStorage.setItem(WL_KEY, JSON.stringify(arr)); 
 
 function initWatchlist(){
   renderWLChips();
-  // 빗썸 전체 종목 미리 로드
-  fetch('https://api.bithumb.com/public/ticker/ALL_KRW')
-    .then(function(r){ return r.json(); })
-    .then(function(data){
-      if(!data||!data.data) return;
-      WL_ALL = Object.keys(data.data).filter(function(k){ return k!=='date'; }).map(function(k){
-        return { ticker: k, name: k };
+  // 빗썸 전체 종목 + 업비트 한글명을 병렬로 로드해 매칭
+  Promise.all([
+    fetch('https://api.bithumb.com/public/ticker/ALL_KRW').then(function(r){ return r.json(); }).catch(function(){ return null; }),
+    fetch('https://api.upbit.com/v1/market/all').then(function(r){ return r.json(); }).catch(function(){ return null; })
+  ]).then(function(res){
+    var bithumb = res[0], upbit = res[1];
+    if(!bithumb || !bithumb.data) return;
+
+    // 업비트 KRW 마켓의 한글명 맵 구성: { VIRTUAL: '버추얼프로토콜', ETH: '이더리움', ... }
+    var krMap = {};
+    if(Array.isArray(upbit)){
+      upbit.forEach(function(m){
+        if(m.market && m.market.indexOf('KRW-')===0){
+          krMap[m.market.slice(4).toUpperCase()] = m.korean_name || '';
+        }
       });
-    }).catch(function(){});
+    }
+
+    WL_ALL = Object.keys(bithumb.data).filter(function(k){ return k!=='date'; }).map(function(k){
+      var kr = krMap[k.toUpperCase()] || '';   // 업비트에 없는 빗썸 단독종목은 한글명 없음 → 티커로만 검색
+      return { ticker: k, name: kr || k, korean: kr };
+    });
+  });
 }
 
 function searchWatchlist(query){
   var results = document.getElementById('wl-results');
   if(!query||query.length<1){ results.style.display='none'; return; }
   var q = query.toUpperCase();
+  var qRaw = query.trim();   // 한글은 대소문자 변환 불필요
   var filtered = WL_ALL.filter(function(c){
-    return c.ticker.toUpperCase().indexOf(q)!==-1;
+    var tickerHit = c.ticker.toUpperCase().indexOf(q)!==-1;
+    var korHit    = c.korean && c.korean.indexOf(qRaw)!==-1;
+    return tickerHit || korHit;
   }).slice(0,10);
 
   if(!filtered.length){ results.style.display='none'; return; }
@@ -2630,8 +2647,9 @@ function searchWatchlist(query){
   var wl = getWatchlist();
   var html = filtered.map(function(c){
     var isAdded = wl.indexOf(c.ticker)!==-1;
+    var krLabel = c.korean ? '<span class="wl-name">'+esc(c.korean)+'</span>' : '';
     return '<div class="wl-result-item'+(isAdded?' added':'')+'" onclick="addToWatchlist(\''+c.ticker+'\')">'+
-      '<div><span class="wl-ticker">'+c.ticker+'</span></div>'+
+      '<div><span class="wl-ticker">'+c.ticker+'</span>'+krLabel+'</div>'+
       '<span class="wl-add">'+(isAdded?'등록됨':'+ 추가')+'</span>'+
     '</div>';
   }).join('');
@@ -2675,7 +2693,9 @@ function renderWLChips(){
   }
   if(empty) empty.style.display='none';
   chips.innerHTML = wl.map(function(t){
-    return '<div class="wl-chip">'+t+
+    var meta = WL_ALL.filter(function(c){ return c.ticker===t; })[0];
+    var krLabel = (meta && meta.korean) ? '<span style="font-size:10px;color:var(--txt3);margin-left:5px;">'+esc(meta.korean)+'</span>' : '';
+    return '<div class="wl-chip">'+t+krLabel+
       '<span class="wl-chip-del" onclick="removeFromWatchlist(\''+t+'\')">'+
         '<svg viewBox="0 0 24 24" width="11" height="11" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'+
       '</span>'+
