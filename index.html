@@ -1849,6 +1849,14 @@ function perfPnlNum(r){
   return parseFloat((r['수익률']||'0').replace('%','').replace('+',''))||0;
 }
 
+/* 결과 문자열 → 뱃지 클래스 (달성=win, 손절/손실종료=lose, 그 외=진행) */
+function resultClass(res){
+  res = res||'';
+  if(res.indexOf('달성')!==-1) return 'b-win';
+  if(res.indexOf('손절')!==-1 || res.indexOf('추적종료(손실)')!==-1) return 'b-lose';
+  return 'b-ing';
+}
+
 function renderPerfDetail(){
   var perf  = G.perf;
   var group = document.getElementById('perf-group');
@@ -1862,7 +1870,7 @@ function renderPerfDetail(){
     var tbody = '';
     perf.slice().reverse().forEach(function(r){
       var res = r['결과']||'';
-      var bc  = res.indexOf('달성')!==-1?'b-win':res.indexOf('손절')!==-1?'b-lose':'b-ing';
+      var bc  = resultClass(res);
       var pnlN= perfPnlNum(r);
       var pc  = pnlN>=0?'var(--pos)':'var(--neg)';
       tbody +=
@@ -1909,15 +1917,18 @@ function renderPerfDetail(){
   var html = groups.map(function(g,gi){
     var ac = g.avg>=0?'var(--pos)':'var(--neg)';
     var lastRes = (g.last['결과']||'—');
-    var lastCls = lastRes.indexOf('달성')!==-1?'b-win':lastRes.indexOf('손절')!==-1?'b-lose':'b-ing';
+    var lastCls = resultClass(lastRes);
     var detail = g.rows.slice().reverse().map(function(r){
       var pnlN = perfPnlNum(r);
       var pc   = pnlN>=0?'var(--pos)':'var(--neg)';
-      var bc   = (r['결과']||'').indexOf('달성')!==-1?'b-win':(r['결과']||'').indexOf('손절')!==-1?'b-lose':'b-ing';
+      var bc   = resultClass(r['결과']);
+      var peak = (r['최고수익률']!==undefined && r['최고수익률']!==null)
+        ? '<span style="font-size:10px;color:var(--txt3);">최고 '+(r['최고수익률']>=0?'+':'')+r['최고수익률']+'%</span>' : '';
       return '<div class="pg-row">'+
         '<span style="font-size:11px;color:var(--txt3);min-width:140px;" class="mono">'+(r['추천일시']||'—')+'</span>'+
         '<span style="font-size:11px;color:var(--txt3);">'+(r['관점']||'—')+'</span>'+
         '<span class="badge '+bc+'">'+(r['결과']||'—')+'</span>'+
+        peak+
         '<span class="mono" style="color:'+pc+';font-weight:600;margin-left:auto;">'+(r['수익률']||'—')+'</span>'+
       '</div>';
     }).join('');

@@ -26,12 +26,12 @@ WATCHLIST        = [t.strip().upper() for t in os.environ.get("WATCHLIST", "").s
 GITHUB_REPO      = "https://github.com/insight-doby/report_coin.git"
 
 INTERVALS = {
-    "30m": {"limit": 100, "label": "30분봉"},
-    "1h":  {"limit": 100, "label": "1시간봉"},
-    "6h":  {"limit": 100, "label": "6시간봉"},
-    "1d":  {"limit": 200, "label": "일봉"},
-    "1w":  {"limit": 60,  "label": "주봉"},
-    "1M":  {"limit": 24,  "label": "월봉"},
+    "30m": {"limit": 100, "label": "30분봉", "source": "bithumb", "bithumb_iv": "30m"},
+    "1h":  {"limit": 100, "label": "1시간봉", "source": "bithumb", "bithumb_iv": "1h"},
+    "6h":  {"limit": 100, "label": "6시간봉", "source": "bithumb", "bithumb_iv": "6h"},
+    "1d":  {"limit": 200, "label": "일봉",    "source": "bithumb", "bithumb_iv": "24h"},
+    "1w":  {"limit": 60,  "label": "주봉(글로벌)", "source": "binance"},
+    "1M":  {"limit": 24,  "label": "월봉(글로벌)", "source": "binance"},
 }
 
 SCAN_TOP_N           = 80
@@ -466,62 +466,130 @@ def _ma_align(closes: np.ndarray, periods: list) -> str:
 # ==========================================
 # 3. 바이낸스 멀티 타임프레임 지표
 # ==========================================
-def fetch_binance_indicators(ticker: str, btc_closes_1h: np.ndarray, btc_vols_1h: np.ndarray, krw_price: float) -> dict:
-    symbol = ticker + "USDT"
-    result = {}
+def fetch_bithumb_candles(ticker: str, interval: str, limit: int) -> Optional[tuple]:
+    """빗썸 원화 캔들 → (closes, vols). 매매 기준(원화)과 일치하는 차트.
+    빗썸 응답 형식: data=[[시각ms, 시가, 종가, 고가, 저가, 거래량], ...] (종가=idx2, 바이낸스와 다름!)
+    """
+    try:
+        url = f"https://api.bithumb.com/public/candlestick/{ticker}_KRW/{interval}"
+        r = requests.get(url, timeout=8)
+        if r.status_code != 200:
+            return None
+        j = r.json()
+        if j.get("status") != "0000":
+            return None
+        rows = j.get("data", [])
+        if not rows or not isinstance(rows, list):
+            return None
+
+        # ── 형식 검증 — 종가(idx2)가 고가(idx3)~저가(idx4) 범위 안에 있어야 정상 ──
+        sample = rows[-1]
+        if len(sample) < 6:
+            print(f"  ⚠️ {ticker} 빗썸 캔들 형식 이상 (필드 {len(sample)}개): {sample}")
+            return None
+        try:
+            _c, _h, _l = float(sample[2]), float(sample[3]), float(sample[4])
+            if not (_l <= _c <= _h) or _h < _l:
+                print(f"  ⚠️ {ticker} 빗썸 캔들 OHLC 순서 이상 — 종가 {_c}, 고가 {_h}, 저가 {_l}")
+                return None
+        except (ValueError, TypeError):
+            print(f"  ⚠️ {ticker} 빗썸 캔들 숫자 변환 실패: {sample}")
+            return None
+
+        rows = rows[-limit:]
+        closes = np.array([float(k[2]) for k in rows])  # 종가 = 인덱스 2
+        vols   = np.array([float(k[5]) for k in rows])  # 거래량 = 인덱스 5
+        return closes, vols
+    except Exception as e:
+        print(f"  ⚠️ {ticker} 빗썸 캔들 수집 실패 ({interval}): {e}")
+        return None
+
+
+def _build_indicator_block(interval: str, cfg: dict, closes: np.ndarray, vols: np.ndarray) -> dict:
+    """closes/vols 배열 → RSI·볼밴·EMA·밴드폭 지표 블록 (소스 무관 공통 로직)."""
     ma_periods = {
         "30m":[5,20], "1h":[5,20,60], "6h":[20,60,120],
         "1d":[20,60,120,200], "1w":[20,60], "1M":[12,24],
     }
+    cur     = closes[-1]
+    periods = ma_periods.get(interval, [20])
+    emas    = {f"EMA{p}": _calc_ema(closes, p) for p in periods}
+    bbu, bbm, bbl = _calc_bollinger(closes)
+    bb_pos = None
+    if bbu and bbl and bbm:
+        if cur >= bbm:
+            bb_pos = f"중단 이상 ({round((cur-bbm)/(bbu-bbm)*100,1)}% 위치)" if bbu != bbm else "중단"
+        else:
+            bb_pos = f"중단 이하 ({round((bbm-cur)/(bbm-bbl)*100,1)}% 위치)" if bbm != bbl else "중단"
+    vr = float(np.mean(vols[-3:])) / float(np.mean(vols[-13:-3])) * 100 \
+         if len(vols) >= 13 and np.mean(vols[-13:-3]) > 0 else None
+
+    # 볼밴 밴드폭 백분위 (스퀴즈 판정용)
+    bb_width_pctile = None
+    if len(closes) >= 45:
+        widths = []
+        for _i in range(20, len(closes) + 1):
+            _w = closes[_i-20:_i]
+            _m = float(np.mean(_w)); _s = float(np.std(_w, ddof=1))
+            if _m > 0:
+                widths.append((4 * _s) / _m * 100)
+        if len(widths) >= 15:
+            cur_width = widths[-1]
+            bb_width_pctile = round(
+                sum(1 for x in widths if x < cur_width) / len(widths) * 100, 1
+            )
+
+    return {
+        "label": cfg["label"], "current": round(cur, 6),
+        "source": cfg.get("source", "binance"),  # 데이터 출처 명시 (빗썸/바이낸스)
+        "emas": {k: round(v, 6) if v else None for k, v in emas.items()},
+        "rsi": _calc_rsi(closes),
+        "bb_upper": bbu, "bb_mid": bbm, "bb_lower": bbl, "bb_position": bb_pos,
+        "bb_width_pctile": bb_width_pctile,
+        "vol_ratio": f"{round(vr,1)}%" if vr else "계산불가",
+        "ma_align": _ma_align(closes, periods),
+    }
+
+
+def fetch_binance_indicators(ticker: str, btc_closes_1h: np.ndarray, btc_vols_1h: np.ndarray, krw_price: float) -> dict:
+    symbol = ticker + "USDT"
+    result = {}
     for interval, cfg in INTERVALS.items():
-        url = f"https://api.binance.com/api/v3/klines?symbol={symbol}&interval={interval}&limit={cfg['limit']}"
         try:
-            resp = requests.get(url, timeout=8)
-            if resp.status_code != 200:
-                result[interval] = {"error": f"HTTP {resp.status_code}"}; continue
-            klines = resp.json()
-            if not klines:
-                result[interval] = {"error": "데이터 없음"}; continue
+            source = cfg.get("source", "binance")
+            closes = vols = None
 
-            closes = np.array([float(k[4]) for k in klines])
-            vols   = np.array([float(k[5]) for k in klines])
-            cur    = closes[-1]
-            periods = ma_periods.get(interval, [20])
-            emas    = {f"EMA{p}": _calc_ema(closes, p) for p in periods}
-            bbu, bbm, bbl = _calc_bollinger(closes)
-            bb_pos = None
-            if bbu and bbl and bbm:
-                if cur >= bbm:
-                    bb_pos = f"중단 이상 ({round((cur-bbm)/(bbu-bbm)*100,1)}% 위치)"
+            if source == "bithumb":
+                # 단기~일봉: 빗썸 원화 캔들 (매매 차트와 일치)
+                fetched = fetch_bithumb_candles(ticker, cfg["bithumb_iv"], cfg["limit"])
+                if fetched is not None:
+                    closes, vols = fetched
                 else:
-                    bb_pos = f"중단 이하 ({round((bbm-cur)/(bbm-bbl)*100,1)}% 위치)"
-            vr = float(np.mean(vols[-3:])) / float(np.mean(vols[-13:-3])) * 100 \
-                 if len(vols) >= 13 and np.mean(vols[-13:-3]) > 0 else None
+                    # 빗썸 실패 시 바이낸스로 폴백 (소스 표시도 변경)
+                    bn_iv = {"30m":"30m","1h":"1h","6h":"6h","1d":"1d"}.get(interval)
+                    if bn_iv:
+                        url = f"https://api.binance.com/api/v3/klines?symbol={symbol}&interval={bn_iv}&limit={cfg['limit']}"
+                        resp = requests.get(url, timeout=8)
+                        if resp.status_code == 200 and resp.json():
+                            kl = resp.json()
+                            closes = np.array([float(k[4]) for k in kl])
+                            vols   = np.array([float(k[5]) for k in kl])
+                            cfg = {**cfg, "label": cfg["label"] + "(바이낸스폴백)", "source": "binance"}
+            else:
+                # 주봉·월봉: 바이낸스 USDT (글로벌 장기추세)
+                url = f"https://api.binance.com/api/v3/klines?symbol={symbol}&interval={interval}&limit={cfg['limit']}"
+                resp = requests.get(url, timeout=8)
+                if resp.status_code != 200:
+                    result[interval] = {"error": f"HTTP {resp.status_code}"}; time.sleep(0.05); continue
+                kl = resp.json()
+                if kl:
+                    closes = np.array([float(k[4]) for k in kl])
+                    vols   = np.array([float(k[5]) for k in kl])
 
-            # 볼밴 밴드폭 백분위 — 현재 밴드폭이 과거 대비 얼마나 좁은지 (스퀴즈 판정용)
-            bb_width_pctile = None
-            if len(closes) >= 45:
-                widths = []
-                for _i in range(20, len(closes) + 1):
-                    _w = closes[_i-20:_i]
-                    _m = float(np.mean(_w)); _s = float(np.std(_w, ddof=1))
-                    if _m > 0:
-                        widths.append((4 * _s) / _m * 100)
-                if len(widths) >= 15:
-                    cur_width = widths[-1]
-                    bb_width_pctile = round(
-                        sum(1 for x in widths if x < cur_width) / len(widths) * 100, 1
-                    )
+            if closes is None or len(closes) == 0:
+                result[interval] = {"error": "데이터 없음"}; time.sleep(0.05); continue
 
-            result[interval] = {
-                "label": cfg["label"], "current": round(cur, 6),
-                "emas": {k: round(v, 6) if v else None for k, v in emas.items()},
-                "rsi": _calc_rsi(closes),
-                "bb_upper": bbu, "bb_mid": bbm, "bb_lower": bbl, "bb_position": bb_pos,
-                "bb_width_pctile": bb_width_pctile,
-                "vol_ratio": f"{round(vr,1)}%" if vr else "계산불가",
-                "ma_align": _ma_align(closes, periods),
-            }
+            result[interval] = _build_indicator_block(interval, cfg, closes, vols)
         except Exception as e:
             result[interval] = {"error": str(e)}
         time.sleep(0.05)
@@ -571,8 +639,9 @@ def format_indicators_for_prompt(indicators: dict, target_coins: list) -> str:
         for interval, data in ivs.items():
             if interval in ("btc_sync", "kimp") or "error" in data:
                 continue
+            src_tag = " 🌐USDT" if data.get("source") == "binance" else ""
             lines.append(
-                f"  [{data.get('label', interval)}] "
+                f"  [{data.get('label', interval)}{src_tag}] "
                 f"RSI:{data.get('rsi','N/A')} | "
                 f"볼밴:{data.get('bb_position','N/A')} | "
                 f"이평:{data.get('ma_align','N/A')} | "
@@ -1093,7 +1162,8 @@ def generate_market_insights_via_gemini(
 [빗썸 31~80위 수급 급증 상위 30개 — 급등후보 돌파/눌림목 후보]
 {market_list}
 
-[바이낸스 멀티타임프레임 + BTC 동조화 + 김프 지표]
+[멀티타임프레임 지표 + BTC 동조화 + 김프]
+※ 30분~일봉은 빗썸 원화 캔들(실제 매매 기준). 주봉·월봉(🌐USDT 표시)은 바이낸스 글로벌 기준 — 장기 추세 참고용이며 국내 단기 수급과 별개로 해석할 것.
 {format_indicators_for_prompt(indicators, target_coins + top30_coins)}
 
 {narrative_ctx}
@@ -1266,17 +1336,25 @@ def record_picks_to_github(picks: list, market_activity: dict, publish_time: str
                 ticker, p.get("perspective", ""), p.get("entry"),
                 krw_price, indicators or {}
             )
+            entry_n = _num(p.get("entry"))
+            t1_n    = _num(p.get("t1"))
+            t2_n    = _num(p.get("t2"))
+            sl_n    = _num(p.get("stop_loss"))
             existing.append({
                 "추천일시":     publish_time,
                 "티커":        ticker,
                 "관점":        p.get("perspective", ""),
-                "진입가":      p.get("entry", ""),
-                "T1":          p.get("t1", ""),
-                "T2":          p.get("t2", ""),
-                "손절가":      p.get("stop_loss", ""),
-                "T1수익률":    _calc_pct(p.get("entry"), p.get("t1")),
-                "T2수익률":    _calc_pct(p.get("entry"), p.get("t2")),
-                "손절률":      _calc_pct(p.get("entry"), p.get("stop_loss"), abs_val=True),
+                "진입가":      f"{int(entry_n):,}원" if entry_n else "",
+                "T1":          f"{int(t1_n):,}원" if t1_n else "",
+                "T2":          f"{int(t2_n):,}원" if t2_n else "",
+                "손절가":      f"{int(sl_n):,}원" if sl_n else "",
+                "진입가_숫자": entry_n,
+                "T1_숫자":     t1_n,
+                "T2_숫자":     t2_n,
+                "손절가_숫자": sl_n,
+                "T1수익률":    _calc_pct(entry_n, t1_n),
+                "T2수익률":    _calc_pct(entry_n, t2_n),
+                "손절률":      _calc_pct(entry_n, sl_n, abs_val=True),
                 "기준선가격":  anchor["anchor_price"],
                 "기준선유형":  anchor["anchor_type"],
                 "괴리율":      anchor["divergence"],
@@ -1312,6 +1390,13 @@ def record_picks_to_github(picks: list, market_activity: dict, publish_time: str
 # ==========================================
 # [2단계] 성과 추적
 # ==========================================
+def _parse_kst_dt(s: str):
+    try:
+        return KST.localize(datetime.strptime(str(s), "%Y년 %m월 %d일 %H:%M"))
+    except Exception:
+        return None
+
+
 def parse_price(s: str) -> Optional[float]:
     try:
         return float(re.sub(r"[^\d.]", "", str(s))) or None
@@ -1331,6 +1416,14 @@ def fetch_current_price_bithumb(ticker: str) -> Optional[float]:
     return None
 
 
+PERF_TRACK_DAYS = 7  # 추천 후 7일까지 추적, 이후 자동 종료
+
+
+def _pick_key(pick) -> str:
+    """추천 1건을 고유 식별 (추천일시+티커+관점)."""
+    return f"{pick.get('추천일시','')}|{pick.get('티커','')}|{pick.get('관점','')}"
+
+
 def track_performance() -> list:
     print("📊 [2단계] 성과 추적 중 (GitHub)...")
     results = []
@@ -1340,34 +1433,60 @@ def track_performance() -> list:
         if not isinstance(picks_data, list): picks_data = []
         if not isinstance(perf_data,  list): perf_data  = []
 
-        now_str  = datetime.now(KST).strftime("%Y년 %m월 %d일 %H:%M")
+        now      = datetime.now(KST)
+        now_str  = now.strftime("%Y년 %m월 %d일 %H:%M")
         updated  = False
 
+        # 기존 성과 레코드를 키로 인덱싱 (1픽=1레코드로 갱신하기 위함)
+        perf_index = {}
+        for rec in perf_data:
+            k = f"{rec.get('추천일시','')}|{rec.get('티커','')}|{rec.get('관점','')}"
+            perf_index[k] = rec
+
         for pick in picks_data:
-            if pick.get("기록상태") != "신규":
+            status = pick.get("기록상태")
+            # 신규 + 추적중 모두 재확인 (완료/종료는 건너뜀)
+            if status not in ("신규", "추적중"):
                 continue
 
             ticker = str(pick.get("티커", "")).upper()
-            entry  = parse_price(pick.get("진입가"))
-            t1     = parse_price(pick.get("T1"))
-            t2     = parse_price(pick.get("T2"))
-            sl     = parse_price(pick.get("손절가"))
+            entry  = _num(pick.get("진입가_숫자")) or parse_price(pick.get("진입가"))
+            t1     = _num(pick.get("T1_숫자"))     or parse_price(pick.get("T1"))
+            t2     = _num(pick.get("T2_숫자"))     or parse_price(pick.get("T2"))
+            sl     = _num(pick.get("손절가_숫자")) or parse_price(pick.get("손절가"))
             if not entry or entry == 0:
                 continue
+
+            # 추적 시한 경과 체크
+            rec_dt = _parse_kst_dt(pick.get("추천일시"))
+            expired = bool(rec_dt and now >= rec_dt + timedelta(days=PERF_TRACK_DAYS))
 
             cur = fetch_current_price_bithumb(ticker)
             if not cur:
                 continue
 
-            pnl    = round((cur - entry) / entry * 100, 2)
-            result = "진행중"
-            if   t2 and cur >= t2: result = "✅ T2 달성"
-            elif t1 and cur >= t1: result = "📈 T1 달성"
-            elif sl and cur <= sl: result = "❌ 손절"
-            elif pnl >= 5:         result = "📈 수익 중"
-            elif pnl <= -3:        result = "⚠️ 손실 중"
+            pnl = round((cur - entry) / entry * 100, 2)
 
-            perf_data.append({
+            # 기존 레코드가 있으면 누적 최고/최저 이어받기
+            key = _pick_key(pick)
+            prev = perf_index.get(key, {})
+            peak_pnl   = max(_num(prev.get("최고수익률")), pnl) if prev else pnl
+            trough_pnl = min(_num(prev.get("최저수익률")), pnl) if prev else pnl
+            # 이미 T1/T2를 한 번이라도 찍었으면 유지
+            t1_hit = prev.get("T1달성") == "Y" or (t1 and cur >= t1)
+            t2_hit = prev.get("T2달성") == "Y" or (t2 and cur >= t2)
+            sl_hit = prev.get("손절") == "Y" or (sl and cur <= sl)
+
+            # 결과 판정 — 최종 상태는 누적 기록 기준
+            if   t2_hit:       result = "✅ T2 달성"
+            elif sl_hit:       result = "❌ 손절"
+            elif t1_hit:       result = "📈 T1 달성"
+            elif expired:      result = "⏱️ 추적종료" if pnl >= 0 else "📉 추적종료(손실)"
+            elif pnl >= 5:     result = "📈 수익 중"
+            elif pnl <= -3:    result = "⚠️ 손실 중"
+            else:              result = "진행중"
+
+            rec = {
                 "추천일시":  pick.get("추천일시", ""),
                 "티커":     ticker,
                 "관점":     pick.get("관점", ""),
@@ -1378,28 +1497,43 @@ def track_performance() -> list:
                 "확인일시": now_str,
                 "확인가격": str(int(cur)),
                 "수익률":   f"{pnl:+.2f}%",
+                "최고수익률": round(peak_pnl, 2),
+                "최저수익률": round(trough_pnl, 2),
                 "결과":     result,
-                "T1달성":   "Y" if t1 and cur >= t1 else "N",
-                "T2달성":   "Y" if t2 and cur >= t2 else "N",
-                "손절":     "Y" if sl and cur <= sl else "N",
+                "T1달성":   "Y" if t1_hit else "N",
+                "T2달성":   "Y" if t2_hit else "N",
+                "손절":     "Y" if sl_hit else "N",
                 "시장온도": pick.get("시장온도", ""),
-            })
+                "추적횟수": int(_num(prev.get("추적횟수"))) + 1,
+            }
+            # 인덱스 갱신 (기존 레코드 자리에 덮어쓰기)
+            if key in perf_index:
+                perf_data[perf_data.index(perf_index[key])] = rec
+            else:
+                perf_data.append(rec)
+            perf_index[key] = rec
 
-            pick["기록상태"] = "완료" if "달성" in result or "손절" in result else "추적중"
+            # 픽 상태 전환: 확정(T2/손절)이거나 시한 경과 시 종료
+            if t2_hit or sl_hit:
+                pick["기록상태"] = "완료"
+            elif expired:
+                pick["기록상태"] = "종료"
+            else:
+                pick["기록상태"] = "추적중"
             updated = True
 
             results.append({"ticker": ticker, "entry": entry, "current": cur,
                             "pnl_pct": pnl, "result": result})
-            print(f"  {'✅' if '달성' in result else '❌' if '손절' in result else '📊'} "
-                  f"{ticker}: {entry:,.0f}→{cur:,.0f} ({pnl:+.2f}%) [{result}]")
+            print(f"  {'✅' if '달성' in result else '❌' if '손절' in result else '⏱️' if '종료' in result else '📊'} "
+                  f"{ticker}: {entry:,.0f}→{cur:,.0f} ({pnl:+.2f}%) [{result}] (추적 {rec['추적횟수']}회)")
             time.sleep(0.1)
 
         if updated:
             _gh_write("data/picks.json",       picks_data, picks_sha, "성과추적: 상태 업데이트")
             _gh_write("data/performance.json", perf_data,  perf_sha,  f"성과추적: {now_str}")
-            print(f"  ✅ 성과 {len(results)}건 저장 완료")
+            print(f"  ✅ 성과 {len(results)}건 갱신 완료")
         else:
-            print("  ℹ️ 신규 추적 항목 없음")
+            print("  ℹ️ 추적할 항목 없음")
 
     except Exception as e:
         print(f"  ❌ 성과 추적 오류: {e}")
@@ -1917,13 +2051,6 @@ POTENTIAL_FAIL_PCT = -7.0   # 포착가 대비 -7% 이탈 시 '실패 (하방 �
 POTENTIAL_MAX_DAYS = 7      # 관찰 시한 상한
 
 
-def _parse_kst_dt(s: str):
-    try:
-        return KST.localize(datetime.strptime(str(s), "%Y년 %m월 %d일 %H:%M"))
-    except Exception:
-        return None
-
-
 def scan_potential_candidates(target_coins: list, indicators: dict) -> list:
     """거래량은 들어왔는데 가격은 아직 안 움직인 + 볼밴 스퀴즈 + RSI 중립 종목 스캔.
     target_coins는 거래대금 31~80위 풀에서 선별된 종목이라 '작은 코인' 조건은 풀 자체로 충족."""
@@ -2045,9 +2172,22 @@ def record_potential_to_github(cands: list, pub_time: str):
             data = []
         watching = {str(c.get("티커", "")).upper() for c in data if c.get("상태") == "관찰중"}
 
-        added = 0
+        # 최근 48시간 내 결과 확정된 티커는 재등록 쿨다운 (재진입 중복 집계 방지)
+        now = datetime.now(KST)
+        cooldown = set()
+        for c in data:
+            if c.get("상태") in ("적중", "실패", "만료") and c.get("결과확정일시"):
+                dt = _parse_kst_dt(c.get("결과확정일시"))
+                if dt and now < dt + timedelta(hours=48):
+                    cooldown.add(str(c.get("티커", "")).upper())
+
+        added, skipped_cd = 0, 0
         for c in cands:
-            if str(c["티커"]).upper() in watching:
+            tk = str(c["티커"]).upper()
+            if tk in watching:
+                continue
+            if tk in cooldown:
+                skipped_cd += 1
                 continue
             rec = dict(c)
             rec.update({
@@ -2067,7 +2207,8 @@ def record_potential_to_github(cands: list, pub_time: str):
             data = data[-200:]
 
         ok = _gh_write(POTENTIAL_FILE, data, sha, f"선취매 후보: {pub_time}")
-        print(f"  {'✅' if ok else '❌'} 선취매 후보 {added}건 신규 저장 (관찰중 중복 {len(cands)-added}건 스킵)")
+        print(f"  {'✅' if ok else '❌'} 선취매 후보 {added}건 신규 저장 "
+              f"(관찰중 중복 스킵 {len(cands)-added-skipped_cd}건, 쿨다운 스킵 {skipped_cd}건)")
     except Exception as e:
         print(f"  ❌ 선취매 후보 저장 실패: {e}")
 
