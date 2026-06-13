@@ -1404,6 +1404,29 @@ def parse_price(s: str) -> Optional[float]:
         return None
 
 
+def _fetch_all_prices_bithumb(tickers=None) -> dict:
+    """빗썸 ALL_KRW 한 번 호출로 전 종목 현재가 조회 (개별 호출 N회 → 1회).
+    tickers가 주어지면 해당 티커만 필터링해서 반환."""
+    out = {}
+    try:
+        r = requests.get("https://api.bithumb.com/public/ticker/ALL_KRW", timeout=10)
+        if r.status_code == 200:
+            j = r.json()
+            if j.get("status") == "0000":
+                for tk, info in j.get("data", {}).items():
+                    if not isinstance(info, dict):
+                        continue
+                    if tickers and tk.upper() not in tickers:
+                        continue
+                    try:
+                        out[tk.upper()] = float(info["closing_price"])
+                    except (KeyError, ValueError, TypeError):
+                        continue
+    except Exception as e:
+        print(f"  ⚠️ ALL_KRW 일괄 가격조회 실패 (개별 폴백 사용): {e}")
+    return out
+
+
 def fetch_current_price_bithumb(ticker: str) -> Optional[float]:
     try:
         r = requests.get(f"https://api.bithumb.com/public/ticker/{ticker}_KRW", timeout=5)
@@ -1437,11 +1460,18 @@ def track_performance() -> list:
         now_str  = now.strftime("%Y년 %m월 %d일 %H:%M")
         updated  = False
 
-        # 기존 성과 레코드를 키로 인덱싱 (1픽=1레코드로 갱신하기 위함)
+        # 기존 성과 레코드를 키→리스트인덱스로 매핑 (O(n²) 회피, 안전한 갱신)
         perf_index = {}
-        for rec in perf_data:
+        for idx, rec in enumerate(perf_data):
             k = f"{rec.get('추천일시','')}|{rec.get('티커','')}|{rec.get('관점','')}"
-            perf_index[k] = rec
+            perf_index[k] = idx
+
+        # 🟡-6 추적 대상 티커들의 현재가를 빗썸 ALL_KRW 한 번으로 일괄 조회 (개별 호출 제거)
+        track_tickers = {
+            str(p.get("티커", "")).upper()
+            for p in picks_data if p.get("기록상태") in ("신규", "추적중")
+        }
+        price_map = _fetch_all_prices_bithumb(track_tickers)
 
         for pick in picks_data:
             status = pick.get("기록상태")
@@ -1461,15 +1491,15 @@ def track_performance() -> list:
             rec_dt = _parse_kst_dt(pick.get("추천일시"))
             expired = bool(rec_dt and now >= rec_dt + timedelta(days=PERF_TRACK_DAYS))
 
-            cur = fetch_current_price_bithumb(ticker)
+            cur = price_map.get(ticker) or fetch_current_price_bithumb(ticker)
             if not cur:
                 continue
 
             pnl = round((cur - entry) / entry * 100, 2)
 
-            # 기존 레코드가 있으면 누적 최고/최저 이어받기
+            # 기존 레코드가 있으면 누적 최고/최저 이어받기 (perf_index는 리스트 인덱스)
             key = _pick_key(pick)
-            prev = perf_index.get(key, {})
+            prev = perf_data[perf_index[key]] if key in perf_index else {}
             peak_pnl   = max(_num(prev.get("최고수익률")), pnl) if prev else pnl
             trough_pnl = min(_num(prev.get("최저수익률")), pnl) if prev else pnl
             # 이미 T1/T2를 한 번이라도 찍었으면 유지
@@ -1506,12 +1536,12 @@ def track_performance() -> list:
                 "시장온도": pick.get("시장온도", ""),
                 "추적횟수": int(_num(prev.get("추적횟수"))) + 1,
             }
-            # 인덱스 갱신 (기존 레코드 자리에 덮어쓰기)
+            # 인덱스 갱신 (기존 레코드 자리에 덮어쓰기 — O(1))
             if key in perf_index:
-                perf_data[perf_data.index(perf_index[key])] = rec
+                perf_data[perf_index[key]] = rec
             else:
+                perf_index[key] = len(perf_data)
                 perf_data.append(rec)
-            perf_index[key] = rec
 
             # 픽 상태 전환: 확정(T2/손절)이거나 시한 경과 시 종료
             if t2_hit or sl_hit:
@@ -2055,8 +2085,15 @@ def scan_potential_candidates(target_coins: list, indicators: dict) -> list:
     """거래량은 들어왔는데 가격은 아직 안 움직인 + 볼밴 스퀴즈 + RSI 중립 종목 스캔.
     target_coins는 거래대금 31~80위 풀에서 선별된 종목이라 '작은 코인' 조건은 풀 자체로 충족."""
     print("⚡ [5단계] 잠재 폭발 후보 스캔 중...")
+    # 스테이블코인은 달러 연동이라 급등 여지가 없음 → 선취매에서 제외
+    STABLE_COINS = {
+        "USDT", "USDC", "DAI", "BUSD", "TUSD", "USDD", "USDP", "GUSD",
+        "FRAX", "LUSD", "FDUSD", "PYUSD", "USDS", "EURT", "EURC", "USDE",
+    }
     out = []
     for ticker, info in target_coins:
+        if str(ticker).upper() in STABLE_COINS:
+            continue
         iv = indicators.get(ticker, {}) or {}
         tf = iv.get("6h") or {}
         if not tf or "error" in tf:
@@ -2226,6 +2263,12 @@ def track_potential():
         now_str = now.strftime("%Y년 %m월 %d일 %H:%M")
         updated = False
 
+        # 관찰중 후보 가격을 ALL_KRW 한 번으로 일괄 조회
+        watch_tickers = {
+            str(c.get("티커", "")).upper() for c in data if c.get("상태") == "관찰중"
+        }
+        price_map = _fetch_all_prices_bithumb(watch_tickers)
+
         for c in data:
             if c.get("상태") != "관찰중":
                 continue
@@ -2234,7 +2277,7 @@ def track_potential():
             if anchor <= 0:
                 continue
 
-            cur = fetch_current_price_bithumb(ticker)
+            cur = price_map.get(ticker) or fetch_current_price_bithumb(ticker)
             if not cur:
                 continue
 
@@ -2894,11 +2937,21 @@ def _update_history_index(headers: dict, repo: str, file_date: str, pub_time: st
         if r.status_code == 200:
             existing_sha  = r.json().get("sha")
             old_html      = base64.b64decode(r.json()["content"]).decode("utf-8")
-            # 기존 행 추출
-            start = old_html.find('<tbody>') + 7
-            end   = old_html.find('</tbody>')
-            if start > 6 and end > 0:
-                existing_rows = old_html[start:end]
+            # 기존 행 추출 — 생성 시 <tbody id="tbody">로 저장되므로 그 마커로 정확히 찾는다
+            tb_start = old_html.find('<tbody id="tbody">')
+            if tb_start != -1:
+                start = tb_start + len('<tbody id="tbody">')
+                end   = old_html.find('</tbody>', start)
+                if end > start:
+                    existing_rows = old_html[start:end]
+            else:
+                # 구버전(<tbody>) 호환 폴백
+                tb_start = old_html.find('<tbody>')
+                if tb_start != -1:
+                    start = tb_start + len('<tbody>')
+                    end   = old_html.find('</tbody>', start)
+                    if end > start:
+                        existing_rows = old_html[start:end]
 
         new_row = f"""
         <tr data-date="{pub_time}" data-file="reports/report_{file_date}.html">

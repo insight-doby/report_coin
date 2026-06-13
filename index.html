@@ -948,6 +948,9 @@ button{cursor:pointer;font-family:inherit;}
         <button class="pv-btn" id="pv-btn-time" onclick="setPerfView('time')">시간순</button>
       </div>
     </div>
+    <input id="perf-search" type="text" placeholder="🔍 코인 검색 (예: SUI, BTC)" oninput="renderPerfDetail()"
+      style="width:100%;padding:9px 13px;margin-bottom:10px;font-size:13px;display:none;
+      background:var(--surface2);border:1px solid var(--border);border-radius:var(--r2);color:var(--txt);outline:none;">
     <div id="perf-group"></div>
     <div style="overflow-x:auto;display:none;" id="perf-table-wrap">
       <table class="ptable" id="perf-table">
@@ -1867,6 +1870,8 @@ function renderPerfDetail(){
   if(PERF_VIEW === 'time'){
     group.style.display='none';
     wrap.style.display='block';
+    var sb = document.getElementById('perf-search');
+    if(sb) sb.style.display='none';
     var tbody = '';
     perf.slice().reverse().forEach(function(r){
       var res = r['결과']||'';
@@ -1890,6 +1895,11 @@ function renderPerfDetail(){
   /* ── 코인별 그룹 뷰 ── */
   wrap.style.display='none';
   group.style.display='block';
+  var searchBox = document.getElementById('perf-search');
+  if(searchBox) searchBox.style.display='block';
+
+  var query  = (searchBox ? searchBox.value : '').trim().toUpperCase();
+  var hidden = getHiddenPerfCoins();
 
   var byTicker = {};
   perf.forEach(function(r){
@@ -1897,16 +1907,22 @@ function renderPerfDetail(){
     (byTicker[t] = byTicker[t]||[]).push(r);
   });
 
-  var groups = Object.keys(byTicker).map(function(t){
+  var allTickers = Object.keys(byTicker);
+  var hiddenCount = allTickers.filter(function(t){ return hidden.indexOf(t)!==-1; }).length;
+
+  var groups = allTickers.filter(function(t){
+    if(query && t.toUpperCase().indexOf(query)===-1) return false;  // 검색 필터
+    if(!query && hidden.indexOf(t)!==-1) return false;              // 숨긴 코인 (검색 중엔 표시)
+    return true;
+  }).map(function(t){
     var rows = byTicker[t];
     var wins   = rows.filter(function(r){ return (r['결과']||'').indexOf('달성')!==-1; }).length;
     var losses = rows.filter(function(r){ return (r['결과']||'').indexOf('손절')!==-1; }).length;
     var ing    = rows.length - wins - losses;
     var avg    = rows.reduce(function(a,r){ return a+perfPnlNum(r); },0)/rows.length;
-    /* 최근 결과 = 확인일시 기준 마지막 행 */
     var last   = rows[rows.length-1];
     return { ticker:t, rows:rows, wins:wins, losses:losses, ing:ing,
-             avg:Math.round(avg*10)/10, last:last };
+             avg:Math.round(avg*10)/10, last:last, isHidden:hidden.indexOf(t)!==-1 };
   });
 
   /* 정렬: 추천 횟수 많은 순 → 평균 수익률 순 */
@@ -1933,22 +1949,53 @@ function renderPerfDetail(){
       '</div>';
     }).join('');
 
-    return '<div class="pg-item">'+
-      '<div class="pg-head" onclick="togglePerfGroup('+gi+')">'+
-        '<span class="pg-tk">'+esc(g.ticker)+'</span>'+
-        '<span class="pg-cnt">추천 '+g.rows.length+'회</span>'+
-        '<div class="pg-stats">'+
+    var hideBtn = '<span class="pg-hide" onclick="togglePerfHide(event,\''+esc(g.ticker)+'\')" '+
+      'title="'+(g.isHidden?'다시 표시':'목록에서 숨기기')+'" '+
+      'style="font-size:13px;color:var(--txt3);padding:2px 6px;cursor:pointer;">'+(g.isHidden?'👁️':'✕')+'</span>';
+
+    return '<div class="pg-item"'+(g.isHidden?' style="opacity:0.55;"':'')+'>'+
+      '<div class="pg-head">'+
+        '<span class="pg-tk" onclick="togglePerfGroup('+gi+')">'+esc(g.ticker)+'</span>'+
+        '<span class="pg-cnt" onclick="togglePerfGroup('+gi+')">추천 '+g.rows.length+'회</span>'+
+        '<div class="pg-stats" onclick="togglePerfGroup('+gi+')">'+
           '<span>✅ '+g.wins+' · ❌ '+g.losses+(g.ing?' · ⏳ '+g.ing:'')+'</span>'+
           '<span class="pg-avg" style="color:'+ac+';">평균 '+(g.avg>=0?'+':'')+g.avg+'%</span>'+
           '<span class="badge '+lastCls+'" style="font-size:10px;">최근 '+lastRes+'</span>'+
           '<span class="pg-arrow" id="pg-arrow-'+gi+'">▼</span>'+
         '</div>'+
+        hideBtn+
       '</div>'+
       '<div class="pg-body" id="pg-body-'+gi+'">'+detail+'</div>'+
     '</div>';
   }).join('');
 
+  // 숨긴 코인 안내 (검색 중이 아닐 때만)
+  if(!query && hiddenCount){
+    html += '<div style="text-align:center;padding:10px;font-size:11px;color:var(--txt3);">'+
+      '🙈 '+hiddenCount+'개 코인이 숨겨져 있어요. <a onclick="showAllPerfCoins()" style="color:var(--accent);cursor:pointer;">전체 보기</a></div>';
+  }
+  if(!groups.length){
+    html = '<div style="text-align:center;padding:30px;color:var(--txt3);font-size:13px;">'+
+      (query ? '"'+esc(query)+'" 검색 결과가 없어요.' : '표시할 코인이 없어요.')+'</div>';
+  }
+
   group.innerHTML = html;
+}
+
+/* 숨긴 코인 관리 (localStorage — 데이터는 안 지우고 화면에서만 숨김) */
+var PERF_HIDE_KEY = 'kzb-perf-hidden';
+function getHiddenPerfCoins(){ try{ return JSON.parse(localStorage.getItem(PERF_HIDE_KEY)||'[]'); }catch(e){ return []; } }
+function togglePerfHide(ev, ticker){
+  ev.stopPropagation();
+  var hidden = getHiddenPerfCoins();
+  var i = hidden.indexOf(ticker);
+  if(i!==-1) hidden.splice(i,1); else hidden.push(ticker);
+  localStorage.setItem(PERF_HIDE_KEY, JSON.stringify(hidden));
+  renderPerfDetail();
+}
+function showAllPerfCoins(){
+  localStorage.setItem(PERF_HIDE_KEY, '[]');
+  renderPerfDetail();
 }
 
 function togglePerfGroup(i){
@@ -2580,10 +2627,17 @@ function renderWatchlistAnalysis(){
     return;
   }
 
-  var latest = G.picks[G.picks.length-1]['추천일시']||'';
-  var today  = G.picks.filter(function(p){ return p['추천일시']===latest; });
-  var wlPicks = today.filter(function(p){
-    return wl.indexOf(p['티커'])!==-1 || p['is_watchlist'];
+  // 각 관심종목별로 '가장 최근에 분석된' pick을 찾는다 (자동실행으로 덮여도 과거 분석 유지)
+  var wlPicks = [];
+  wl.forEach(function(ticker){
+    var matches = G.picks.filter(function(p){
+      return p['티커']===ticker || (p['is_watchlist'] && p['티커']===ticker);
+    });
+    if(matches.length){
+      // 추천일시 기준 최신 1건
+      matches.sort(function(a,b){ return (a['추천일시']||'') < (b['추천일시']||'') ? 1 : -1; });
+      wlPicks.push(matches[0]);
+    }
   });
 
   if(!wlPicks.length){
@@ -2595,7 +2649,13 @@ function renderWatchlistAnalysis(){
   if(empty) empty.style.display='none';
   grid.innerHTML = '';
   wlPicks.forEach(function(p){
-    grid.appendChild(createCardElement(p, 'wl-'));
+    var card = createCardElement(p, 'wl-');
+    // 언제 분석된 건지 작게 표시 (오래된 분석일 수 있으므로)
+    var when = document.createElement('div');
+    when.style.cssText = 'font-size:11px;color:var(--txt3);margin-top:-6px;margin-bottom:10px;padding-left:2px;';
+    when.textContent = '📅 ' + (p['추천일시']||'') + ' 분석';
+    grid.appendChild(when);
+    grid.appendChild(card);
   });
 }
 var WL_KEY = 'kzb-watchlist';
