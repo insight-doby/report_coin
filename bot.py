@@ -2912,8 +2912,8 @@ def push_report_to_github(html_content: str, pub_time: str):
             else:
                 print(f"  ❌ {path} push 실패: {r.status_code} {r.text[:100]}")
 
-        # 히스토리 인덱스 페이지 생성/업데이트
-        _update_history_index(headers, repo, file_date, pub_time)
+        # 히스토리 목록은 index.html(프론트엔드)이 GitHub API로 reports/ 폴더를
+        # 직접 조회해 생성함 — 봇은 reports/에 파일만 저장하면 됨 (history.html 불필요)
 
         print(f"🌐 리포트 URL: https://insight-doby.github.io/report_coin/")
         print(f"📁 날짜별 URL: https://insight-doby.github.io/report_coin/{filename}")
@@ -2922,122 +2922,6 @@ def push_report_to_github(html_content: str, pub_time: str):
         print(f"  ❌ GitHub push 오류: {e}")
 
 
-def _update_history_index(headers: dict, repo: str, file_date: str, pub_time: str):
-    """히스토리 목록 페이지(history.html) 업데이트"""
-    try:
-        import base64
-
-        url = f"https://api.github.com/repos/{repo}/contents/history.html"
-
-        # 기존 history.html 가져오기
-        r = requests.get(url, headers=headers, timeout=10)
-        existing_sha  = None
-        existing_rows = ""
-
-        if r.status_code == 200:
-            existing_sha  = r.json().get("sha")
-            old_html      = base64.b64decode(r.json()["content"]).decode("utf-8")
-            # 기존 행 추출 — 생성 시 <tbody id="tbody">로 저장되므로 그 마커로 정확히 찾는다
-            tb_start = old_html.find('<tbody id="tbody">')
-            if tb_start != -1:
-                start = tb_start + len('<tbody id="tbody">')
-                end   = old_html.find('</tbody>', start)
-                if end > start:
-                    existing_rows = old_html[start:end]
-            else:
-                # 구버전(<tbody>) 호환 폴백
-                tb_start = old_html.find('<tbody>')
-                if tb_start != -1:
-                    start = tb_start + len('<tbody>')
-                    end   = old_html.find('</tbody>', start)
-                    if end > start:
-                        existing_rows = old_html[start:end]
-
-        new_row = f"""
-        <tr data-date="{pub_time}" data-file="reports/report_{file_date}.html">
-          <td style="padding:10px 12px;font-size:13px;">{pub_time}</td>
-          <td style="padding:10px 12px;">
-            <a href="reports/report_{file_date}.html"
-               style="color:#2563eb;text-decoration:none;font-size:13px;font-weight:500;">리포트 보기</a>
-          </td>
-          <td style="padding:10px 12px;">
-            <button onclick="deleteRow(this, '{pub_time}', 'reports/report_{file_date}.html')"
-              style="padding:3px 10px;font-size:11px;font-weight:600;border:1px solid #e5e5e5;
-              border-radius:4px;background:transparent;color:#aaa;cursor:pointer;"
-              onmouseover="this.style.borderColor='#ef4444';this.style.color='#ef4444';"
-              onmouseout="this.style.borderColor='#e5e5e5';this.style.color='#aaa';">
-              X
-            </button>
-          </td>
-        </tr>"""
-
-        history_html = f"""<!DOCTYPE html>
-<html lang="ko">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>리포트 히스토리</title>
-<style>
-  * {{ box-sizing:border-box; margin:0; padding:0; }}
-  body {{ font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
-          background:#f5f5f5; padding:24px; color:#18181b; }}
-  .container {{ max-width:700px; margin:0 auto; }}
-  .back-btn {{ display:inline-block; margin-bottom:16px; color:#2563eb;
-               text-decoration:none; font-size:13px; }}
-  h1 {{ font-size:18px; font-weight:700; margin-bottom:16px; letter-spacing:-0.02em; }}
-  table {{ width:100%; background:#fff; border-radius:10px;
-           border-collapse:collapse; border:1px solid #e5e5e5; }}
-  thead tr {{ background:#f8f8f8; border-bottom:1px solid #e5e5e5; }}
-  th {{ padding:10px 12px; text-align:left; font-size:11px; color:#a1a1aa;
-        font-weight:600; text-transform:uppercase; letter-spacing:0.06em; }}
-  tbody tr {{ border-bottom:1px solid #f0f0f0; }}
-  tbody tr:last-child {{ border-bottom:none; }}
-  tbody tr:hover {{ background:#fafafa; }}
-  .notice {{ font-size:12px; color:#a1a1aa; margin-top:12px; }}
-</style>
-</head>
-<body>
-<div class="container">
-  <a href="index.html" class="back-btn">← 최신 리포트로</a>
-  <h1>리포트 히스토리</h1>
-  <table>
-    <thead><tr><th>발행일시</th><th>링크</th><th></th></tr></thead>
-    <tbody id="tbody">{new_row}{existing_rows}</tbody>
-  </table>
-  <p class="notice">행 삭제는 히스토리 목록에서만 제거됩니다. 실제 리포트 파일은 유지됩니다.</p>
-</div>
-<script>
-function deleteRow(btn, date, file) {{
-  if(!confirm('"' + date + '" 항목을 목록에서 삭제할까요?')) return;
-  var row = btn.closest('tr');
-  if(row) row.remove();
-  /* 남은 행 수집해서 localStorage에 숨김 처리 */
-  var hidden = JSON.parse(localStorage.getItem('kzb-hidden-reports') || '[]');
-  hidden.push(file);
-  localStorage.setItem('kzb-hidden-reports', JSON.stringify(hidden));
-}}
-/* 페이지 로드 시 숨김 처리된 행 제거 */
-document.addEventListener('DOMContentLoaded', function() {{
-  var hidden = JSON.parse(localStorage.getItem('kzb-hidden-reports') || '[]');
-  document.querySelectorAll('#tbody tr').forEach(function(row) {{
-    var file = row.dataset.file;
-    if(file && hidden.indexOf(file) !== -1) row.remove();
-  }});
-}});
-</script>
-</body>
-</html>"""
-
-        encoded = base64.b64encode(history_html.encode("utf-8")).decode("utf-8")
-        body = {"message": f"히스토리 업데이트: {pub_time}", "content": encoded}
-        if existing_sha:
-            body["sha"] = existing_sha
-
-        r = requests.put(url, headers=headers, json=body, timeout=30)
-        if r.status_code in (200, 201):
-            print("  ✅ history.html 업데이트 완료")
-    except Exception as e:
-        print(f"  ⚠️ 히스토리 업데이트 실패: {e}")
 
 
 if __name__ == "__main__":

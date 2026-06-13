@@ -589,6 +589,37 @@ button{cursor:pointer;font-family:inherit;}
 @media(max-width:760px){
   .pt-strip{grid-template-columns:1fr;}
 }
+
+/* ── 리포트 히스토리 모달 ── */
+.hm-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:1000;
+  display:none;align-items:flex-start;justify-content:center;padding:40px 16px;overflow-y:auto;}
+.hm-overlay.open{display:flex;}
+.hm-box{background:var(--bg);border:1px solid var(--border);border-radius:var(--r);
+  width:100%;max-width:640px;box-shadow:0 20px 60px rgba(0,0,0,0.4);}
+.hm-head{display:flex;align-items:center;justify-content:space-between;
+  padding:18px 22px;border-bottom:1px solid var(--border);}
+.hm-title{font-size:16px;font-weight:700;}
+.hm-close{font-size:22px;color:var(--txt3);cursor:pointer;line-height:1;background:none;border:none;}
+.hm-close:hover{color:var(--txt);}
+.hm-filters{display:flex;gap:8px;padding:14px 22px;border-bottom:1px solid var(--border);flex-wrap:wrap;}
+.hm-sel{padding:7px 12px;font-size:12px;background:var(--surface2);border:1px solid var(--border);
+  border-radius:var(--r2);color:var(--txt);outline:none;cursor:pointer;}
+.hm-count{margin-left:auto;font-size:11px;color:var(--txt3);align-self:center;}
+.hm-body{max-height:55vh;overflow-y:auto;padding:8px 0;}
+.hm-month{padding:8px 22px 4px;font-size:11px;font-weight:700;color:var(--accent);
+  text-transform:uppercase;letter-spacing:0.05em;}
+.hm-week{padding:6px 22px 2px 30px;font-size:10px;color:var(--txt3);}
+.hm-row{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:11px 22px;border-bottom:1px solid var(--border2);transition:background .12s;}
+.hm-row:hover{background:var(--surface2);}
+.hm-date{font-size:13px;color:var(--txt);font-family:'JetBrains Mono',monospace;}
+.hm-open{font-size:12px;font-weight:600;color:var(--accent);text-decoration:none;
+  padding:4px 12px;border:1px solid var(--border);border-radius:6px;}
+.hm-open:hover{border-color:var(--accent);}
+.hm-del{font-size:13px;color:var(--txt3);cursor:pointer;padding:2px 6px;border-radius:4px;}
+.hm-del:hover{color:var(--neg);background:var(--surface2);}
+.hm-empty{padding:40px 22px;text-align:center;color:var(--txt3);font-size:13px;}
+.hm-loading{padding:40px 22px;text-align:center;color:var(--txt3);font-size:13px;}
 </style>
 </head>
 
@@ -694,7 +725,7 @@ button{cursor:pointer;font-family:inherit;}
   </div>
   <div class="hdr-right">
     <span class="hdr-time" id="hdr-time">빗썸 스캔 · Gemini AI</span>
-    <a href="history.html" class="btn-hist">히스토리</a>
+    <button class="btn-hist" onclick="openHistoryModal()">히스토리</button>
     <button class="btn-start" id="btn-analyze" onclick="loadData()">분석 시작</button>
     <button class="btn-icon" onclick="toggleTheme()" aria-label="테마">
       <svg id="ico-sun" viewBox="0 0 24 24" style="display:block;"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
@@ -1998,6 +2029,144 @@ function showAllPerfCoins(){
   renderPerfDetail();
 }
 
+/* ══════════════════════════════════
+   리포트 히스토리 (GitHub reports/ 폴더 직접 조회)
+   ══════════════════════════════════ */
+var HM_REPO  = 'insight-doby/report_coin';
+var HM_CACHE = null;  // [{date:Date, pub, file, ym, week}]
+
+function openHistoryModal(){
+  document.getElementById('hm-overlay').classList.add('open');
+  if(HM_CACHE){ buildHistoryFilters(); renderHistory(); return; }
+  document.getElementById('hm-body').innerHTML = '<div class="hm-loading">불러오는 중…</div>';
+  fetch('https://api.github.com/repos/'+HM_REPO+'/contents/reports')
+    .then(function(r){ if(!r.ok) throw new Error('목록 조회 실패'); return r.json(); })
+    .then(function(items){
+      if(!Array.isArray(items)) throw new Error('형식 오류');
+      var pat = /report_(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})\.html$/;
+      HM_CACHE = items.map(function(it){
+        var m = pat.exec(it.name||'');
+        if(!m) return null;
+        var y=+m[1], mo=+m[2], d=+m[3], hh=+m[4], mm=+m[5];
+        var dt = new Date(y, mo-1, d, hh, mm);
+        return {
+          date: dt,
+          pub: y+'년 '+m[2]+'월 '+m[3]+'일 '+m[4]+':'+m[5],
+          file: 'reports/'+it.name,
+          ym: y+'-'+m[2],            // 2026-06
+          ymLabel: y+'년 '+mo+'월',
+          week: weekOfMonth(d)        // 1~5
+        };
+      }).filter(Boolean).sort(function(a,b){ return b.date - a.date; });
+      buildHistoryFilters();
+      renderHistory();
+    })
+    .catch(function(e){
+      document.getElementById('hm-body').innerHTML =
+        '<div class="hm-empty">히스토리를 불러오지 못했어요.<br><span style="font-size:11px;">'+esc(e.message)+'</span></div>';
+    });
+}
+
+function closeHistoryModal(){
+  document.getElementById('hm-overlay').classList.remove('open');
+}
+
+function weekOfMonth(day){ return Math.ceil(day/7); }  // 1~7일=1주차, 8~14=2주차...
+
+function buildHistoryFilters(){
+  var monthSel = document.getElementById('hm-month');
+  // 월 목록 (중복 제거, 최신순)
+  var months = [];
+  HM_CACHE.forEach(function(r){
+    if(!months.some(function(m){ return m.ym===r.ym; })) months.push({ym:r.ym, label:r.ymLabel});
+  });
+  monthSel.innerHTML = '<option value="all">전체 월</option>' +
+    months.map(function(m){ return '<option value="'+m.ym+'">'+m.label+'</option>'; }).join('');
+  buildWeekOptions();
+}
+
+function buildWeekOptions(){
+  var month   = document.getElementById('hm-month').value;
+  var weekSel = document.getElementById('hm-week');
+  // 선택된 월(전체면 전 범위)에 실제 존재하는 주차만 옵션으로
+  var weeks = [];
+  HM_CACHE.forEach(function(r){
+    if(month!=='all' && r.ym!==month) return;
+    if(weeks.indexOf(r.week)===-1) weeks.push(r.week);
+  });
+  weeks.sort(function(a,b){ return a-b; });
+  var prev = weekSel.value;
+  weekSel.innerHTML = '<option value="all">전체 주차</option>' +
+    weeks.map(function(w){ return '<option value="'+w+'">'+w+'주차</option>'; }).join('');
+  // 이전 선택이 새 목록에 있으면 유지, 없으면 전체로
+  weekSel.value = weeks.indexOf(+prev)!==-1 ? prev : 'all';
+}
+
+function renderHistory(){
+  if(!HM_CACHE) return;
+  var month = document.getElementById('hm-month').value;
+  var week  = document.getElementById('hm-week').value;
+  var hidden = getHiddenReports();
+
+  var filtered = HM_CACHE.filter(function(r){
+    if(month!=='all' && r.ym!==month) return false;
+    if(week!=='all'  && String(r.week)!==week) return false;
+    if(hidden.indexOf(r.file)!==-1) return false;   // 숨긴 리포트 제외
+    return true;
+  });
+
+  var hiddenCount = HM_CACHE.filter(function(r){ return hidden.indexOf(r.file)!==-1; }).length;
+  document.getElementById('hm-count').textContent = filtered.length + '건';
+
+  var body = document.getElementById('hm-body');
+  if(!filtered.length){
+    body.innerHTML = '<div class="hm-empty">해당 기간에 리포트가 없어요.</div>' +
+      (hiddenCount ? '<div style="text-align:center;padding:0 0 16px;font-size:11px;color:var(--txt3);">🙈 숨긴 리포트 '+hiddenCount+'건 · <a onclick="unhideAllReports()" style="color:var(--accent);cursor:pointer;">전체 복원</a></div>' : '');
+    return;
+  }
+
+  // 월 → 주차 순으로 그룹핑해서 표시
+  var html = '';
+  var curMonth = '', curWeek = '';
+  filtered.forEach(function(r){
+    if(r.ymLabel !== curMonth){
+      html += '<div class="hm-month">'+r.ymLabel+'</div>';
+      curMonth = r.ymLabel; curWeek = '';
+    }
+    if(week==='all' && String(r.week) !== curWeek){
+      html += '<div class="hm-week">'+r.week+'주차</div>';
+      curWeek = String(r.week);
+    }
+    html += '<div class="hm-row">'+
+      '<span class="hm-date">'+r.pub+'</span>'+
+      '<span style="display:flex;gap:8px;align-items:center;">'+
+        '<a class="hm-open" href="https://insight-doby.github.io/report_coin/'+r.file+'" target="_blank" rel="noopener">리포트 보기</a>'+
+        '<span class="hm-del" onclick="hideReport(\''+r.file+'\')" title="목록에서 숨기기">✕</span>'+
+      '</span>'+
+    '</div>';
+  });
+  if(hiddenCount){
+    html += '<div style="text-align:center;padding:12px;font-size:11px;color:var(--txt3);">'+
+      '🙈 숨긴 리포트 '+hiddenCount+'건 · <a onclick="unhideAllReports()" style="color:var(--accent);cursor:pointer;">전체 복원</a></div>';
+  }
+  body.innerHTML = html;
+}
+
+/* 리포트 숨김 관리 (localStorage — 실제 파일은 reports/ 폴더에 그대로 유지) */
+var HM_HIDE_KEY = 'kzb-hidden-reports';
+function getHiddenReports(){ try{ return JSON.parse(localStorage.getItem(HM_HIDE_KEY)||'[]'); }catch(e){ return []; } }
+function hideReport(file){
+  if(!confirm('이 리포트를 목록에서 숨길까요?\n(실제 파일은 삭제되지 않아요)')) return;
+  var hidden = getHiddenReports();
+  if(hidden.indexOf(file)===-1) hidden.push(file);
+  localStorage.setItem(HM_HIDE_KEY, JSON.stringify(hidden));
+  renderHistory();
+}
+function unhideAllReports(){
+  localStorage.setItem(HM_HIDE_KEY, '[]');
+  renderHistory();
+}
+
 function togglePerfGroup(i){
   var body  = document.getElementById('pg-body-'+i);
   var arrow = document.getElementById('pg-arrow-'+i);
@@ -2910,5 +3079,27 @@ function fmtNum(n){ return n ? Math.round(n).toLocaleString() : '—'; }
 function fmtPrice(s){ return s||'—'; }
 function esc(s){ var d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
 </script>
+<!-- 리포트 히스토리 모달 -->
+<div class="hm-overlay" id="hm-overlay" onclick="if(event.target===this)closeHistoryModal()">
+  <div class="hm-box">
+    <div class="hm-head">
+      <span class="hm-title">📋 리포트 히스토리</span>
+      <button class="hm-close" onclick="closeHistoryModal()" aria-label="닫기">×</button>
+    </div>
+    <div class="hm-filters">
+      <select class="hm-sel" id="hm-month" onchange="buildWeekOptions();renderHistory()">
+        <option value="all">전체 월</option>
+      </select>
+      <select class="hm-sel" id="hm-week" onchange="renderHistory()">
+        <option value="all">전체 주차</option>
+      </select>
+      <span class="hm-count" id="hm-count"></span>
+    </div>
+    <div class="hm-body" id="hm-body">
+      <div class="hm-loading">불러오는 중…</div>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
