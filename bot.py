@@ -534,6 +534,38 @@ def fetch_bithumb_candles(ticker: str, interval: str, limit: int) -> Optional[tu
         return None
 
 
+def fetch_lohi_since_bithumb(ticker: str, since_dt, interval: str = "1h"):
+    """포착 시점(since_dt) 이후 캔들들의 (최저 저가, 최고 고가) 반환.
+    저가=idx4, 고가=idx3. 스냅샷이 아니라 진짜 장중 저점·고점을 캔들 해상도로 잡는다.
+    실패 시 (None, None)."""
+    try:
+        url = f"https://api.bithumb.com/public/candlestick/{ticker}_KRW/{interval}"
+        r = requests.get(url, timeout=8)
+        if r.status_code != 200:
+            return None, None
+        j = r.json()
+        if j.get("status") != "0000":
+            return None, None
+        rows = j.get("data", [])
+        if not rows or not isinstance(rows, list):
+            return None, None
+        since_ms = int(since_dt.timestamp() * 1000) if since_dt else 0
+        lows, highs = [], []
+        for k in rows:
+            try:
+                t  = int(k[0])      # 시각(ms) = 인덱스 0
+                hi = float(k[3])    # 고가     = 인덱스 3
+                lo = float(k[4])    # 저가     = 인덱스 4
+            except (ValueError, TypeError, IndexError):
+                continue
+            if t >= since_ms:
+                if lo > 0: lows.append(lo)
+                if hi > 0: highs.append(hi)
+        return (min(lows) if lows else None), (max(highs) if highs else None)
+    except Exception:
+        return None, None
+
+
 def _build_indicator_block(interval: str, cfg: dict, closes: np.ndarray, vols: np.ndarray) -> dict:
     """closes/vols 배열 → RSI·볼밴·EMA·밴드폭 지표 블록 (소스 무관 공통 로직)."""
     ma_periods = {
@@ -2269,6 +2301,7 @@ def record_potential_to_github(cands: list, pub_time: str):
                 "포착일시":     pub_time,
                 "상태":        "관찰중",
                 "최고수익률":   0.0,
+                "최저수익률":   None,
                 "현재수익률":   0.0,
                 "결과":        None,
                 "결과확정일시": None,
@@ -2321,7 +2354,25 @@ def track_potential():
 
             pnl = round((cur - anchor) / anchor * 100, 2)
             c["현재수익률"] = pnl
-            c["최고수익률"] = max(float(c.get("최고수익률", 0) or 0), pnl)
+            # 진짜 고점/저점 — 포착 이후 캔들 고가·저가(1시간봉) 기반
+            _since = _parse_kst_dt(c.get("포착일시"))
+            _abs_low, _abs_high = fetch_lohi_since_bithumb(ticker, _since, "1h")
+
+            _hi = [pnl]
+            if _abs_high and anchor > 0:
+                _hi.append(round((_abs_high - anchor) / anchor * 100, 2))
+            _prev_high = c.get("최고수익률")
+            if _prev_high is not None:
+                _hi.append(float(_prev_high))
+            c["최고수익률"] = round(max(_hi), 2)
+
+            _lo = [pnl]
+            if _abs_low and anchor > 0:
+                _lo.append(round((_abs_low - anchor) / anchor * 100, 2))
+            _prev_low = c.get("최저수익률")
+            if _prev_low is not None:
+                _lo.append(float(_prev_low))
+            c["최저수익률"] = round(min(_lo), 2)
             updated = True
 
             deadline = _parse_kst_dt(c.get("관찰시한"))
@@ -2379,7 +2430,25 @@ def track_accumulation():
 
             pnl = round((cur - anchor) / anchor * 100, 2)
             c["현재수익률"] = pnl
-            c["최고수익률"] = max(float(c.get("최고수익률", 0) or 0), pnl)
+            # 진짜 고점/저점 — 포착 이후 캔들 고가·저가(6시간봉, 30일 윈도우) 기반
+            _since = _parse_kst_dt(c.get("포착일시"))
+            _abs_low, _abs_high = fetch_lohi_since_bithumb(ticker, _since, "6h")
+
+            _hi = [pnl]
+            if _abs_high and anchor > 0:
+                _hi.append(round((_abs_high - anchor) / anchor * 100, 2))
+            _prev_high = c.get("최고수익률")
+            if _prev_high is not None:
+                _hi.append(float(_prev_high))
+            c["최고수익률"] = round(max(_hi), 2)
+
+            _lo = [pnl]
+            if _abs_low and anchor > 0:
+                _lo.append(round((_abs_low - anchor) / anchor * 100, 2))
+            _prev_low = c.get("최저수익률")
+            if _prev_low is not None:
+                _lo.append(float(_prev_low))
+            c["최저수익률"] = round(min(_lo), 2)
             updated = True
 
             deadline = _parse_kst_dt(c.get("관찰시한"))
@@ -2500,7 +2569,7 @@ def record_accumulation_to_github(cands, pub_time):
                 "상태":     "관찰중",
                 "포착일시": now.strftime("%Y년 %m월 %d일 %H:%M"),
                 "관찰시한": (now + timedelta(days=ACCUM_TRACK_DAYS)).strftime("%Y년 %m월 %d일 %H:%M"),
-                "현재수익률": 0, "최고수익률": 0,
+                "현재수익률": 0, "최고수익률": 0, "최저수익률": None,
             })
             data.append(c)
             added += 1

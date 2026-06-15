@@ -783,7 +783,7 @@ button{cursor:pointer;font-family:inherit;}
       border-radius:6px;background:var(--txt);color:var(--bg);transition:all .15s;">오늘의 추천</button>
     <button id="rt-btn-potential" onclick="switchReportTab('potential')"
       style="padding:6px 16px;font-size:12px;font-weight:600;border:none;cursor:pointer;
-      border-radius:6px;background:transparent;color:var(--txt3);transition:all .15s;">⚡ 선취매 후보</button>
+      border-radius:6px;background:transparent;color:var(--txt3);transition:all .15s;">⚡ 선취매/매집 후보</button>
     <button id="rt-btn-watchlist" onclick="switchReportTab('watchlist')"
       style="padding:6px 16px;font-size:12px;font-weight:600;border:none;cursor:pointer;
       border-radius:6px;background:transparent;color:var(--txt3);transition:all .15s;">관심종목 분석</button>
@@ -821,27 +821,41 @@ button{cursor:pointer;font-family:inherit;}
     </div>
   </div>
 
-  <!-- ⚡ 선취매 후보 -->
+  <!-- ⚡ 선취매 / 🩹 매집 후보 -->
   <div id="rt-potential-pane" style="display:none;">
-    <div class="pt-guide">
-      💡 <strong>선취매 후보란?</strong> 아직 가격은 안 올랐지만, 거래량이 먼저 들어오고 차트가 응축돼서
-      <strong>곧 크게 움직일 가능성이 있는 코인</strong>을 미리 찍어둔 목록이에요.
-      "지금 사라"는 추천이 아니라 <strong>"지켜보라"는 관찰 후보</strong>입니다 —
-      응축된 에너지는 아래로 터질 수도 있으니 시한과 결과 기록을 함께 확인하세요.
-    </div>
-    <div id="pt-kpi"></div>
-    <div class="pt-strip" id="pt-strip"></div>
-    <div id="pt-history" class="pt-history"></div>
 
-    <!-- 🩹 매집 후보 (선취매와 별도 로직 · 30일 관찰) -->
-    <div style="margin-top:28px;padding-top:22px;border-top:1px solid var(--border);">
-      <div style="font-size:15px;font-weight:700;margin-bottom:8px;">🩹 매집 후보 <span style="font-size:11px;font-weight:500;color:var(--txt3);">조용히 쩔어진 바닥권 · 30일 관찰</span></div>
+    <!-- 하위탭 + 실시간 가격 버튼 -->
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
+      <div style="display:inline-flex;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:3px;">
+        <button id="cand-btn-potential" onclick="switchCandidateTab('potential')" style="font-size:13px;font-weight:600;padding:6px 14px;border:none;border-radius:6px;cursor:pointer;background:var(--txt);color:var(--bg);">⚡ 선취매</button>
+        <button id="cand-btn-accum" onclick="switchCandidateTab('accum')" style="font-size:13px;font-weight:600;padding:6px 14px;border:none;border-radius:6px;cursor:pointer;background:transparent;color:var(--txt3);">🩹 매집</button>
+      </div>
+      <button onclick="refreshCandidatePrices(true)" style="font-size:13px;font-weight:600;padding:7px 14px;border:1px solid var(--border);border-radius:8px;cursor:pointer;background:var(--surface);color:var(--txt);">🔄 실시간 가격 확인</button>
+      <span id="cand-refreshed" style="font-size:11px;color:var(--txt3);"></span>
+    </div>
+
+    <!-- ⚡ 선취매 하위 -->
+    <div id="cand-sub-potential">
+      <div class="pt-guide">
+        💡 <strong>선취매 후보란?</strong> 아직 가격은 안 올랐지만, 거래량이 먼저 들어오고 차트가 응축돼서
+        <strong>곧 크게 움직일 가능성이 있는 코인</strong>을 미리 찍어둔 목록이에요.
+        "지금 사라"는 추천이 아니라 <strong>"지켜보라"는 관찰 후보</strong>입니다 —
+        응축된 에너지는 아래로 터질 수도 있으니 시한과 결과 기록을 함께 확인하세요.
+      </div>
+      <div id="pt-kpi"></div>
+      <div class="pt-strip" id="pt-strip"></div>
+      <div id="pt-history" class="pt-history"></div>
+    </div>
+
+    <!-- 🩹 매집 하위 -->
+    <div id="cand-sub-accum" style="display:none;">
       <div class="pt-guide">
         💡 <strong>매집 후보란?</strong> 별다른 악재 없이 며칠 조용히 흘러내려 바닥에 깔린 종목이에요.
-        선취매(곧 터질 것)와 달리 <strong>천천히 줍고 기다리는</strong> 역추세 자리입니다.
+        선취매(곧 터질 것)와 달리 <strong>천천히 줍고 기다리는</strong> 역추세 자리입니다 (30일 관찰).
         더 빠질 위험도 있으니 분할 매수·여유 손절을 권장해요.
       </div>
       <div class="pt-strip" id="accum-strip"></div>
+      <div id="accum-history" class="pt-history"></div>
     </div>
   </div>
 
@@ -2609,7 +2623,26 @@ function switchReportTab(tab){
   if(filter) filter.style.display = (tab==='picks') ? 'flex' : 'none';
 
   if(tab==='watchlist') renderWatchlistAnalysis();
-  if(tab==='potential'){ renderPotential(); refreshPotentialPrices(); }
+  if(tab==='potential'){ renderPotential(); renderAccumulation(); refreshCandidatePrices(false); }
+}
+
+/* ── 후보 하위탭 전환 (선취매 / 매집) ── */
+function switchCandidateTab(sub){
+  var subs = {
+    potential: document.getElementById('cand-sub-potential'),
+    accum:     document.getElementById('cand-sub-accum')
+  };
+  var btns = {
+    potential: document.getElementById('cand-btn-potential'),
+    accum:     document.getElementById('cand-btn-accum')
+  };
+  Object.keys(subs).forEach(function(k){
+    if(subs[k]) subs[k].style.display = (k===sub) ? 'block' : 'none';
+    if(btns[k]){
+      btns[k].style.background = (k===sub) ? 'var(--txt)' : 'transparent';
+      btns[k].style.color      = (k===sub) ? 'var(--bg)'  : 'var(--txt3)';
+    }
+  });
 }
 
 /* ══════════════════════════════════
@@ -2704,6 +2737,9 @@ function buildPotentialCard(c){
   var ticker = c['티커']||'';
   var pnl = parseFloat(c['현재수익률']||0);
   var pc  = pnl>=0?'var(--pos)':'var(--neg)';
+  var ptAnchor = parseFloat(c['포착가'])||0;
+  var ptHigh = parseFloat(c['최고수익률']||0);
+  var ptLowRaw = (c['최저수익률']===null||c['최저수익률']===undefined) ? null : parseFloat(c['최저수익률']);
   var caution = c['주의사항'] ? '<div class="pt-row" style="color:var(--warn);"><span class="pt-row-ico">⚠️</span><span class="pt-row-txt" style="color:var(--warn);">'+esc(c['주의사항'])+'</span></div>' : '';
 
   return '<div class="pt-card '+g.cardCls+'">'+
@@ -2716,8 +2752,14 @@ function buildPotentialCard(c){
     '<div class="pt-rows">'+rowsHtml+caution+'</div>'+
     '<div class="pt-deadline">⏳ '+ptDeadlineText(c)+'</div>'+
     '<div class="pt-live">'+
-      '<span>📊 포착 후 <span class="pt-live-pnl" id="pt-pnl-'+esc(ticker)+'" style="color:'+pc+';">'+(pnl>=0?'+':'')+pnl.toFixed(1)+'%</span></span>'+
+      '<span>📊 <span style="color:var(--txt3);">'+fmtNum(c['포착가'])+'원</span> → '+
+        '<span class="pt-live-cur" id="pt-cur-'+esc(ticker)+'" style="font-weight:600;">조회 중…</span> '+
+        '<span class="pt-live-pnl" id="pt-pnl-'+esc(ticker)+'" style="color:'+pc+';font-weight:700;">'+(pnl>=0?'+':'')+pnl.toFixed(1)+'%</span></span>'+
       '<span>'+ptElapsedText(c['포착일시'])+'</span>'+
+    '</div>'+
+    '<div style="font-size:11px;color:var(--txt3);margin-top:5px;display:flex;gap:12px;">'+
+      '<span>📈 고점 <span style="color:var(--pos);">'+(ptHigh>=0?'+':'')+ptHigh.toFixed(1)+'%</span></span>'+
+      '<span>📉 저점 '+(ptLowRaw===null ? '관찰 중' : '<span style="color:'+(ptLowRaw>=0?'var(--pos)':'var(--neg)')+';">'+fmtNum(ptAnchor*(1+ptLowRaw/100))+'원 ('+(ptLowRaw>=0?'+':'')+ptLowRaw.toFixed(1)+'%)</span>')+'</span>'+
     '</div>'+
   '</div>';
 }
@@ -2770,10 +2812,12 @@ function renderPotential(){
     var rows = closed.slice(-12).reverse().map(function(c){
       var col = c['상태']==='적중'?'var(--pos)':c['상태']==='실패'?'var(--neg)':'var(--txt3)';
       var bestPnl = parseFloat(c['최고수익률'])||0;
+      var lowR = (c['최저수익률']===null||c['최저수익률']===undefined) ? null : parseFloat(c['최저수익률']);
+      var lowStr = (lowR===null) ? '' : ' · 저점 '+(lowR>=0?'+':'')+lowR.toFixed(1)+'%';
       return '<div class="pt-hist-item">'+
         '<span class="pt-hist-tk">'+esc(c['티커'])+'</span>'+
         '<span style="color:'+col+';font-weight:600;">'+esc(c['결과']||'')+'</span>'+
-        '<span class="mono" style="color:'+col+';">최고 '+(bestPnl>=0?'+':'')+bestPnl.toFixed(1)+'%</span>'+
+        '<span class="mono" style="color:'+col+';">최고 '+(bestPnl>=0?'+':'')+bestPnl.toFixed(1)+'%'+lowStr+'</span>'+
         '<span class="pt-hist-meta">'+esc(c['포착일시']||'')+' 포착'+(c['승격']?' · 🚀 AI 승격':'')+'</span>'+
       '</div>';
     }).join('');
@@ -2787,49 +2831,98 @@ function renderPotential(){
 function renderAccumulation(){
   var strip = document.getElementById('accum-strip');
   if(!strip) return;
-  var list = (G.accum||[]).filter(function(c){ return c['상태']==='관찰중'; });
+  var all    = G.accum||[];
+  var list   = all.filter(function(c){ return c['상태']==='관찰중'; });
+  var closed = all.filter(function(c){ return c['상태'] && c['상태']!=='관찰중'; });
+
+  /* ── 관찰중 카드 ── */
   if(!list.length){
     strip.innerHTML = '<div style="grid-column:1/-1;color:var(--txt3);font-size:13px;padding:14px;">현재 매집 후보 없음</div>';
-    return;
+  } else {
+    strip.innerHTML = list.map(function(c){
+      var net = (c['구간순변화']!=null ? c['구간순변화'] : 0);
+      var pnl = (c['현재수익률']!=null ? c['현재수익률'] : 0);
+      var pnlColor = pnl>=0 ? 'var(--pos,#1D9E75)' : 'var(--neg,#E24B4A)';
+      var tk = c['티커']||'';
+      var anchor = parseFloat(c['포착가'])||0;
+      var high = parseFloat(c['최고수익률']||0);
+      var lowR = (c['최저수익률']===null||c['최저수익률']===undefined) ? null : parseFloat(c['최저수익률']);
+      var lowTxt = (lowR===null) ? '관찰 중'
+        : '<span style="color:'+(lowR>=0?'var(--pos)':'var(--neg)')+';">'+fmtNum(anchor*(1+lowR/100))+'원 ('+(lowR>=0?'+':'')+lowR.toFixed(1)+'%)</span>';
+      return ''
+        + '<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;">'
+        +   '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">'
+        +     '<strong style="font-size:15px;">'+tk+'</strong>'
+        +     '<span style="font-size:12px;color:'+pnlColor+';font-weight:700;" id="accum-pnl-'+esc(tk)+'">'+(pnl>=0?'+':'')+pnl+'%</span>'
+        +   '</div>'
+        +   '<div style="font-size:12px;color:var(--txt2);line-height:1.7;">'
+        +     '📊 <span style="color:var(--txt3);">'+fmtNum(c['포착가'])+'원</span> → <span style="font-weight:600;" id="accum-cur-'+esc(tk)+'">조회 중…</span><br>'
+        +     '<span style="font-size:11px;color:var(--txt3);">📈 고점 <span style="color:var(--pos);">'+(high>=0?'+':'')+high.toFixed(1)+'%</span> · 📉 저점 '+lowTxt+'</span><br>'
+        +     '구간 낙폭 <strong>'+net+'%</strong> · 하락봉 '+Math.round((c['하락봉비율']||0)*100)+'%<br>'
+        +     '밴드폭 하위 '+(c['밴드폭백분위']!=null ? c['밴드폭백분위'] : '—')+'% · RSI '+(c['rsi']!=null ? Math.round(c['rsi']) : '—')+'<br>'
+        +     '매집점수 <strong>'+(c['매집점수']!=null ? c['매집점수'] : '—')+'</strong> · 시한 '+(c['관찰시한']||'—')+
+        +   '</div>'
+        + '</div>';
+    }).join('');
   }
-  strip.innerHTML = list.map(function(c){
-    var net = (c['구간순변화']!=null ? c['구간순변화'] : 0);
-    var pnl = (c['현재수익률']!=null ? c['현재수익률'] : 0);
-    var pnlColor = pnl>=0 ? 'var(--pos,#1D9E75)' : 'var(--neg,#E24B4A)';
-    return ''
-      + '<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;">'
-      +   '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">'
-      +     '<strong style="font-size:15px;">'+c['티커']+'</strong>'
-      +     '<span style="font-size:12px;color:'+pnlColor+';font-weight:600;">'+(pnl>=0?'+':'')+pnl+'%</span>'
-      +   '</div>'
-      +   '<div style="font-size:12px;color:var(--txt2);line-height:1.7;">'
-      +     '구간 낙폭 <strong>'+net+'%</strong> · 하락봉 '+Math.round((c['하락봉비율']||0)*100)+'%<br>'
-      +     '밴드폭 하위 '+(c['밴드폭백분위']!=null ? c['밴드폭백분위'] : '—')+'% · RSI '+(c['rsi']!=null ? Math.round(c['rsi']) : '—')+'<br>'
-      +     '매집점수 <strong>'+(c['매집점수']!=null ? c['매집점수'] : '—')+'</strong> · 시한 '+(c['관찰시한']||'—')+
-      +   '</div>'
-      + '</div>';
-  }).join('');
+
+  /* ── 관찰종료 기록 (최근 12건) ── */
+  var hist = document.getElementById('accum-history');
+  if(hist){
+    if(closed.length){
+      var rows = closed.slice(-12).reverse().map(function(c){
+        var col = c['상태']==='성공'?'var(--pos)':c['상태']==='실패'?'var(--neg)':'var(--txt3)';
+        var bestPnl = parseFloat(c['최고수익률'])||0;
+        var lowR = (c['최저수익률']===null||c['최저수익률']===undefined) ? null : parseFloat(c['최저수익률']);
+        var lowStr = (lowR===null) ? '' : ' · 저점 '+(lowR>=0?'+':'')+lowR.toFixed(1)+'%';
+        return '<div class="pt-hist-item">'+
+          '<span class="pt-hist-tk">'+esc(c['티커'])+'</span>'+
+          '<span style="color:'+col+';font-weight:600;">'+esc(c['결과']||c['상태']||'')+'</span>'+
+          '<span class="mono" style="color:'+col+';">최고 '+(bestPnl>=0?'+':'')+bestPnl.toFixed(1)+'%'+lowStr+'</span>'+
+          '<span class="pt-hist-meta">'+esc(c['포착일시']||'')+' 포착</span>'+
+        '</div>';
+      }).join('');
+      hist.innerHTML = '<div class="section-card"><div class="section-title">지난 매집 후보 결과</div>'+rows+'</div>';
+    } else {
+      hist.innerHTML = '';
+    }
+  }
 }
 
-/* 관찰중 후보 실시간 수익률 갱신 (빗썸) */
-function refreshPotentialPrices(){
-  (G.potential||[]).filter(function(c){ return c['상태']==='관찰중'; }).forEach(function(c){
-    var ticker = c['티커'];
-    var anchor = parseFloat(c['포착가'])||0;
-    if(!anchor) return;
-    fetch('https://api.bithumb.com/public/ticker/'+ticker+'_KRW')
-      .then(function(r){ return r.json(); })
-      .then(function(data){
-        var price = data&&data.data ? parseFloat(data.data.closing_price) : 0;
-        if(!price) return;
-        var pnl = Math.round((price-anchor)/anchor*1000)/10;
-        var el = document.getElementById('pt-pnl-'+ticker);
-        if(el){
-          el.textContent = (pnl>=0?'+':'')+pnl.toFixed(1)+'%';
-          el.style.color = pnl>=0?'var(--pos)':'var(--neg)';
-        }
-      }).catch(function(){});
+/* 관찰중 후보 실시간 가격·수익률 갱신 (빗썸) — 선취매 + 매집 양쪽 */
+function refreshCandidatePrices(manual){
+  var stamp = document.getElementById('cand-refreshed');
+  if(manual && stamp) stamp.textContent = '확인 중…';
+  var lists = [
+    { data: G.potential||[], pre: 'pt' },
+    { data: G.accum||[],     pre: 'accum' }
+  ];
+  lists.forEach(function(L){
+    L.data.filter(function(c){ return c['상태']==='관찰중'; }).forEach(function(c){
+      var ticker = c['티커'];
+      var anchor = parseFloat(c['포착가'])||0;
+      if(!anchor) return;
+      fetch('https://api.bithumb.com/public/ticker/'+ticker+'_KRW')
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+          var price = d&&d.data ? parseFloat(d.data.closing_price) : 0;
+          if(!price) return;
+          var pnl = Math.round((price-anchor)/anchor*1000)/10;
+          var curEl = document.getElementById(L.pre+'-cur-'+ticker);
+          var pnlEl = document.getElementById(L.pre+'-pnl-'+ticker);
+          if(curEl) curEl.textContent = fmtNum(price)+'원';
+          if(pnlEl){
+            pnlEl.textContent = (pnl>=0?'+':'')+pnl.toFixed(1)+'%';
+            pnlEl.style.color = pnl>=0 ? 'var(--pos)' : 'var(--neg)';
+          }
+        }).catch(function(){});
+    });
   });
+  if(stamp){
+    var n = new Date();
+    var t = ('0'+n.getHours()).slice(-2)+':'+('0'+n.getMinutes()).slice(-2)+':'+('0'+n.getSeconds()).slice(-2);
+    setTimeout(function(){ stamp.textContent = '마지막 갱신 '+t; }, manual ? 500 : 0);
+  }
 }
 
 function renderWatchlistAnalysis(){
