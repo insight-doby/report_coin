@@ -463,6 +463,35 @@ def _ma_align(closes: np.ndarray, periods: list) -> str:
     return "⚠️ 혼조 (수렴 중)"
 
 
+def analyze_down_pressure(closes, vols, n=10,
+                          bounce_recover_ratio=0.4, vol_spike_mult=2.5):
+    """방법 B — 악재 없이 쩔어진 매집 후보 판정 (일봉).
+    버킷 없이 순변화로 하락 강도 측정 + 낙폭의 일정%를 한 방에 되돌린
+    강반등이 있으면 제외 + 거래량 폭발(악재 프록시)이 있으면 제외."""
+    if not closes or len(closes) < n + 1:
+        return None
+    c = list(closes[-(n + 1):])
+    chgs = [(c[i] - c[i - 1]) / c[i - 1] * 100 for i in range(1, len(c)) if c[i - 1] > 0]
+    if len(chgs) < n:
+        return None
+    down_ratio = sum(1 for x in chgs if x < 0) / n
+    net    = (c[-1] - c[0]) / c[0] * 100
+    max_up = max(chgs)
+    strong_bounce = net < 0 and max_up >= abs(net) * bounce_recover_ratio
+    vol_spike = False
+    if vols and len(vols) >= n + 1:
+        v = np.asarray(vols[-(n + 1):], dtype=float)
+        med = float(np.median(v))
+        vol_spike = med > 0 and float(np.max(v)) >= med * vol_spike_mult
+    return {
+        "하락봉비율": round(down_ratio, 2),
+        "구간순변화": round(net, 2),
+        "최대단일반등": round(max_up, 2),
+        "강반등존재": strong_bounce,
+        "거래량폭발": vol_spike,
+    }
+
+
 # ==========================================
 # 3. 바이낸스 멀티 타임프레임 지표
 # ==========================================
@@ -539,7 +568,7 @@ def _build_indicator_block(interval: str, cfg: dict, closes: np.ndarray, vols: n
                 sum(1 for x in widths if x < cur_width) / len(widths) * 100, 1
             )
 
-    return {
+    block = {
         "label": cfg["label"], "current": round(cur, 6),
         "source": cfg.get("source", "binance"),  # 데이터 출처 명시 (빗썸/바이낸스)
         "emas": {k: round(v, 6) if v else None for k, v in emas.items()},
@@ -549,6 +578,10 @@ def _build_indicator_block(interval: str, cfg: dict, closes: np.ndarray, vols: n
         "vol_ratio": f"{round(vr,1)}%" if vr else "계산불가",
         "ma_align": _ma_align(closes, periods),
     }
+    if interval == "1d":   # 매집 판정용 일봉 원본 tail (LLM 프롬프트엔 안 들어감 — 필드명으로 선택 사용)
+        block["closes_tail"] = [round(float(x), 8) for x in closes[-31:]]
+        block["vols_tail"]   = [float(x) for x in (vols[-31:] if vols is not None else [])]
+    return block
 
 
 def fetch_binance_indicators(ticker: str, btc_closes_1h: np.ndarray, btc_vols_1h: np.ndarray, krw_price: float) -> dict:
@@ -2076,6 +2109,11 @@ def build_slack_blocks(
 #   5) mark_potential_promotions  — AI 추천(picks)으로 승격된 후보 표시
 
 POTENTIAL_FILE     = "data/potential.json"
+
+ACCUM_FILE       = "data/accumulation.json"
+ACCUM_TRACK_DAYS = 30     # 매집은 느긋하게 — 30일 추적
+ACCUM_HIT_PCT    = 30.0   # +30% 도달 시 적중
+ACCUM_FAIL_PCT   = -12.0  # -12% 이탈 시 실패 (손절 여유)
 POTENTIAL_HIT_PCT  = 10.0   # 포착가 대비 최고 +10% 도달 시 '적중'
 POTENTIAL_FAIL_PCT = -7.0   # 포착가 대비 -7% 이탈 시 '실패 (하방 이탈)'
 POTENTIAL_MAX_DAYS = 7      # 관찰 시한 상한
@@ -2309,6 +2347,64 @@ def track_potential():
         print(f"  ⚠️ 선취매 추적 오류: {e}")
 
 
+def track_accumulation():
+    """관찰중인 매집 후보들의 성공/실패/만료 판정 — 매 실행 시 호출. (30일 시계)"""
+    print("🩹 매집 후보 추적 중...")
+    try:
+        data, sha = _gh_read(ACCUM_FILE)
+        if not isinstance(data, list) or not data:
+            print("  ℹ️ 추적할 매집 후보 없음")
+            return
+
+        now     = datetime.now(KST)
+        now_str = now.strftime("%Y년 %m월 %d일 %H:%M")
+        updated = False
+
+        watch_tickers = {
+            str(c.get("티커", "")).upper() for c in data if c.get("상태") == "관찰중"
+        }
+        price_map = _fetch_all_prices_bithumb(watch_tickers)
+
+        for c in data:
+            if c.get("상태") != "관찰중":
+                continue
+            ticker = str(c.get("티커", "")).upper()
+            anchor = _num(c.get("포착가"))
+            if anchor <= 0:
+                continue
+
+            cur = price_map.get(ticker) or fetch_current_price_bithumb(ticker)
+            if not cur:
+                continue
+
+            pnl = round((cur - anchor) / anchor * 100, 2)
+            c["현재수익률"] = pnl
+            c["최고수익률"] = max(float(c.get("최고수익률", 0) or 0), pnl)
+            updated = True
+
+            deadline = _parse_kst_dt(c.get("관찰시한"))
+
+            # 판정 — 최고수익률 기준 성공 / 현재가 기준 실패 / 시한 만료
+            if c["최고수익률"] >= ACCUM_HIT_PCT:
+                c["상태"], c["결과"] = "성공", f"🎯 매집 성공 (+{ACCUM_HIT_PCT:.0f}% 도달)"
+            elif pnl <= ACCUM_FAIL_PCT:
+                c["상태"], c["결과"] = "실패", "🔻 추가 하락 (손절선 이탈)"
+            elif deadline and now >= deadline:
+                c["상태"] = "만료"
+                c["결과"] = "📈 소폭 회복" if c["최고수익률"] >= 8 else "😴 횡보 지속"
+
+            if c["상태"] != "관찰중":
+                c["결과확정일시"] = now_str
+                print(f"  {c['결과']} {ticker} (최고 {c['최고수익률']:+.1f}%)")
+            time.sleep(0.1)
+
+        if updated:
+            _gh_write(ACCUM_FILE, data, sha, f"매집 추적: {now_str}")
+            print("  ✅ 매집 추적 업데이트 완료")
+    except Exception as e:
+        print(f"  ⚠️ 매집 추적 오류: {e}")
+
+
 def mark_potential_promotions(picked_tickers: set):
     """이번 추천(picks)에 선취매 후보가 포함됐으면 '승격' 표시 — 스캐너의 선행성 검증용."""
     if not picked_tickers:
@@ -2331,6 +2427,93 @@ def mark_potential_promotions(picked_tickers: set):
         print(f"  ⚠️ 승격 표시 오류: {e}")
 
 
+def scan_accumulation(target_coins, indicators):
+    """악재 없이 조용히 쩔어진 뒤 횡보 중인 '매집 후보' 스캔.
+    선취매와 반대 — 거래량이 '안 터진(조용한)' 코인을 노린다.
+    주의: 이미 지표를 받은 풀 안에서만 탐색 (거래량 완전 사망 코인은 풀 밖이라 놓칠 수 있음)."""
+    print("🩹 [5.5단계] 매집 후보 스캔 중...")
+    STABLE = {"USDT", "USDC", "DAI", "BUSD", "TUSD", "USDD", "USDP", "GUSD",
+              "FRAX", "LUSD", "FDUSD", "PYUSD", "USDS", "EURT", "EURC", "USDE"}
+    out = []
+    for ticker, info in target_coins:
+        if str(ticker).upper() in STABLE:
+            continue
+        iv = indicators.get(ticker, {}) or {}
+        d1 = iv.get("1d") or {}
+        if not d1 or "error" in d1:
+            continue
+        rsi    = d1.get("rsi")
+        pctile = d1.get("bb_width_pctile")
+        try:
+            vol_ratio = float(str((iv.get("6h") or {}).get("vol_ratio", "")).replace("%", ""))
+        except Exception:
+            vol_ratio = 0
+
+        # ── 매집 게이트 (선취매와 반대) ──
+        if vol_ratio >= 130:                     continue   # 조용해야 함 (수급 미유입)
+        if pctile is None or pctile > 50:        continue   # 횡보 진입
+        if rsi is None or not (28 <= rsi <= 52): continue   # 눌렸지만 과매도 극단은 제외
+
+        dp = analyze_down_pressure(d1.get("closes_tail"), d1.get("vols_tail"), n=10)
+        if not (dp and dp["하락봉비율"] >= 0.6 and dp["구간순변화"] <= -8
+                and not dp["강반등존재"] and not dp["거래량폭발"]):
+            continue
+
+        # ── 매집 점수 (0~50) ──
+        score  = 20 if dp["구간순변화"] <= -20 else 15 if dp["구간순변화"] <= -12 else 10
+        score += 15 if pctile <= 20 else 10 if pctile <= 35 else 5
+        score += 10 if 35 <= rsi <= 48 else 5
+        score += 5 if "수렴" in str(d1.get("ma_align", "")) else 0
+
+        out.append({
+            "티커":        ticker,
+            "포착가":      info.get("price", 0),
+            "구간순변화":   dp["구간순변화"],
+            "하락봉비율":   dp["하락봉비율"],
+            "밴드폭백분위": pctile,
+            "rsi":         rsi,
+            "매집점수":     score,
+        })
+    out.sort(key=lambda x: -x["매집점수"])
+    out = out[:6]
+    print(f"  ✅ 매집 후보 {len(out)}종: {', '.join(c['티커'] for c in out) or '없음'}")
+    return out
+
+
+def record_accumulation_to_github(cands, pub_time):
+    """accumulation.json 저장. 이미 관찰중인 티커는 중복 등록 안 함."""
+    if not cands:
+        print("  ℹ️ 저장할 매집 후보 없음")
+        return
+    try:
+        data, sha = _gh_read(ACCUM_FILE)
+        if not isinstance(data, list):
+            data = []
+        watching = {str(c.get("티커", "")).upper() for c in data if c.get("상태") == "관찰중"}
+        now = datetime.now(KST)
+        added = 0
+        for c in cands:
+            t = str(c.get("티커", "")).upper()
+            if t in watching:
+                continue
+            c.update({
+                "상태":     "관찰중",
+                "포착일시": now.strftime("%Y년 %m월 %d일 %H:%M"),
+                "관찰시한": (now + timedelta(days=ACCUM_TRACK_DAYS)).strftime("%Y년 %m월 %d일 %H:%M"),
+                "현재수익률": 0, "최고수익률": 0,
+            })
+            data.append(c)
+            added += 1
+        if added:
+            data = data[-60:]
+            _gh_write(ACCUM_FILE, data, sha, f"매집 후보 {added}종 추가: {pub_time}")
+            print(f"  ✅ 매집 후보 {added}종 저장")
+        else:
+            print("  ℹ️ 신규 매집 후보 없음 (모두 관찰중)")
+    except Exception as e:
+        print(f"  ⚠️ 매집 저장 오류: {e}")
+
+
 def run_and_send_to_slack():
     print("🚀 차기 주도주 발굴 봇 v4 시작 (GitHub DB 연동)")
     print("=" * 60)
@@ -2341,6 +2524,9 @@ def run_and_send_to_slack():
 
     # [2-B단계] 선취매 후보 추적 (적중/실패/만료 판정)
     track_potential()
+
+    # [2-C단계] 매집 후보 추적 (30일 시계)
+    track_accumulation()
 
     # [3단계] 복기
     review = run_ml_review(perf_results)
@@ -2428,6 +2614,11 @@ def run_and_send_to_slack():
     )
     record_potential_to_github(final_cands, pub_time)
     mark_potential_promotions(picked_tickers)
+
+    # [5.5단계] 매집 후보 — 스캔 + 저장 (선취매와 독립, 30일 시계)
+    accum_raw = scan_accumulation(target_coins, indicators)
+    accum_raw = [c for c in accum_raw if str(c["티커"]).upper() not in picked_tickers]
+    record_accumulation_to_github(accum_raw, pub_time)
 
     # 내러티브 저장 (GitHub)
     save_narrative_to_github(market_narrative, coin_narratives, pub_time)

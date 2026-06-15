@@ -832,6 +832,17 @@ button{cursor:pointer;font-family:inherit;}
     <div id="pt-kpi"></div>
     <div class="pt-strip" id="pt-strip"></div>
     <div id="pt-history" class="pt-history"></div>
+
+    <!-- 🩹 매집 후보 (선취매와 별도 로직 · 30일 관찰) -->
+    <div style="margin-top:28px;padding-top:22px;border-top:1px solid var(--border);">
+      <div style="font-size:15px;font-weight:700;margin-bottom:8px;">🩹 매집 후보 <span style="font-size:11px;font-weight:500;color:var(--txt3);">조용히 쩔어진 바닥권 · 30일 관찰</span></div>
+      <div class="pt-guide">
+        💡 <strong>매집 후보란?</strong> 별다른 악재 없이 며칠 조용히 흘러내려 바닥에 깔린 종목이에요.
+        선취매(곧 터질 것)와 달리 <strong>천천히 줍고 기다리는</strong> 역추세 자리입니다.
+        더 빠질 위험도 있으니 분할 매수·여유 손절을 권장해요.
+      </div>
+      <div class="pt-strip" id="accum-strip"></div>
+    </div>
   </div>
 
   <!-- Keywords -->
@@ -1271,7 +1282,8 @@ function autoLoadData(){
       fetch(BASE+'review.json?t='+Date.now()).then(function(r){ return r.ok?r.json():[]; }).catch(function(){ return []; }),
       fetch(BASE+'rules.json?t='+Date.now()).then(function(r){ return r.ok?r.json():[]; }).catch(function(){ return []; }),
       fetch(BASE+'narrative.json?t='+Date.now()).then(function(r){ return r.ok?r.json():[]; }).catch(function(){ return []; }),
-      fetch(BASE+'potential.json?t='+Date.now()).then(function(r){ return r.ok?r.json():[]; }).catch(function(){ return []; })
+      fetch(BASE+'potential.json?t='+Date.now()).then(function(r){ return r.ok?r.json():[]; }).catch(function(){ return []; }),
+      fetch(BASE+'accumulation.json?t='+Date.now()).then(function(r){ return r.ok?r.json():[]; }).catch(function(){ return []; })
     ]);
   }).then(function(res){
     G.perf      = res[0]||[];
@@ -1279,6 +1291,7 @@ function autoLoadData(){
     G.rules     = res[2]||[];
     G.narrative = res[3]||[];
     G.potential = res[4]||[];
+    G.accum     = res[5]||[];
     renderAll();
   }).catch(function(e){ console.warn('자동 로드 실패:', e); });
 }
@@ -1379,6 +1392,7 @@ function renderAll(){
   renderTab3();
   renderTab4();
   renderPotential();
+  renderAccumulation();
   /* Tab5는 localStorage 기반으로 이미 initPortfolio에서 처리 */
 }
 
@@ -2767,6 +2781,34 @@ function renderPotential(){
   } else {
     hist.innerHTML = '';
   }
+}
+
+/* 🩹 매집 후보 렌더 (선취매와 독립 데이터 G.accum) */
+function renderAccumulation(){
+  var strip = document.getElementById('accum-strip');
+  if(!strip) return;
+  var list = (G.accum||[]).filter(function(c){ return c['상태']==='관찰중'; });
+  if(!list.length){
+    strip.innerHTML = '<div style="grid-column:1/-1;color:var(--txt3);font-size:13px;padding:14px;">현재 매집 후보 없음</div>';
+    return;
+  }
+  strip.innerHTML = list.map(function(c){
+    var net = (c['구간순변화']!=null ? c['구간순변화'] : 0);
+    var pnl = (c['현재수익률']!=null ? c['현재수익률'] : 0);
+    var pnlColor = pnl>=0 ? 'var(--pos,#1D9E75)' : 'var(--neg,#E24B4A)';
+    return ''
+      + '<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;">'
+      +   '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">'
+      +     '<strong style="font-size:15px;">'+c['티커']+'</strong>'
+      +     '<span style="font-size:12px;color:'+pnlColor+';font-weight:600;">'+(pnl>=0?'+':'')+pnl+'%</span>'
+      +   '</div>'
+      +   '<div style="font-size:12px;color:var(--txt2);line-height:1.7;">'
+      +     '구간 낙폭 <strong>'+net+'%</strong> · 하락봉 '+Math.round((c['하락봉비율']||0)*100)+'%<br>'
+      +     '밴드폭 하위 '+(c['밴드폭백분위']!=null ? c['밴드폭백분위'] : '—')+'% · RSI '+(c['rsi']!=null ? Math.round(c['rsi']) : '—')+'<br>'
+      +     '매집점수 <strong>'+(c['매집점수']!=null ? c['매집점수'] : '—')+'</strong> · 시한 '+(c['관찰시한']||'—')+
+      +   '</div>'
+      + '</div>';
+  }).join('');
 }
 
 /* 관찰중 후보 실시간 수익률 갱신 (빗썸) */
