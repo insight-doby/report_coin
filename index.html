@@ -2221,7 +2221,13 @@ function renderTab3(){
   /* Versus View */
   function splitLines(str){
     if(!str) return [];
-    return str.split(/[。\.\n]/).map(function(s){ return s.trim(); }).filter(function(s){ return s.length>4; });
+    // 숫자 소수점(26.85)을 임시 토큰으로 보호 → 문장 끝 마침표/줄바꿈에서 분리 → 복원
+    var TOKEN = '\u0001';
+    var protectedStr = str.replace(/(\d)\.(\d)/g, '$1'+TOKEN+'$2');
+    return protectedStr
+      .split(/[。.]\s*|\n/)
+      .map(function(s){ return s ? s.replace(new RegExp(TOKEN,'g'), '.').trim() : ''; })
+      .filter(function(s){ return s.length > 4; });
   }
   var winLines  = splitLines(latest['win_pattern']);
   var loseLines = splitLines(latest['lose_pattern']);
