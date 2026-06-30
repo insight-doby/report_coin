@@ -813,9 +813,16 @@ def fetch_market_narrative() -> dict:
             print(f"  🔄 [시도 {idx+1}/3] 내러티브 수집 중...")
             resp = requests.post(url, json=payload, timeout=120)
             if resp.status_code == 200:
-                parts = resp.json()["candidates"][0]["content"]["parts"]
-                text  = next((p["text"] for p in parts if "text" in p), None)
+                rj = resp.json()
+                cand = rj.get("candidates", [{}])[0]
+                parts = cand.get("content", {}).get("parts", [])
+                if not parts:
+                    print(f"  ⚠️ [시도 {idx+1}] parts 없음. finishReason={cand.get('finishReason')} 응답={str(rj)[:300]}")
+                    continue
+                # google_search grounding 시 parts가 여러 블록으로 나뉠 수 있음 → 전체 text 이어붙이기
+                text = " ".join(p["text"] for p in parts if "text" in p).strip()
                 if not text:
+                    print(f"  ⚠️ [시도 {idx+1}] text 블록 없음. parts 타입={[list(p.keys()) for p in parts]}")
                     continue
                 cleaned = re.sub(r"```json|```", "", text).strip()
                 f, l = cleaned.find("{"), cleaned.rfind("}")
@@ -914,9 +921,15 @@ def fetch_coin_narratives(target_coins: list, top30_coins: list, potential_ticke
             print(f"  🔄 [시도 {idx+1}/3] 코인 촉매 분석 중...")
             resp = requests.post(url, json=payload, timeout=120)
             if resp.status_code == 200:
-                parts = resp.json()["candidates"][0]["content"]["parts"]
-                text  = next((p["text"] for p in parts if "text" in p), None)
+                rj = resp.json()
+                cand = rj.get("candidates", [{}])[0]
+                parts = cand.get("content", {}).get("parts", [])
+                if not parts:
+                    print(f"  ⚠️ [시도 {idx+1}] parts 없음. finishReason={cand.get('finishReason')} 응답={str(rj)[:300]}")
+                    continue
+                text = " ".join(p["text"] for p in parts if "text" in p).strip()
                 if not text:
+                    print(f"  ⚠️ [시도 {idx+1}] text 블록 없음. parts 타입={[list(p.keys()) for p in parts]}")
                     continue
                 cleaned = re.sub(r"```json|```", "", text).strip()
                 f, l = cleaned.find("{"), cleaned.rfind("}")
@@ -1287,9 +1300,16 @@ def generate_market_insights_via_gemini(
             print(f"🔄 [시도 {idx+1}/3] Gemini 호출 중...")
             resp = requests.post(url, json=payload, timeout=150)
             if resp.status_code == 200:
-                parts = resp.json()["candidates"][0]["content"]["parts"]
-                text  = next((p["text"] for p in parts if "text" in p), None)
-                if not text: continue
+                rj = resp.json()
+                cand = rj.get("candidates", [{}])[0]
+                parts = cand.get("content", {}).get("parts", [])
+                if not parts:
+                    print(f"⚠️ [시도 {idx+1}] parts 없음. finishReason={cand.get('finishReason')} 응답={str(rj)[:300]}")
+                    continue
+                text = " ".join(p["text"] for p in parts if "text" in p).strip()
+                if not text:
+                    print(f"⚠️ [시도 {idx+1}] text 블록 없음. parts 타입={[list(p.keys()) for p in parts]}")
+                    continue
                 cleaned = re.sub(r"```json|```", "", text).strip()
                 f, l = cleaned.find("{"), cleaned.rfind("}")
                 if f != -1 and l != -1:
@@ -1332,11 +1352,16 @@ def _gh_headers() -> dict:
 def _gh_read(path: str) -> tuple:
     """깃허브에서 JSON 파일 읽기. (data, sha) 반환. 없으면 ([], None)"""
     url = f"https://api.github.com/repos/{GITHUB_REPO_ID}/contents/{path}"
-    r   = requests.get(url, headers=_gh_headers(), timeout=10)
-    if r.status_code == 200:
-        info    = r.json()
-        content = base64.b64decode(info["content"]).decode("utf-8")
-        return json.loads(content), info["sha"]
+    try:
+        r = requests.get(url, headers=_gh_headers(), timeout=10)
+        if r.status_code == 200:
+            info    = r.json()
+            content = base64.b64decode(info["content"]).decode("utf-8")
+            return json.loads(content), info["sha"]
+        elif r.status_code != 404:
+            print(f"  ⚠️ _gh_read({path}) HTTP {r.status_code}")
+    except Exception as e:
+        print(f"  ⚠️ _gh_read({path}) 실패: {e}")
     return [], None
 
 
@@ -1687,6 +1712,11 @@ def run_ml_review(results: list) -> dict:
         total  = len(all_perf_rows)
         wins   = sum(1 for r in all_perf_rows if "달성" in str(r.get("결과","")))
         losses = sum(1 for r in all_perf_rows if "손절" in str(r.get("결과","")))
+        # 확정 건수: 진행중 제외, 실제 결과가 확정된 것만 카운트 (표본 신뢰도 판단용)
+        confirmed_n = sum(
+            1 for r in all_perf_rows
+            if any(k in str(r.get("결과","")) for k in ("달성","손절","종료"))
+        )
         accum_summary = (
             f"누적 총 {total}건 | 승 {wins}건 | 패 {losses}건 | "
             f"승률 {round(wins/total*100,1) if total else 0}%"
@@ -1705,9 +1735,15 @@ def run_ml_review(results: list) -> dict:
 {json.dumps(all_perf_rows[-20:], ensure_ascii=False)}
 
 분석 지시:
+주의: 누적 확정 데이터({confirmed_n}건)가 30건 미만이면 표본이 너무 적어 패턴이 우연일 가능성이 높다.
+이 경우 "패턴이다", "반드시 이래야 한다"처럼 단정짓지 말고,
+"~한 경향이 관찰되나 표본 부족으로 확정 불가" 형태로 조심스럽게 서술해라.
+rule_improvements는 확정 데이터가 20건 이상일 때만 의미 있는 항목을 넣고,
+표본이 부족하면 빈 배열([])을 반환해라.
+
 1. 수익 종목들의 공통 패턴 (관점, 시장온도, 지표 특징)
 2. 손절 종목들의 공통 패턴
-3. 앞으로 추천 시 반드시 지켜야 할 규칙 2~3개
+3. 앞으로 추천 시 반드시 지켜야 할 규칙 2~3개 (표본 부족 시 빈 배열)
 4. 절대 하지 말아야 할 패턴 1~2개
 
 반환 JSON (JSON만):
@@ -1728,14 +1764,21 @@ def run_ml_review(results: list) -> dict:
         }, timeout=60)
 
         if r.status_code == 200:
-            parts = r.json()["candidates"][0]["content"]["parts"]
-            text  = re.sub(r"```json|```", "", next(
-                (p["text"] for p in parts if "text" in p), ""
-            )).strip()
-            f_idx, l_idx = text.find("{"), text.rfind("}")
-            if f_idx != -1:
-                review = json.loads(text[f_idx:l_idx+1])
-                print("  ✅ Gemini 복기 완료")
+            rj   = r.json()
+            cand = rj.get("candidates", [{}])[0]
+            parts = cand.get("content", {}).get("parts", [])
+            if not parts:
+                print(f"  ⚠️ 복기 parts 없음. finishReason={cand.get('finishReason')} 응답={str(rj)[:200]}")
+            else:
+                text = re.sub(r"```json|```", "",
+                    " ".join(p["text"] for p in parts if "text" in p)
+                ).strip()
+                f_idx, l_idx = text.find("{"), text.rfind("}")
+                if f_idx != -1:
+                    review = json.loads(text[f_idx:l_idx+1])
+                    print("  ✅ Gemini 복기 완료")
+                else:
+                    print(f"  ⚠️ 복기 JSON 파싱 실패. text 앞부분={text[:200]}")
         else:
             print(f"  ⚠️ Gemini 복기 HTTP {r.status_code}")
     except Exception as e:
@@ -1746,8 +1789,12 @@ def run_ml_review(results: list) -> dict:
         from sklearn.tree import DecisionTreeClassifier, export_text
         import pandas as pd
 
-        if len(all_perf_rows) >= 5:
-            df = pd.DataFrame(all_perf_rows)
+        # 확정 결과(달성/손절/종료)만 ML에 사용 — 진행중은 레이블 미확정이라 오염원이 됨
+        confirmed_rows = [r for r in all_perf_rows
+                          if any(k in str(r.get("결과","")) for k in ("달성","손절","종료"))]
+        MIN_ML_SAMPLES = 30  # 30건 미만은 표본 부족으로 신뢰 불가
+        if len(confirmed_rows) >= MIN_ML_SAMPLES:
+            df = pd.DataFrame(confirmed_rows)
             df["pnl_val"] = df["수익률"].apply(
                 lambda x: float(str(x).replace("%","").replace("+","")) if x else 0
             )
@@ -1756,13 +1803,23 @@ def run_ml_review(results: list) -> dict:
             df["temp_n"]   = df.get("시장온도", pd.Series()).map(temp_map).fillna(2)
             df["is_break"] = (df.get("관점", pd.Series()) == "급등후보 돌파").astype(int)
             features = ["temp_n", "is_break"]
+            # train(70%) / test(30%) 분리 — 학습데이터로 자기평가하는 오버피팅 방지
+            split = int(len(df) * 0.7)
+            X_train, X_test = df[features].values[:split], df[features].values[split:]
+            y_train, y_test = df["y"].values[:split], df["y"].values[split:]
             clf = DecisionTreeClassifier(max_depth=3, min_samples_leaf=2, random_state=42)
-            clf.fit(df[features].values, df["y"].values)
+            clf.fit(X_train, y_train)
+            test_acc = round(clf.score(X_test, y_test) * 100, 1)
             review["ml_tree"]     = export_text(clf, feature_names=features)
-            review["ml_accuracy"] = round(clf.score(df[features].values, df["y"].values)*100, 1)
-            print(f"  ✅ 의사결정트리 정확도 {review['ml_accuracy']}%")
+            review["ml_accuracy"] = test_acc
+            review["ml_sample_n"] = len(confirmed_rows)
+            review["ml_test_n"]   = len(X_test)
+            print(f"  ✅ 의사결정트리 테스트 정확도 {test_acc}% (train {split}건 / test {len(X_test)}건)")
+        elif len(confirmed_rows) >= 5:
+            print(f"  ℹ️ ML 표본 부족 ({len(confirmed_rows)}건 확정 / 신뢰도 확보에 {MIN_ML_SAMPLES}건 필요) — 트리 생략")
+            review["ml_accuracy"] = f"참고불가({len(confirmed_rows)}건, 최소{MIN_ML_SAMPLES}건 필요)"
         else:
-            print(f"  ℹ️ ML 데이터 부족 ({len(all_perf_rows)}건 / 최소 5건)")
+            print(f"  ℹ️ ML 데이터 부족 ({len(all_perf_rows)}건 전체 / 확정 {len(confirmed_rows)}건)")
     except ImportError:
         print("  ℹ️ sklearn 없음")
     except Exception as e:
@@ -1811,6 +1868,21 @@ def update_rules(review: dict) -> str:
         now = datetime.now(KST).strftime("%Y년 %m월 %d일 %H:%M")
         new_rules = review.get("rule_improvements", [])
         if not new_rules:
+            active = [r for r in existing if r.get("적용여부") == "적용중"][-5:]
+            return "\n".join(f"  • [{r.get('관점','')}] {r.get('규칙내용','')}" for r in active)
+
+        # ── 최소 표본수 게이트: 확정 데이터가 적으면 규칙 승격 차단 ──
+        # 소량 데이터에서 뽑은 패턴은 우연일 가능성이 높아 실전 매매전략을 왜곡할 위험이 있음
+        all_perf, _ = _gh_read("data/performance.json")
+        if not isinstance(all_perf, list): all_perf = []
+        confirmed_count = sum(
+            1 for r in all_perf
+            if any(k in str(r.get("결과","")) for k in ("달성","손절","종료"))
+        )
+        MIN_RULE_SAMPLES = 20  # 확정 데이터 20건 미만이면 규칙 승격 보류
+        if confirmed_count < MIN_RULE_SAMPLES:
+            print(f"  ⚠️ 규칙 승격 보류: 확정 데이터 {confirmed_count}건 (최소 {MIN_RULE_SAMPLES}건 필요)")
+            print(f"     도출된 규칙 {len(new_rules)}개는 review.json에만 기록, rules.json 미반영")
             active = [r for r in existing if r.get("적용여부") == "적용중"][-5:]
             return "\n".join(f"  • [{r.get('관점','')}] {r.get('규칙내용','')}" for r in active)
 
@@ -1867,9 +1939,16 @@ def update_rules(review: dict) -> str:
             try:
                 resp = requests.post(url, json=payload, timeout=60)
                 if resp.status_code == 200:
-                    parts = resp.json()["candidates"][0]["content"]["parts"]
-                    text  = next((p["text"] for p in parts if "text" in p), None)
-                    if not text: continue
+                    rj2   = resp.json()
+                    cand2 = rj2.get("candidates", [{}])[0]
+                    parts = cand2.get("content", {}).get("parts", [])
+                    if not parts:
+                        print(f"  ⚠️ 규칙업데이트 parts 없음. finishReason={cand2.get('finishReason')}")
+                        continue
+                    text = " ".join(p["text"] for p in parts if "text" in p).strip()
+                    if not text:
+                        print(f"  ⚠️ 규칙업데이트 text 없음. parts 타입={[list(p.keys()) for p in parts]}")
+                        continue
                     cleaned = re.sub(r"```json|```", "", text).strip()
                     f, l = cleaned.find("{"), cleaned.rfind("}")
                     if f != -1 and l != -1:
