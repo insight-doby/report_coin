@@ -613,6 +613,9 @@ def _build_indicator_block(interval: str, cfg: dict, closes: np.ndarray, vols: n
     if interval == "1d":   # 매집 판정용 일봉 원본 tail (LLM 프롬프트엔 안 들어감 — 필드명으로 선택 사용)
         block["closes_tail"] = [round(float(x), 8) for x in closes[-31:]]
         block["vols_tail"]   = [float(x) for x in (vols[-31:] if vols is not None else [])]
+    if interval == "1h":   # 돌파 확인(브레이크아웃) 판정용 1시간봉 tail
+        block["closes_tail"] = [round(float(x), 8) for x in closes[-10:]]
+        block["vols_tail"]   = [float(x) for x in (vols[-10:] if vols is not None else [])]
     return block
 
 
@@ -713,6 +716,15 @@ def format_indicators_for_prompt(indicators: dict, target_coins: list) -> str:
                 f"거래량:{data.get('vol_ratio','N/A')}"
             )
 
+        # ── 돌파 확인 상태 (가짜 돌파 필터용) ──
+        bq = analyze_breakout_quality(ivs.get("1h", {}) or {})
+        if bq.get("status") != "판정불가":
+            ext = bq.get("ext_pct")
+            ext_txt = f" | 돌파선대비 {ext:+.2f}%" if ext is not None else ""
+            lines.append(
+                f"  [돌파확인] {bq['status']} (볼밴상단 위 {bq['bars']}봉 유지){ext_txt}"
+            )
+
         sync = ivs.get("btc_sync", {})
         if sync and not sync.get("error"):
             lines.append(
@@ -725,7 +737,7 @@ def format_indicators_for_prompt(indicators: dict, target_coins: list) -> str:
             if sync.get("vol_div_detail"):
                 lines.append(f"    └ {sync['vol_div_detail']}")
             lines.append(
-                f"  [추세역행] BTC:{sync.get('btc_ma_state','—')} / "
+                f"  [추세비교] BTC:{sync.get('btc_ma_state','—')} / "
                 f"본종목:{sync.get('alt_ma_state','—')}"
             )
 
@@ -975,6 +987,88 @@ def save_narrative_to_github(narrative: dict, coin_narratives: dict, publish_tim
         print(f"  ❌ 내러티브 저장 실패: {e}")
 
 
+# ==========================================
+# 4-D. signals.json — 오늘의 시그널 피드
+# ==========================================
+def select_daily_signals(target_coins: list, top30_coins: list,
+                         watchlist: list = None, limit: int = 12) -> list:
+    """오늘 변동폭이 큰 코인을 상승/하락 구분 없이 선별한다.
+
+    - 관심종목(watchlist)은 변동폭과 무관하게 항상 포함
+    - 나머지는 |24h 변동률| 내림차순으로 채워서 총 limit개까지
+    """
+    wl = {str(t).upper() for t in (watchlist or [])}
+    merged = {}
+    for t, v in (top30_coins or []) + (target_coins or []):
+        if t.upper() not in merged:
+            merged[t.upper()] = v
+
+    picked, seen = [], set()
+
+    def _add(ticker, v, is_wl):
+        if ticker in seen:
+            return
+        seen.add(ticker)
+        chg = float(v.get("change", 0) or 0)
+        picked.append({
+            "ticker":    ticker,
+            "price":     v.get("price", 0),
+            "pct_24h":   round(chg, 2),
+            "direction": "up" if chg > 0 else ("down" if chg < 0 else "flat"),
+            "volume":    v.get("volume", 0),
+            "is_watchlist": is_wl,
+        })
+
+    # 1) 관심종목 우선 (변동폭 무관)
+    for t in wl:
+        if t in merged:
+            _add(t, merged[t], True)
+
+    # 2) 변동폭(절댓값) 상위로 나머지 채우기 — 상승/하락 모두 포함
+    rest = sorted(
+        [(t, v) for t, v in merged.items() if t not in seen],
+        key=lambda x: abs(float(x[1].get("change", 0) or 0)),
+        reverse=True,
+    )
+    for t, v in rest:
+        if len(picked) >= limit:
+            break
+        _add(t, v, False)
+
+    # 관심종목 먼저, 그 안에서 변동폭 큰 순
+    picked.sort(key=lambda x: (not x["is_watchlist"], -abs(x["pct_24h"])))
+    return picked[:limit]
+
+
+def save_signals_to_github(signals: list, coin_narratives: dict, publish_time: str):
+    """선별된 시그널에 촉매(왜 움직였는지)를 붙여 signals.json으로 저장."""
+    print("💾 시그널 피드 저장 중 (GitHub)...")
+    try:
+        raw_cn = (coin_narratives or {}).get("coin_narratives", {}) or {}
+        cn = {k.upper(): v for k, v in raw_cn.items()}
+
+        items = []
+        for s in signals:
+            info = cn.get(s["ticker"], {}) or {}
+            reason = info.get("summary") or info.get("catalyst") or ""
+            reason = str(reason).strip()
+            if reason.lower() in ("none", "null", "nan"):
+                reason = ""
+            items.append({
+                **s,
+                "reason":            reason,
+                "catalyst_strength": info.get("catalyst_strength", "") or "",
+                "narrative_phase":   info.get("narrative_phase", "") or "",
+            })
+
+        payload = {"발행일시": publish_time, "signals": items}
+        _, sha = _gh_read("data/signals.json")
+        ok = _gh_write("data/signals.json", payload, sha, f"시그널: {publish_time}")
+        print(f"  {'✅' if ok else '❌'} signals.json 저장 ({len(items)}건)")
+    except Exception as e:
+        print(f"  ❌ 시그널 저장 실패: {e}")
+
+
 def _num(v) -> float:
     """문자열에서 숫자만 추출 ('761원', '1,720원', '2.5' 등 처리)"""
     try:
@@ -1009,6 +1103,7 @@ def generate_market_insights_via_gemini(
     performance_summary: str = "",
     market_narrative: dict = None,
     coin_narratives: dict = None,
+    perspective_stats: str = "",
 ) -> Optional[dict]:
     print("🤖 Gemini AI 분석 중 (TOP30 2종 + 급등후보 4종 = 총 6종목)...")
 
@@ -1053,6 +1148,11 @@ def generate_market_insights_via_gemini(
         + performance_summary + "\n\n"
     ) if performance_summary else ""
 
+    psp_sec = (
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n▶ 관점별 실측 성과\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        + perspective_stats + "\n\n"
+    ) if perspective_stats else ""
+
     system_prompt = (
         "너는 한국 코인 시장 전문 퀀트 애널리스트다.\n"
         "제공된 데이터를 바탕으로 아래 구조로 총 6종목을 정확하게 선별해라.\n\n"
@@ -1081,9 +1181,31 @@ def generate_market_insights_via_gemini(
         "  · 눌림목: 일봉 RSI 38~55, EMA 수렴, 방어력 [상] 이상\n\n"
 
         "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        "▶ 🚨 돌파 관점 필수 검증 (위반 시 그 종목 선정 금지)\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        "각 종목 지표에 [돌파확인] 항목이 주어진다. 반드시 이 값을 근거로 판단하라.\n"
+        "  · 확인됨 (2봉 이상 유지) → 돌파 픽으로 선정 가능 ⭕\n"
+        "  · 진행중 (1봉만 유지)   → 아직 가짜 돌파일 수 있음. 원칙적으로 제외.\n"
+        "                            거래량이 200%↑로 압도적일 때만 예외 허용\n"
+        "  · 되돌림 / 미돌파       → 돌파 픽으로 절대 선정 금지 ❌\n"
+        "                            (해당 종목이 좋아 보이면 '눌림목' 관점으로 검토)\n"
+        "  · 판정불가              → 돌파 픽 선정 금지 ❌\n\n"
+        "또한 [돌파확인]의 '돌파선대비 %'가 +5%를 넘으면 이미 추격매수 구간이다.\n"
+        "이 경우 돌파 픽으로 선정하지 마라. 돌파 직후 추격 진입은 되돌림에\n"
+        "휘말려 단기간에 손절로 끝나는 사례가 많다.\n\n"
+        "⚠️ 조건을 만족하는 돌파 종목이 부족하면, 억지로 채우지 말고\n"
+        "   그 자리를 '눌림목' 관점 종목으로 대체하라. 총 6종목은 유지하되\n"
+        "   관점 배분은 조정 가능하다. (예: 돌파 1 + 눌림목 5)\n"
+        "   관점별 실제 성과는 아래 [관점별 실측 성과] 항목을 근거로 판단하라.\n"
+        "   선정 종목이 부족한 사유는 market_view에 한 줄로 명시하라.\n\n"
+
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
         "▶ 진입가 계산 규칙 (절대 '시장가' 금지)\n"
         "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        "[돌파] entry = 현재가 × 1.005 이내 숫자로 명시\n"
+        "[돌파] entry = 돌파선(볼밴 상단) 근처 되돌림 가격으로 잡아라.\n"
+        "       현재가가 돌파선 대비 +2% 이내면 → entry = 현재가 × 1.005 이내\n"
+        "       현재가가 돌파선 대비 +2%를 넘으면 → entry = 돌파선 × 1.00~1.02\n"
+        "       (이미 뜬 가격을 그대로 따라가지 말고 눌림을 기다리는 가격을 제시)\n"
         "[눌림목] entry = EMA20 또는 볼밴 중단 기준 계산한 숫자\n"
         "T1 = entry × 1.08 ~ 1.12 (1차 50% 익절)\n"
         "T2 = entry × 1.15 ~ 1.25 (2차 홀딩)\n"
@@ -1119,7 +1241,7 @@ def generate_market_insights_via_gemini(
         "  이 경우 솔직하게 '뚜렷한 반등 근거 부재 — 기술적 신호만으로 단기 진입' "
         "또는 이와 유사하게 근거 없음을 명시해라. 근거가 빈약하면 권장비중도 낮춰서 제시해라.\n\n"
 
-        + rules_sec + perf_sec
+        + rules_sec + perf_sec + psp_sec
 
         + "출력은 순수 JSON만 반환해라.\n\n"
 
@@ -1142,10 +1264,14 @@ def generate_market_insights_via_gemini(
         '      "unlock_alert": "언락 경보 또는 null",\n'
         '      "kimp": "김프 수치",\n'
         '      "kimp_action": "김프 진입 유불리 해석",\n'
-        '      "btc_sync": "BTC 동조화",\n'
-        '      "defense": "방어력",\n'
-        '      "vol_divergence": "거래량 다이버전스",\n'
-        '      "trend_reverse": "추세 역행 분석",\n'
+        '      "btc_sync": "높음 | 중간 | 낮음 | 비연동 (넷 중 하나만, 부연설명 금지)",\n'
+        '      "btc_sync_note": "동조화 판단 근거 한 줄 (자유 서술)",\n'
+        '      "defense": "상 | 중 | 하 (셋 중 하나만, 부연설명 금지)",\n'
+        '      "defense_note": "방어력 판단 근거 한 줄 (자유 서술)",\n'
+        '      "vol_divergence": "강세 | 약세 | 없음 | 정보부족 (넷 중 하나만, 부연설명 금지)",\n'
+        '      "vol_divergence_note": "거래량 다이버전스 근거 한 줄 (자유 서술)",\n'
+        '      "trend_reverse": "상승추세 | 하락추세 | 횡보 | 반등시도 (넷 중 하나만, 부연설명 금지)",\n'
+        '      "trend_reverse_note": "현재 추세 판단 근거 한 줄 (자유 서술)",\n'
         '      "rank_change": "순위 변화 또는 null",\n'
         '      "entry": 숫자 (단위/쉼표 없이, 예: 761),\n'
         '      "entry_logic": "진입 근거 (쉬운 말로)",\n'
@@ -1183,6 +1309,23 @@ def generate_market_insights_via_gemini(
         "position_size: TOP30은 급등후보보다 1.5~2배 크게. 시장온도도 반영.\n"
         "what_if_t1_miss / what_if_btc_drop: 종목별로 반드시 다르게 작성.\n"
         "category: 영어 약어 없이 한글만. RWA→실물자산 토큰화, DePIN→분산형 인프라.\n"
+        "\n"
+        "⚠️ 아래 4개 필드는 반드시 지정된 값 중 하나만 그대로 출력한다.\n"
+        "   괄호 부연설명, 이모지, 추가 수식어를 절대 붙이지 마라.\n"
+        "   판단 근거는 대응되는 _note 필드에만 자유롭게 서술한다.\n"
+        "  · btc_sync        → 높음 / 중간 / 낮음 / 비연동\n"
+        "  · defense         → 상 / 중 / 하\n"
+        "  · vol_divergence  → 강세 / 약세 / 없음 / 정보부족\n"
+        "  · trend_reverse   → 상승추세 / 하락추세 / 횡보 / 반등시도\n"
+        "   (예: \"낮음 (AI 독자 수급)\" ❌ → btc_sync=\"낮음\", "
+        "btc_sync_note=\"AI 테마 독자 수급으로 BTC 영향 제한적\" ⭕)\n"
+        "   각 필드는 서로 다른 것을 본다. 역할을 혼동하지 마라.\n"
+        "     btc_sync       = BTC 가격과 얼마나 같이 움직이는가\n"
+        "     defense        = BTC 하락 구간에서 얼마나 덜 빠졌는가\n"
+        "     vol_divergence = 거래량이 가격 움직임을 뒷받침하는가\n"
+        "     trend_reverse  = 이 코인 자체가 지금 어떤 추세 국면인가 (BTC와 무관)\n"
+        "   판단이 불가능하면 임의로 만들지 말고 가장 보수적인 값을 택한다.\n"
+        "   (btc_sync=중간 / defense=중 / vol_divergence=정보부족 / trend_reverse=횡보)\n"
     )
 
     # ── 내러티브 컨텍스트 구성 ──
@@ -1390,6 +1533,127 @@ def _gh_write(path: str, data, sha: str = None, msg: str = "데이터 업데이�
 # ==========================================
 # [1단계] 추천 기록 저장
 # ==========================================
+# ── 보조지표 값 정규화 (AI가 enum을 어겨도 강제로 표준값에 매핑) ──
+_ENUM_SPECS = {
+    "btc_sync": {
+        "allowed": ["높음", "중간", "낮음", "비연동"],
+        "default": "중간",
+        "rules": [  # (판별 키워드들, 매핑값) — 위에서부터 우선 적용
+            (["비연동", "비동조", "독자"], "비연동"),
+            (["매우 낮", "낮음", "낮", "약"], "낮음"),
+            (["높음", "높", "강한 동조", "동조화", "동조", "강"], "높음"),
+            (["중간", "중립", "보통", "중"], "중간"),
+        ],
+    },
+    "defense": {
+        "allowed": ["상", "중", "하"],
+        "default": "중",
+        "rules": [
+            (["최상", "상", "높음", "강"], "상"),
+            (["중하", "하", "낮음", "약"], "하"),
+            (["중", "보통"], "중"),
+        ],
+    },
+    "vol_divergence": {
+        "allowed": ["강세", "약세", "없음", "정보부족"],
+        "default": "정보부족",
+        "rules": [
+            (["강세", "상승", "급증", "유입", "확인됨"], "강세"),
+            (["약세", "하락", "감소", "이탈"], "약세"),
+            (["없음", "미확인", "해당 없음"], "없음"),
+            (["정보", "n/a", "데이터", "불가"], "정보부족"),
+        ],
+    },
+    "trend_reverse": {
+        "allowed": ["상승추세", "하락추세", "횡보", "반등시도"],
+        "default": "횡보",
+        "rules": [
+            (["반등", "저점 확인", "바닥", "회복 시도", "턴어라운드"], "반등시도"),
+            (["상승", "우상향", "강세 지속", "고점 갱신", "돌파"], "상승추세"),
+            (["하락", "우하향", "약세 지속", "저점 이탈", "붕괴"], "하락추세"),
+            (["횡보", "박스", "수렴", "중립", "관망", "혼조"], "횡보"),
+        ],
+    },
+}
+
+
+def _normalize_enum(field: str, raw) -> str:
+    """AI가 뱉은 자유 텍스트를 지정된 enum 값으로 강제 매핑한다."""
+    spec = _ENUM_SPECS.get(field)
+    if not spec:
+        return str(raw or "")
+    s = str(raw or "").strip()
+    if not s or s.lower() in ("none", "null", "nan"):
+        return spec["default"]
+    if s in spec["allowed"]:          # 이미 정상값이면 그대로
+        return s
+    low = s.lower()
+    for keywords, mapped in spec["rules"]:
+        if any(k.lower() in low for k in keywords):
+            return mapped
+    return spec["default"]
+
+
+def _enum_note(p: dict, field: str) -> str:
+    """_note 필드가 비어있으면 원본 자유텍스트를 근거로 살려둔다."""
+    note = str(p.get(f"{field}_note", "") or "").strip()
+    if note:
+        return note
+    raw = str(p.get(field, "") or "").strip()
+    return raw if raw not in _ENUM_SPECS[field]["allowed"] else ""
+
+
+def _fmt_enum(p: dict, field: str) -> str:
+    """표시용: '표준값 — 근거' 형태로 렌더링."""
+    val  = _normalize_enum(field, p.get(field))
+    note = _enum_note(p, field)
+    return f"{val} — {note}" if note else val
+
+
+def analyze_breakout_quality(tf_1h: dict) -> dict:
+    """1시간봉 기준 '돌파가 확인됐는가'를 판정.
+
+    가짜 돌파(튀자마자 되돌림)를 거르기 위해, 볼밴 상단(=돌파선)을
+    돌파한 뒤 최소 1봉 이상 그 위에서 종가를 유지했는지 본다.
+
+    반환:
+      status  — 확인됨 / 진행중 / 되돌림 / 미돌파 / 판정불가
+      bars    — 돌파선 위에서 유지된 연속 봉 수
+      ext_pct — 돌파선 대비 현재가 이격률(%). 클수록 추격매수 위험
+    """
+    out = {"status": "판정불가", "bars": 0, "ext_pct": None}
+    try:
+        closes = tf_1h.get("closes_tail") or []
+        line   = tf_1h.get("bb_upper")
+        cur    = tf_1h.get("current")
+        if not closes or not line or not cur or len(closes) < 3:
+            return out
+
+        line = float(line)
+        out["ext_pct"] = round((float(cur) - line) / line * 100, 2)
+
+        # 최근 봉부터 거꾸로 훑어 돌파선 위 연속 유지 봉 수 계산
+        held = 0
+        for c in reversed(closes):
+            if float(c) > line:
+                held += 1
+            else:
+                break
+        out["bars"] = held
+
+        if held == 0:
+            # 지금은 아래인데 직전에 위였다면 = 돌파 후 밀린 것
+            broke_before = any(float(c) > line for c in closes[-5:])
+            out["status"] = "되돌림" if broke_before else "미돌파"
+        elif held == 1:
+            out["status"] = "진행중"      # 막 돌파 — 아직 확인 안 됨
+        else:
+            out["status"] = "확인됨"      # 2봉 이상 유지 = 유효 돌파
+    except Exception:
+        pass
+    return out
+
+
 def _calc_anchor_and_divergence(ticker: str, perspective: str, entry_price, krw_price: float, indicators: dict) -> dict:
     """LLM 진입가와 실제 기술적 기준선 간 괴리율 계산.
     돌파 관점 → 볼밴 상단 기준 / 눌림목 관점 → EMA20 기준.
@@ -1453,10 +1717,16 @@ def record_picks_to_github(picks: list, market_activity: dict, publish_time: str
             t1_n    = _num(p.get("t1"))
             t2_n    = _num(p.get("t2"))
             sl_n    = _num(p.get("stop_loss"))
+            _bq = analyze_breakout_quality(
+                ((indicators or {}).get(ticker, {}) or {}).get("1h", {}) or {}
+            )
             existing.append({
                 "추천일시":     publish_time,
                 "티커":        ticker,
                 "관점":        p.get("perspective", ""),
+                "돌파확인":    _bq.get("status", "판정불가"),
+                "돌파유지봉":  _bq.get("bars", 0),
+                "돌파선이격률": _bq.get("ext_pct"),
                 "진입가":      f"{int(entry_n):,}원" if entry_n else "",
                 "T1":          f"{int(t1_n):,}원" if t1_n else "",
                 "T2":          f"{int(t2_n):,}원" if t2_n else "",
@@ -1480,10 +1750,14 @@ def record_picks_to_github(picks: list, market_activity: dict, publish_time: str
                 "수급성격":    market_activity.get("supply_character", ""),
                 "총거래대금":  f"{market_activity.get('total_volume', 0)/1e12:.2f}조원",
                 "김프":        p.get("kimp", ""),
-                "BTC동조화":   p.get("btc_sync", ""),
-                "방어력":      p.get("defense", ""),
-                "거래량다이버전스": p.get("vol_divergence", ""),
-                "추세역행":    p.get("trend_reverse", ""),
+                "BTC동조화":   _normalize_enum("btc_sync", p.get("btc_sync")),
+                "BTC동조화_근거": _enum_note(p, "btc_sync"),
+                "방어력":      _normalize_enum("defense", p.get("defense")),
+                "방어력_근거":  _enum_note(p, "defense"),
+                "거래량다이버전스": _normalize_enum("vol_divergence", p.get("vol_divergence")),
+                "거래량다이버전스_근거": _enum_note(p, "vol_divergence"),
+                "현재추세":    _normalize_enum("trend_reverse", p.get("trend_reverse")),
+                "현재추세_근거": _enum_note(p, "trend_reverse"),
                 "why_down":    p.get("why_down", ""),
                 "why_still":   p.get("why_still", ""),
                 "what_if":     p.get("what_if_t1_miss", "") or p.get("what_if", ""),
@@ -1694,6 +1968,58 @@ def performance_summary_text(results: list) -> str:
     for r in results:
         icon = "✅" if "달성" in r["result"] else "❌" if "손절" in r["result"] else "📊"
         lines.append(f"{icon} {r['ticker']}: {r['entry']:,.0f}→{r['current']:,.0f} ({r['pnl_pct']:+.2f}%)")
+    return "\n".join(lines)
+
+
+def calc_perspective_stats(all_perf_rows: list, min_n: int = 10) -> str:
+    """performance.json 누적 데이터에서 관점별 실측 승률을 집계한다.
+
+    프롬프트에 주입해 AI가 항상 '현재' 성과를 근거로 판단하게 한다.
+    표본이 min_n 미만인 관점은 통계적 의미가 없어 제외한다.
+    """
+    if not all_perf_rows:
+        return ""
+
+    def _is_win(r):  return "달성" in r or "수익 중" in r
+    def _is_loss(r): return "손절" in r or "손실" in r
+
+    agg = {}
+    for row in all_perf_rows:
+        persp = str(row.get("관점", "") or "").strip()
+        res   = str(row.get("결과", "") or "")
+        if not persp:
+            continue
+        w, l = _is_win(res), _is_loss(res)
+        if not (w or l):        # 진행중은 승률 계산에서 제외
+            continue
+        a = agg.setdefault(persp, {"w": 0, "l": 0, "pnl": []})
+        a["w" if w else "l"] += 1
+        try:
+            a["pnl"].append(float(str(row.get("수익률", 0)).replace("%", "")))
+        except Exception:
+            pass
+
+    rows = []
+    for persp, a in agg.items():
+        n = a["w"] + a["l"]
+        if n < min_n:
+            continue
+        wr  = round(a["w"] / n * 100, 1)
+        avg = round(sum(a["pnl"]) / len(a["pnl"]), 2) if a["pnl"] else 0.0
+        rows.append((wr, persp, n, wr, avg))
+
+    if not rows:
+        return ""
+
+    rows.sort(reverse=True)     # 승률 높은 순
+    lines = ["[관점별 실측 성과 — 누적 데이터 기반, 매 실행 시 자동 갱신]"]
+    for _, persp, n, wr, avg in rows:
+        lines.append(f"  · {persp}: 승률 {wr}% (표본 {n}건) / 건당 평균 {avg:+.2f}%")
+    lines.append(
+        "  ※ 위는 지금까지의 실제 결과다. 승률이 낮은 관점은 종목 수를 줄이고,\n"
+        "     높은 관점으로 대체하는 것을 우선 고려하라.\n"
+        "     단 표본이 적은 관점은 우연일 수 있으니 과신하지 마라."
+    )
     return "\n".join(lines)
 
 
@@ -2186,10 +2512,10 @@ def build_slack_blocks(
             f"*{ticker}* ({full_name})  {arrow} *{p.get('change_24h','')}*  현재가 {p.get('current_price_krw','')}\n"
             f"_{description}_{unlock_line}{rank_line}\n\n"
             f"🏷️ 김프: {p.get('kimp','—')}  ({kimp_action})\n"
-            f"🔗 BTC동조화: {p.get('btc_sync','—')}\n"
-            f"🛡️ 방어력: {p.get('defense','—')}\n"
-            f"📊 독자수급: {p.get('vol_divergence','—')}\n"
-            f"📈 추세역행: {p.get('trend_reverse','—')}"
+            f"🔗 BTC동조화: {_fmt_enum(p, 'btc_sync')}\n"
+            f"🛡️ 방어력: {_fmt_enum(p, 'defense')}\n"
+            f"📊 독자수급: {_fmt_enum(p, 'vol_divergence')}\n"
+            f"📈 현재추세: {_fmt_enum(p, 'trend_reverse')}"
         )}})
 
         # ── 블록 2: 매매 셋업 + 손익비 + 권장비중 ──
@@ -2693,6 +3019,17 @@ def run_and_send_to_slack():
     perf_results = track_performance()
     perf_summary = performance_summary_text(perf_results)
 
+    # [2-A단계] 관점별 실측 승률 집계 (프롬프트 주입용 — 매 실행 자동 갱신)
+    _all_perf, _ = _gh_read("data/performance.json")
+    if not isinstance(_all_perf, list):
+        _all_perf = []
+    perspective_stats = calc_perspective_stats(_all_perf)
+    if perspective_stats:
+        print("📊 관점별 실측 승률 집계 완료")
+        for _ln in perspective_stats.split("\n")[1:]:
+            if _ln.strip().startswith("·"):
+                print(f"  {_ln.strip()}")
+
     # [2-B단계] 선취매 후보 추적 (적중/실패/만료 판정)
     track_potential()
 
@@ -2765,7 +3102,8 @@ def run_and_send_to_slack():
     # [3호출] 종목 선별 (1+2 결과 주입)
     insights = generate_market_insights_via_gemini(
         target_coins, top30_coins, indicators, cutoff, market_activity,
-        rules, perf_summary, market_narrative, coin_narratives
+        rules, perf_summary, market_narrative, coin_narratives,
+        perspective_stats=perspective_stats
     )
     if not insights:
         print("❌ AI 분석 실패"); return
@@ -2793,6 +3131,10 @@ def run_and_send_to_slack():
 
     # 내러티브 저장 (GitHub)
     save_narrative_to_github(market_narrative, coin_narratives, pub_time)
+
+    # 시그널 피드 저장 (GitHub) — 변동폭 상위 + 관심종목에 촉매 붙여서
+    daily_signals = select_daily_signals(target_coins, top30_coins, WATCHLIST, limit=12)
+    save_signals_to_github(daily_signals, coin_narratives, pub_time)
 
     # 슬랙 전송
     insights["market_narrative_data"] = market_narrative
@@ -3037,9 +3379,9 @@ def generate_html_report(insights: dict, pub_time: str, market_activity: dict,
 
           <div class="info-grid">
             <div><span class="info-label">🏷️ 김프</span><span>{p.get('kimp','—')}</span><br><span style="font-size:11px;color:#888;">{p.get('kimp_action','')}</span></div>
-            <div><span class="info-label">🔗 BTC 동조화</span><span>{p.get('btc_sync','—')}</span></div>
-            <div><span class="info-label">🛡️ 방어력</span><span>{p.get('defense','—')}</span></div>
-            <div><span class="info-label">📊 독자 수급</span><span>{p.get('vol_divergence','—')}</span></div>
+            <div><span class="info-label">🔗 BTC 동조화</span><span>{_normalize_enum('btc_sync', p.get('btc_sync'))}</span><br><span style="font-size:11px;color:#888;">{_enum_note(p,'btc_sync')}</span></div>
+            <div><span class="info-label">🛡️ 방어력</span><span>{_normalize_enum('defense', p.get('defense'))}</span><br><span style="font-size:11px;color:#888;">{_enum_note(p,'defense')}</span></div>
+            <div><span class="info-label">📊 독자 수급</span><span>{_normalize_enum('vol_divergence', p.get('vol_divergence'))}</span><br><span style="font-size:11px;color:#888;">{_enum_note(p,'vol_divergence')}</span></div>
           </div>
 
           <div class="reason-grid">

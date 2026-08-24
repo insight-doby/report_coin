@@ -140,6 +140,33 @@ button{cursor:pointer;font-family:inherit;}
   padding:11px 15px;font-size:13px;color:var(--accent);margin-bottom:18px;}
 
 /* ── Narrative Section ── */
+/* ── AI 시그널 피드 ── */
+.sigfeed-wrap{margin-bottom:18px;}
+.sigfeed-head{display:flex;align-items:center;gap:8px;margin-bottom:4px;}
+.sigfeed-badge{font-size:12px;font-weight:700;color:var(--accent);}
+.sigfeed-title{font-size:17px;font-weight:800;color:var(--txt);margin-bottom:12px;letter-spacing:-0.3px;}
+.sigfeed-list{display:flex;flex-direction:column;gap:8px;}
+.sig-item{display:flex;align-items:center;gap:12px;background:var(--surface);
+  border:1px solid var(--border);border-radius:var(--r);padding:13px 15px;
+  box-shadow:var(--shadow);transition:transform .12s ease,border-color .12s ease;}
+.sig-item:hover{transform:translateY(-1px);border-color:var(--accent);}
+.sig-logo{width:42px;height:42px;border-radius:12px;flex-shrink:0;display:flex;
+  align-items:center;justify-content:center;font-size:13px;font-weight:800;
+  color:#fff;letter-spacing:-0.5px;}
+.sig-body{flex:1;min-width:0;}
+.sig-row1{display:flex;align-items:baseline;gap:8px;margin-bottom:3px;}
+.sig-name{font-size:15px;font-weight:700;color:var(--txt);white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;}
+.sig-star{font-size:11px;flex-shrink:0;}
+.sig-ago{font-size:12px;color:var(--txt3);margin-left:auto;flex-shrink:0;}
+.sig-reason{font-size:13px;color:var(--txt2);line-height:1.4;margin-bottom:4px;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+.sig-pct{font-size:15px;font-weight:700;}
+.sig-more{display:block;margin:12px auto 0;padding:10px 22px;font-size:13px;font-weight:600;
+  background:var(--surface);color:var(--accent);border:1px solid var(--accent);
+  border-radius:999px;cursor:pointer;transition:background .12s ease;}
+.sig-more:hover{background:var(--surface2);}
+
 .narr-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
   padding:16px 20px;margin-bottom:18px;box-shadow:var(--shadow);}
 .narr-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;cursor:pointer;}
@@ -772,6 +799,9 @@ button{cursor:pointer;font-family:inherit;}
   <div class="strat" id="strat-box" style="display:none;"></div>
   <div id="editor-pick-wrap"></div>
 
+  <!-- AI 시그널 피드 -->
+  <div id="sigfeed-wrap" class="sigfeed-wrap" style="display:none;"></div>
+
   <!-- 시장 내러티브 섹션 -->
   <div id="narr-wrap" class="narr-wrap" style="display:none;"></div>
 
@@ -1222,7 +1252,7 @@ var PERSP_COLOR = {
   'TOP30 돌파':'#8B5CF6','TOP30 눌림목':'#3B82F6',
   '급등후보 돌파':'#22C55E','급등후보 눌림목':'#F59E0B'
 };
-var G = { picks:[], perf:[], review:[], rules:[], narrative:[], potential:[] };
+var G = { picks:[], perf:[], review:[], rules:[], narrative:[], potential:[], accum:[], signals:{} };
 var liveIntervals = {};
 
 /* ══════════════════════════════════
@@ -1297,7 +1327,8 @@ function autoLoadData(){
       fetch(BASE+'rules.json?t='+Date.now()).then(function(r){ return r.ok?r.json():[]; }).catch(function(){ return []; }),
       fetch(BASE+'narrative.json?t='+Date.now()).then(function(r){ return r.ok?r.json():[]; }).catch(function(){ return []; }),
       fetch(BASE+'potential.json?t='+Date.now()).then(function(r){ return r.ok?r.json():[]; }).catch(function(){ return []; }),
-      fetch(BASE+'accumulation.json?t='+Date.now()).then(function(r){ return r.ok?r.json():[]; }).catch(function(){ return []; })
+      fetch(BASE+'accumulation.json?t='+Date.now()).then(function(r){ return r.ok?r.json():[]; }).catch(function(){ return []; }),
+      fetch(BASE+'signals.json?t='+Date.now()).then(function(r){ return r.ok?r.json():{}; }).catch(function(){ return {}; })
     ]);
   }).then(function(res){
     G.perf      = res[0]||[];
@@ -1306,6 +1337,7 @@ function autoLoadData(){
     G.narrative = res[3]||[];
     G.potential = res[4]||[];
     G.accum     = res[5]||[];
+    G.signals   = res[6]||{};
     renderAll();
   }).catch(function(e){ console.warn('자동 로드 실패:', e); });
 }
@@ -1401,6 +1433,7 @@ function forceHideOverlay(){
 
 function renderAll(){
   renderTab1();
+  renderSignalFeed();
   renderNarrative();
   renderTab2();
   renderTab3();
@@ -1408,6 +1441,100 @@ function renderAll(){
   renderPotential();
   renderAccumulation();
   /* Tab5는 localStorage 기반으로 이미 initPortfolio에서 처리 */
+}
+
+/* ══════════════════════════════════
+   AI 시그널 피드 렌더링
+   ══════════════════════════════════ */
+var SIG_SHOWN = 5;   /* 처음 노출 개수 */
+
+/* 티커명 → 고정 색상 (해시 기반, 로고 대용) */
+function sigColor(ticker){
+  var palette = ['#f7931a','#627eea','#2775ca','#00d395','#8247e5',
+                 '#e84142','#f0b90b','#14f195','#ff007a','#0052ff'];
+  var h = 0;
+  for(var i=0;i<ticker.length;i++){ h = (h*31 + ticker.charCodeAt(i)) >>> 0; }
+  return palette[h % palette.length];
+}
+
+/* '2026년 08월 20일 11:15' → 경과 시간 문자열 */
+function sigAgo(pubStr){
+  try{
+    var m = String(pubStr).match(/(\d+)년\s*(\d+)월\s*(\d+)일\s*(\d+):(\d+)/);
+    if(!m) return '';
+    var t = new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5]);
+    var diff = Math.floor((Date.now() - t.getTime())/60000);
+    if(diff < 1)    return '방금 전';
+    if(diff < 60)   return diff + '분 전';
+    if(diff < 1440) return Math.floor(diff/60) + '시간 전';
+    return Math.floor(diff/1440) + '일 전';
+  }catch(e){ return ''; }
+}
+
+function createSignalFeedItem(s, ago){
+  var up   = s.direction === 'up';
+  var flat = s.direction === 'flat';
+  var col  = flat ? 'var(--txt3)' : (up ? 'var(--pos)' : 'var(--neg)');
+  var sign = s.pct_24h > 0 ? '+' : '';
+  var word = flat ? '보합' : (up ? '상승' : '하락');
+
+  var el = document.createElement('div');
+  el.className = 'sig-item';
+  el.innerHTML =
+    '<div class="sig-logo" style="background:'+sigColor(s.ticker)+';">'
+      + esc(s.ticker.slice(0,4)) + '</div>'
+    + '<div class="sig-body">'
+      + '<div class="sig-row1">'
+        + '<span class="sig-name">' + esc(s.ticker) + '</span>'
+        + (s.is_watchlist ? '<span class="sig-star">📌</span>' : '')
+        + '<span class="sig-ago">' + esc(ago) + '</span>'
+      + '</div>'
+      + (s.reason ? '<div class="sig-reason">' + esc(s.reason) + '</div>' : '')
+      + '<div class="sig-pct" style="color:'+col+';">'
+        + sign + Number(s.pct_24h).toFixed(1) + '% ' + word
+      + '</div>'
+    + '</div>';
+  return el;
+}
+
+function renderSignalFeed(){
+  var wrap = document.getElementById('sigfeed-wrap');
+  if(!wrap) return;
+
+  var data = G.signals || {};
+  var list = data.signals || [];
+  if(!list.length){ wrap.style.display='none'; return; }
+  wrap.style.display = 'block';
+
+  var ago = sigAgo(data.발행일시 || '');
+
+  wrap.innerHTML =
+    '<div class="sigfeed-head">'
+      + '<span class="sigfeed-badge">✨ AI가 오늘의 움직임을 분석했어요</span>'
+    + '</div>'
+    + '<div class="sigfeed-title">왜 움직였는지 한눈에 보기</div>'
+    + '<div class="sigfeed-list" id="sigfeed-list"></div>';
+
+  var listEl = document.getElementById('sigfeed-list');
+  var shown  = Math.min(SIG_SHOWN, list.length);
+
+  for(var i=0; i<shown; i++){
+    listEl.appendChild(createSignalFeedItem(list[i], ago));
+  }
+
+  /* 더보기 버튼 */
+  if(list.length > shown){
+    var btn = document.createElement('button');
+    btn.className = 'sig-more';
+    btn.textContent = '↻ 시그널 ' + (list.length - shown) + '개 더보기';
+    btn.onclick = function(){
+      for(var j=shown; j<list.length; j++){
+        listEl.appendChild(createSignalFeedItem(list[j], ago));
+      }
+      btn.remove();
+    };
+    wrap.appendChild(btn);
+  }
 }
 
 /* ══════════════════════════════════
