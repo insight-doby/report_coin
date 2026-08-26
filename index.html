@@ -156,12 +156,25 @@ button{cursor:pointer;font-family:inherit;}
 .sig-body{flex:1;min-width:0;}
 .sig-row1{display:flex;align-items:baseline;gap:8px;margin-bottom:3px;}
 .sig-name{font-size:15px;font-weight:700;color:var(--txt);white-space:nowrap;
-  overflow:hidden;text-overflow:ellipsis;}
+  overflow:hidden;text-overflow:ellipsis;flex-shrink:0;}
+.sig-kr{font-size:12px;font-weight:500;color:var(--txt3);white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;min-width:0;}
 .sig-star{font-size:11px;flex-shrink:0;}
 .sig-ago{font-size:12px;color:var(--txt3);margin-left:auto;flex-shrink:0;}
 .sig-reason{font-size:13px;color:var(--txt2);line-height:1.4;margin-bottom:4px;
   display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+.sig-move{font-size:12px;color:var(--txt3);margin-bottom:4px;letter-spacing:-0.2px;}
+.sig-move .sig-arrow{margin:0 4px;opacity:.65;}
+.sig-move .sig-to{font-weight:700;color:var(--txt2);}
 .sig-pct{font-size:15px;font-weight:700;}
+.sig-tabs{display:flex;gap:8px;margin-bottom:12px;}
+.sig-tab{flex:1;padding:9px 0;font-size:13px;font-weight:700;text-align:center;
+  background:var(--surface);color:var(--txt3);border:1px solid var(--border);
+  border-radius:999px;cursor:pointer;transition:all .12s ease;}
+.sig-tab .sig-tab-n{font-size:11px;font-weight:600;opacity:.7;margin-left:4px;}
+.sig-tab.on.up{color:var(--pos);border-color:var(--pos);background:var(--posm);}
+.sig-tab.on.down{color:var(--neg);border-color:var(--neg);background:var(--negm);}
+.sig-empty{padding:22px 0;text-align:center;font-size:13px;color:var(--txt3);}
 .sig-more{display:block;margin:12px auto 0;padding:10px 22px;font-size:13px;font-weight:600;
   background:var(--surface);color:var(--accent);border:1px solid var(--accent);
   border-radius:999px;cursor:pointer;transition:background .12s ease;}
@@ -1447,6 +1460,43 @@ function renderAll(){
    AI 시그널 피드 렌더링
    ══════════════════════════════════ */
 var SIG_SHOWN = 5;   /* 처음 노출 개수 */
+var SIG_DIR   = 'up';/* 현재 선택된 탭: 'up' | 'down' */
+
+/* ── 전역 한글명 맵 (업비트 KRW 마켓 기준) ── */
+var KR_MAP = {};
+var KR_MAP_P = null;
+var KR_MAP_LOADED = false;
+
+function loadKrMap(){
+  if(KR_MAP_P) return KR_MAP_P;
+  KR_MAP_P = fetch('https://api.upbit.com/v1/market/all')
+    .then(function(r){ return r.json(); })
+    .then(function(list){
+      if(Array.isArray(list)){
+        list.forEach(function(m){
+          if(m.market && m.market.indexOf('KRW-')===0){
+            KR_MAP[m.market.slice(4).toUpperCase()] = m.korean_name || '';
+          }
+        });
+      }
+      return KR_MAP;
+    })
+    .catch(function(){ return KR_MAP; });   /* 실패해도 티커로 폴백 */
+  return KR_MAP_P;
+}
+
+/* 티커 → 한글명 (없으면 빈 문자열: 빗썸 단독 상장 종목 등) */
+function krName(ticker){
+  return KR_MAP[String(ticker).toUpperCase()] || '';
+}
+
+/* 원화 표시 — 공용 fmtNum 사용 (없으면 빈 문자열) */
+function sigWon(n){
+  var v = Number(n);
+  if(!isFinite(v) || v <= 0) return '';
+  var s = fmtNum(v);
+  return s === '—' ? '' : s;
+}
 
 /* 티커명 → 고정 색상 (해시 기반, 로고 대용) */
 function sigColor(ticker){
@@ -1478,6 +1528,21 @@ function createSignalFeedItem(s, ago){
   var sign = s.pct_24h > 0 ? '+' : '';
   var word = flat ? '보합' : (up ? '상승' : '하락');
 
+  /* 24h 전 가격 역산: 현재가 ÷ (1 + 변동률) */
+  var now  = Number(s.price) || 0;
+  var pct  = Number(s.pct_24h) || 0;
+  var prev = (now > 0 && pct > -100) ? now / (1 + pct/100) : 0;
+  var moveHtml = '';
+  if(now > 0 && prev > 0 && Math.abs(pct) >= 0.05){
+    moveHtml = '<div class="sig-move">'
+      + sigWon(prev) + '원'
+      + '<span class="sig-arrow">→</span>'
+      + '<span class="sig-to" style="color:'+col+';">' + sigWon(now) + '원</span>'
+      + '</div>';
+  }
+
+  var kr = krName(s.ticker);
+
   var el = document.createElement('div');
   el.className = 'sig-item';
   el.innerHTML =
@@ -1486,10 +1551,12 @@ function createSignalFeedItem(s, ago){
     + '<div class="sig-body">'
       + '<div class="sig-row1">'
         + '<span class="sig-name">' + esc(s.ticker) + '</span>'
+        + (kr ? '<span class="sig-kr">' + esc(kr) + '</span>' : '')
         + (s.is_watchlist ? '<span class="sig-star">📌</span>' : '')
         + '<span class="sig-ago">' + esc(ago) + '</span>'
       + '</div>'
       + (s.reason ? '<div class="sig-reason">' + esc(s.reason) + '</div>' : '')
+      + moveHtml
       + '<div class="sig-pct" style="color:'+col+';">'
         + sign + Number(s.pct_24h).toFixed(1) + '% ' + word
       + '</div>'
@@ -1506,35 +1573,71 @@ function renderSignalFeed(){
   if(!list.length){ wrap.style.display='none'; return; }
   wrap.style.display = 'block';
 
+  /* 한글명이 아직 없으면 로드 후 1회 재렌더 */
+  if(!KR_MAP_LOADED){
+    loadKrMap().then(function(){
+      if(KR_MAP_LOADED) return;
+      KR_MAP_LOADED = true;
+      renderSignalFeed();
+    });
+  }
+
   var ago = sigAgo(data.발행일시 || '');
+
+  /* 상승 / 하락 분리 (보합은 상승 쪽에 묶음) */
+  var ups   = list.filter(function(s){ return Number(s.pct_24h) >= 0; });
+  var downs = list.filter(function(s){ return Number(s.pct_24h) <  0; });
+
+  /* 선택된 탭이 비어 있으면 반대쪽으로 자동 전환 */
+  if(SIG_DIR === 'up'   && !ups.length   && downs.length) SIG_DIR = 'down';
+  if(SIG_DIR === 'down' && !downs.length && ups.length)   SIG_DIR = 'up';
 
   wrap.innerHTML =
     '<div class="sigfeed-head">'
       + '<span class="sigfeed-badge">✨ AI가 오늘의 움직임을 분석했어요</span>'
     + '</div>'
     + '<div class="sigfeed-title">왜 움직였는지 한눈에 보기</div>'
+    + '<div class="sig-tabs">'
+      + '<button class="sig-tab up'   + (SIG_DIR==='up'  ?' on':'') + '" onclick="setSigDir(\'up\')">'
+        + '📈 상승<span class="sig-tab-n">'   + ups.length   + '</span></button>'
+      + '<button class="sig-tab down' + (SIG_DIR==='down'?' on':'') + '" onclick="setSigDir(\'down\')">'
+        + '📉 하락<span class="sig-tab-n">' + downs.length + '</span></button>'
+    + '</div>'
     + '<div class="sigfeed-list" id="sigfeed-list"></div>';
 
+  var cur    = (SIG_DIR === 'down') ? downs : ups;
   var listEl = document.getElementById('sigfeed-list');
-  var shown  = Math.min(SIG_SHOWN, list.length);
 
+  if(!cur.length){
+    listEl.innerHTML = '<div class="sig-empty">해당하는 시그널이 없어요.</div>';
+    return;
+  }
+
+  var shown = Math.min(SIG_SHOWN, cur.length);
   for(var i=0; i<shown; i++){
-    listEl.appendChild(createSignalFeedItem(list[i], ago));
+    listEl.appendChild(createSignalFeedItem(cur[i], ago));
   }
 
   /* 더보기 버튼 */
-  if(list.length > shown){
+  if(cur.length > shown){
     var btn = document.createElement('button');
     btn.className = 'sig-more';
-    btn.textContent = '↻ 시그널 ' + (list.length - shown) + '개 더보기';
+    btn.textContent = '↻ 시그널 ' + (cur.length - shown) + '개 더보기';
     btn.onclick = function(){
-      for(var j=shown; j<list.length; j++){
-        listEl.appendChild(createSignalFeedItem(list[j], ago));
+      for(var j=shown; j<cur.length; j++){
+        listEl.appendChild(createSignalFeedItem(cur[j], ago));
       }
       btn.remove();
     };
     wrap.appendChild(btn);
   }
+}
+
+/* 탭 전환 */
+function setSigDir(dir){
+  if(SIG_DIR === dir) return;
+  SIG_DIR = dir;
+  renderSignalFeed();
 }
 
 /* ══════════════════════════════════
@@ -1898,9 +2001,7 @@ function renderTab2(){
   var total  = perf.length;
   var wr     = total ? Math.round(wins.length/total*1000)/10 : 0;
 
-  var pnls = perf.map(function(r){
-    return parseFloat((r['수익률']||'0').replace('%','').replace('+',''))||0;
-  });
+  var pnls = perf.map(perfPnlNum);
   var avg = total ? Math.round(pnls.reduce(function(a,b){return a+b;},0)/total*10)/10 : 0;
 
   /* KPI */
@@ -1948,13 +2049,13 @@ function renderTab2(){
   var aiEntryRows = perf.filter(function(r){ return r['진입가'] && r['확인가격']; });
   if(aiEntryRows.length){
     var aiEntryPnls = aiEntryRows.map(function(r){
-      var entry = parseFloat(String(r['진입가']||'0').replace(/[^\d.]/g,''))||0;
+      var entry = priceNum(r['진입가']);
       var cur   = parseFloat(String(r['확인가격']||0))||0;
       return entry>0 ? Math.round((cur-entry)/entry*1000)/10 : 0;
     });
     var aiEntryAvg = Math.round(aiEntryPnls.reduce(function(a,b){return a+b;},0)/aiEntryPnls.length*10)/10;
     // 대표 진입가 표시 (첫 번째)
-    document.getElementById('ai-entry-avg').textContent = fmtNum(parseFloat(String(aiEntryRows[0]['진입가']||'').replace(/[^\d.]/g,''))||0)+'원 기준';
+    document.getElementById('ai-entry-avg').textContent = fmtNum(priceNum(aiEntryRows[0]['진입가']))+'원 기준';
     document.getElementById('ai-entry-pnl').textContent = (aiEntryAvg>=0?'+':'')+aiEntryAvg+'%';
     document.getElementById('ai-entry-pnl').style.color = aiEntryAvg>=0?'var(--pos)':'var(--neg)';
   }
@@ -1966,7 +2067,7 @@ function renderTab2(){
     pubPriceRows.forEach(function(pick){
       var matched = perf.filter(function(r){ return r['티커']===pick['티커'] && r['추천일시']===pick['추천일시']; });
       if(matched.length){
-        var pubPrice = parseFloat(String(pick['현재가']||'').replace(/[^\d.]/g,''))||0;
+        var pubPrice = priceNum(pick['현재가']);
         var curPrice = parseFloat(matched[0]['확인가격']||0)||0;
         if(pubPrice>0 && curPrice>0) pubPnls.push(Math.round((curPrice-pubPrice)/pubPrice*1000)/10);
       }
@@ -2035,7 +2136,7 @@ function setPerfView(v){
 }
 
 function perfPnlNum(r){
-  return parseFloat((r['수익률']||'0').replace('%','').replace('+',''))||0;
+  return priceNum(r && r['수익률']);   /* 숫자·문자열·음수 모두 안전 */
 }
 
 /* 결과 문자열 → 뱃지 클래스 (달성=win, 손절/손실종료=lose, 그 외=진행) */
@@ -2693,7 +2794,7 @@ function getActiveTickers(){ return Object.keys(getVBTrades()); }
 
 function saveVBTrade(ticker, price, aiEntry, ts){
   var trades = getVBTrades();
-  var aiPrice = parseFloat(String(aiEntry||'').replace(/[^\d.]/g,''))||price;
+  var aiPrice = priceNum(aiEntry) || price;
   var delayMin = Math.round((ts - (window._reportTime||ts))/60000);
   trades[ticker] = { entryPrice:price, aiEntry:aiPrice, entryTime:ts, delayMin:delayMin, currentPrice:price };
   localStorage.setItem(LS_KEY, JSON.stringify(trades));
@@ -2899,7 +3000,9 @@ function renderPotential(){
 
   var data    = G.potential||[];
   var active  = data.filter(function(c){ return c['상태']==='관찰중'; });
-  var closed  = data.filter(function(c){ return c['상태'] && c['상태']!=='관찰중'; });
+  /* '무효'(포착가 소실로 판정 불가)는 승률 통계에서 제외 — 분모에 넣으면 적중률이 희석됨 */
+  var closed  = data.filter(function(c){ return c['상태'] && c['상태']!=='관찰중' && c['상태']!=='무효'; });
+  var voided  = data.filter(function(c){ return c['상태']==='무효'; });
 
   /* ── KPI: 스캐너 자체의 성적표 ── */
   if(closed.length){
@@ -2960,7 +3063,8 @@ function renderAccumulation(){
   if(!strip) return;
   var all    = G.accum||[];
   var list   = all.filter(function(c){ return c['상태']==='관찰중'; });
-  var closed = all.filter(function(c){ return c['상태'] && c['상태']!=='관찰중'; });
+  /* '무효'는 승률 통계에서 제외 */
+  var closed = all.filter(function(c){ return c['상태'] && c['상태']!=='관찰중' && c['상태']!=='무효'; });
 
   /* ── 관찰중 카드 ── */
   if(!list.length){
@@ -3106,23 +3210,13 @@ function initWatchlist(){
   // 빗썸 전체 종목 + 업비트 한글명을 병렬로 로드해 매칭
   Promise.all([
     fetch('https://api.bithumb.com/public/ticker/ALL_KRW').then(function(r){ return r.json(); }).catch(function(){ return null; }),
-    fetch('https://api.upbit.com/v1/market/all').then(function(r){ return r.json(); }).catch(function(){ return null; })
+    loadKrMap()   // 전역 KR_MAP (업비트 한글명) — 시그널 피드와 공용
   ]).then(function(res){
-    var bithumb = res[0], upbit = res[1];
+    var bithumb = res[0];
     if(!bithumb || !bithumb.data) return;
 
-    // 업비트 KRW 마켓의 한글명 맵 구성: { VIRTUAL: '버추얼프로토콜', ETH: '이더리움', ... }
-    var krMap = {};
-    if(Array.isArray(upbit)){
-      upbit.forEach(function(m){
-        if(m.market && m.market.indexOf('KRW-')===0){
-          krMap[m.market.slice(4).toUpperCase()] = m.korean_name || '';
-        }
-      });
-    }
-
     WL_ALL = Object.keys(bithumb.data).filter(function(k){ return k!=='date'; }).map(function(k){
-      var kr = krMap[k.toUpperCase()] || '';   // 업비트에 없는 빗썸 단독종목은 한글명 없음 → 티커로만 검색
+      var kr = krName(k);   // 업비트에 없는 빗썸 단독종목은 한글명 없음 → 티커로만 검색
       return { ticker: k, name: kr || k, korean: kr };
     });
   });
@@ -3342,8 +3436,27 @@ function confirmDeleteReport(date){
     .catch(function(e){ alert('오류: '+e.message); renderTab1(); });
 }
 function calcPnl(entry, cur){ return entry>0 ? Math.round((cur-entry)/entry*10000)/100 : 0; }
-function priceNum(s){ return parseFloat(String(s||'').replace(/[^\d.]/g,''))||0; }
-function fmtNum(n){ return n ? Math.round(n).toLocaleString() : '—'; }
+/* 가격/수치 문자열 → 숫자. 음수 부호와 지수 표기를 보존한다.
+   ('-12.5%' → -12.5, '1.873e-05' → 0.00001873, '1,720원' → 1720) */
+function priceNum(v){
+  if(typeof v === 'number') return isFinite(v) ? v : 0;
+  var m = /[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?/.exec(String(v==null?'':v).replace(/,/g,''));
+  return m ? (parseFloat(m[0])||0) : 0;
+}
+/* 원화 가격 포맷 — 1000원 이상은 정수, 미만은 유효자릿수 유지
+   (SHIB·PEPE 등 1원 미만 코인이 '0원'으로 표시되던 문제 해결) */
+function fmtNum(n){
+  var v = Number(n);
+  if(!v || !isFinite(v)) return '—';
+  var neg = v < 0; v = Math.abs(v);
+  var s;
+  if(v >= 1000)      s = Math.round(v).toLocaleString();
+  else if(v >= 100)  s = v.toFixed(1).replace(/\.0$/,'');
+  else if(v >= 1)    s = v.toFixed(2).replace(/\.?0+$/,'');
+  else if(v >= 0.01) s = v.toFixed(4).replace(/\.?0+$/,'');
+  else               s = v.toFixed(8).replace(/\.?0+$/,'');
+  return (neg?'-':'') + s;
+}
 function fmtPrice(s){ return s||'—'; }
 function esc(s){ var d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
 </script>

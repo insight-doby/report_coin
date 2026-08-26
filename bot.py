@@ -242,6 +242,43 @@ def calc_kimchi_premium(ticker: str, krw_price: float, usd_krw_rate: float = Non
 # ==========================================
 # 1-A. 빗썸 시세 수집
 # ==========================================
+def _round_krw(v: float):
+    """원화 가격을 가격대에 맞는 정밀도로 보존.
+
+    기존에는 int()로 잘라서 1원 미만 코인(SHIB·PEPE 등)이 0이 되고,
+    한 자릿수 코인은 오차가 최대 17%까지 발생했다.
+    """
+    try:
+        v = float(v)
+    except (TypeError, ValueError):
+        return 0
+    if v >= 1000:
+        return int(round(v))          # 기존과 동일 (하위 로직 호환)
+    if v >= 100:
+        return round(v, 1)
+    if v >= 1:
+        return round(v, 2)
+    if v >= 0.01:
+        return round(v, 4)
+    return round(v, 8)
+
+
+def _fmt_krw(v) -> str:
+    """프롬프트/알림용 원화 문자열 ('1,320원', '0.0842원', '0.0000187원')"""
+    try:
+        v = float(v)
+    except (TypeError, ValueError):
+        return "0"
+    neg, v = (v < 0), abs(v)
+    if v >= 1000:
+        s = f"{int(round(v)):,}"
+    else:
+        # f-string 고정소수점으로 지수표기(1.9e-05) 방지
+        dec = 1 if v >= 100 else 2 if v >= 1 else 4 if v >= 0.01 else 8
+        s = f"{v:.{dec}f}".rstrip("0").rstrip(".") or "0"
+    return ("-" if neg else "") + s
+
+
 def fetch_rising_star_bithumb_krw_coins():
     print("🔍 빗썸 전체 시세 수집 중 (TOP30 메이저 알트 + TOP31~80 수급급증 필터)...")
     url = "https://api.bithumb.com/public/ticker/ALL_KRW"
@@ -266,7 +303,7 @@ def fetch_rising_star_bithumb_krw_coins():
                     continue
                 try:
                     coins_data[ticker] = {
-                        "price":  int(float(info["closing_price"])),
+                        "price":  _round_krw(float(info["closing_price"])),
                         "change": float(info["fluctate_rate_24H"]),
                         "volume": float(info["acc_trade_value_24H"]),
                     }
@@ -702,7 +739,7 @@ def format_indicators_for_prompt(indicators: dict, target_coins: list) -> str:
     lines = []
     for ticker, ivs in indicators.items():
         krw_price = coin_price_map.get(ticker, 0)
-        lines.append(f"\n▶ {ticker} (현재가: {krw_price:,}원)")
+        lines.append(f"\n▶ {ticker} (현재가: {_fmt_krw(krw_price)}원)")
 
         for interval, data in ivs.items():
             if interval in ("btc_sync", "kimp") or "error" in data:
@@ -875,7 +912,7 @@ def fetch_coin_narratives(target_coins: list, top30_coins: list, potential_ticke
     all_coins = all_coins + extra
 
     coin_list = "\n".join(
-        f"- {t}{' ⚡선취매후보' if t in pt_set else ''}: {v['price']:,}원 / 변동 {v['change']:+.1f}% / 거래대금 {v['volume']/1e8:.0f}억"
+        f"- {t}{' ⚡선취매후보' if t in pt_set else ''}: {_fmt_krw(v['price'])}원 / 변동 {v['change']:+.1f}% / 거래대금 {v['volume']/1e8:.0f}억"
         for t, v in all_coins
     )
 
@@ -901,7 +938,14 @@ def fetch_coin_narratives(target_coins: list, top30_coins: list, potential_ticke
 촉매 분류 기준:
 - catalyst_type: "scheduled"(날짜가 정해진 이벤트), "flow"(섹터 자금흐름/루머/분위기), "none"(촉매 없음)
 - catalyst_date: scheduled인 경우만 YYYY-MM-DD 형식. 날짜를 모르면 null.
-- catalyst_strength: "강"(가격을 움직일 만한 명확한 재료), "중"(보조적 재료), "약"(약한 재료), "없음"
+- catalyst_strength: 재료의 "크기"만 판단해라 (방향 아님).
+  "강"(가격을 크게 움직일 재료), "중"(보조적), "약"(약함), "없음"
+- catalyst_direction: 재료의 성격. "호재" / "악재" / "중립"
+  · 악재 예시: 토큰 언락, 대규모 베스팅, 상장 폐지, 소송, 해킹, 팀 매도
+  · 호재 예시: 신규 상장, 메인넷/업그레이드, 파트너십, 바이백, 기관 채택
+- price_impact: 그 재료가 단기 가격에 미칠 방향. "상승" / "하락" / "변동성확대"
+  · 주의: 악재라고 항상 "하락"이 아니다. 상장폐지 직전 투기적 급등(상폐빔),
+    언락 소화 후 반등처럼 방향이 불확실하면 반드시 "변동성확대"로 답해라.
 
 출력은 순수 JSON만 반환해라:
 {{
@@ -911,6 +955,8 @@ def fetch_coin_narratives(target_coins: list, top30_coins: list, potential_ticke
       "catalyst_type": "scheduled 또는 flow 또는 none",
       "catalyst_date": "YYYY-MM-DD 또는 null",
       "catalyst_strength": "강 또는 중 또는 약 또는 없음",
+      "catalyst_direction": "호재 또는 악재 또는 중립",
+      "price_impact": "상승 또는 하락 또는 변동성확대",
       "narrative_phase": "초입 또는 중반 또는 과열 또는 해당없음",
       "unlock_schedule": "언락 일정 (없으면 null)",
       "caution": "주의사항 (없으면 null)",
@@ -1069,11 +1115,23 @@ def save_signals_to_github(signals: list, coin_narratives: dict, publish_time: s
         print(f"  ❌ 시그널 저장 실패: {e}")
 
 
+_NUM_RE = re.compile(r"[-+]?\d*\.?\d+(?:[eE][-+]?\d+)?")
+
 def _num(v) -> float:
-    """문자열에서 숫자만 추출 ('761원', '1,720원', '2.5' 등 처리)"""
+    """문자열/숫자에서 값 추출 ('761원', '1,720원', '-12.5%', 1.873e-05 등)
+
+    주의: 예전 구현은 [^\\d.] 를 지워서
+      · 음수 부호 소실  → '-12.5' 가 12.5 로 뒤집힘 (최저수익률 추적 오염)
+      · 지수 표기 파손  → 1.873e-05 가 1.87305 로 (10만 배 오차)
+    두 경우 모두 발생했으므로 정규식으로 숫자 토큰을 통째로 잡는다.
+    """
     try:
-        s = re.sub(r"[^\d.]", "", str(v))  # 숫자와 점만 남김
-        return float(s) if s else 0.0
+        if isinstance(v, bool):
+            return 0.0
+        if isinstance(v, (int, float)):
+            return float(v)
+        m = _NUM_RE.search(str(v).replace(",", ""))
+        return float(m.group()) if m else 0.0
     except Exception:
         return 0.0
 
@@ -1126,7 +1184,7 @@ def generate_market_insights_via_gemini(
     for rank, (ticker, info) in enumerate(target_coins, start=31):
         wl_mark = " ⭐관심종목" if info.get("is_watchlist") else ""
         market_list += (
-            f"- {rank}위 {ticker}{wl_mark}: {info['price']:,}원 / "
+            f"- {rank}위 {ticker}{wl_mark}: {_fmt_krw(info['price'])}원 / "
             f"거래대금 {info['volume']/1e8:.0f}억 / 변동 {info['change']:+.1f}%\n"
         )
 
@@ -1134,7 +1192,7 @@ def generate_market_insights_via_gemini(
     top30_list = ""
     for rank, (ticker, info) in enumerate(top30_coins, start=1):
         top30_list += (
-            f"- {rank}위 {ticker}: {info['price']:,}원 / "
+            f"- {rank}위 {ticker}: {_fmt_krw(info['price'])}원 / "
             f"거래대금 {info['volume']/1e8:.0f}억 / 변동 {info['change']:+.1f}%\n"
         )
 
@@ -1727,10 +1785,10 @@ def record_picks_to_github(picks: list, market_activity: dict, publish_time: str
                 "돌파확인":    _bq.get("status", "판정불가"),
                 "돌파유지봉":  _bq.get("bars", 0),
                 "돌파선이격률": _bq.get("ext_pct"),
-                "진입가":      f"{int(entry_n):,}원" if entry_n else "",
-                "T1":          f"{int(t1_n):,}원" if t1_n else "",
-                "T2":          f"{int(t2_n):,}원" if t2_n else "",
-                "손절가":      f"{int(sl_n):,}원" if sl_n else "",
+                "진입가":      f"{_fmt_krw(entry_n)}원" if entry_n else "",
+                "T1":          f"{_fmt_krw(t1_n)}원" if t1_n else "",
+                "T2":          f"{_fmt_krw(t2_n)}원" if t2_n else "",
+                "손절가":      f"{_fmt_krw(sl_n)}원" if sl_n else "",
                 "진입가_숫자": entry_n,
                 "T1_숫자":     t1_n,
                 "T2_숫자":     t2_n,
@@ -1785,10 +1843,8 @@ def _parse_kst_dt(s: str):
 
 
 def parse_price(s: str) -> Optional[float]:
-    try:
-        return float(re.sub(r"[^\d.]", "", str(s))) or None
-    except:
-        return None
+    """가격 문자열 → float (_num과 동일 규칙, 0이면 None)"""
+    return _num(s) or None
 
 
 def _fetch_all_prices_bithumb(tickers=None) -> dict:
@@ -1887,8 +1943,13 @@ def track_performance() -> list:
             # 기존 레코드가 있으면 누적 최고/최저 이어받기 (perf_index는 리스트 인덱스)
             key = _pick_key(pick)
             prev = perf_data[perf_index[key]] if key in perf_index else {}
-            peak_pnl   = max(_num(prev.get("최고수익률")), pnl) if prev else pnl
-            trough_pnl = min(_num(prev.get("최저수익률")), pnl) if prev else pnl
+            # 이전 값이 '있을 때만' 비교에 포함한다.
+            # (없는데 _num()의 0.0을 섞으면 손실 종목의 최고치가 0%로,
+            #  수익 종목의 최저치가 0%로 잘못 고정됨)
+            _pv_hi = prev.get("최고수익률") if prev else None
+            _pv_lo = prev.get("최저수익률") if prev else None
+            peak_pnl   = max(pnl, _num(_pv_hi)) if _pv_hi is not None else pnl
+            trough_pnl = min(pnl, _num(_pv_lo)) if _pv_lo is not None else pnl
             # 이미 T1/T2를 한 번이라도 찍었으면 유지
             t1_hit = prev.get("T1달성") == "Y" or (t1 and cur >= t1)
             t2_hit = prev.get("T2달성") == "Y" or (t2 and cur >= t2)
@@ -1942,7 +2003,7 @@ def track_performance() -> list:
             results.append({"ticker": ticker, "entry": entry, "current": cur,
                             "pnl_pct": pnl, "result": result})
             print(f"  {'✅' if '달성' in result else '❌' if '손절' in result else '⏱️' if '종료' in result else '📊'} "
-                  f"{ticker}: {entry:,.0f}→{cur:,.0f} ({pnl:+.2f}%) [{result}] (추적 {rec['추적횟수']}회)")
+                  f"{ticker}: {_fmt_krw(entry)}→{_fmt_krw(cur)} ({pnl:+.2f}%) [{result}] (추적 {rec['추적횟수']}회)")
             time.sleep(0.1)
 
         if updated:
@@ -1967,7 +2028,7 @@ def performance_summary_text(results: list) -> str:
              f"✅ T달성 {len(wins)}건  ❌ 손절 {len(sl)}건  📊 진행중 {len(results)-len(wins)-len(sl)}건", ""]
     for r in results:
         icon = "✅" if "달성" in r["result"] else "❌" if "손절" in r["result"] else "📊"
-        lines.append(f"{icon} {r['ticker']}: {r['entry']:,.0f}→{r['current']:,.0f} ({r['pnl_pct']:+.2f}%)")
+        lines.append(f"{icon} {r['ticker']}: {_fmt_krw(r['entry'])}→{_fmt_krw(r['current'])} ({r['pnl_pct']:+.2f}%)")
     return "\n".join(lines)
 
 
@@ -1995,7 +2056,7 @@ def calc_perspective_stats(all_perf_rows: list, min_n: int = 10) -> str:
         a = agg.setdefault(persp, {"w": 0, "l": 0, "pnl": []})
         a["w" if w else "l"] += 1
         try:
-            a["pnl"].append(float(str(row.get("수익률", 0)).replace("%", "")))
+            a["pnl"].append(_num(row.get("수익률", 0)))
         except Exception:
             pass
 
@@ -2132,9 +2193,7 @@ rule_improvements는 확정 데이터가 20건 이상일 때만 의미 있는 �
         MIN_ML_SAMPLES = 30  # 30건 미만은 표본 부족으로 신뢰 불가
         if len(confirmed_rows) >= MIN_ML_SAMPLES:
             df = pd.DataFrame(confirmed_rows)
-            df["pnl_val"] = df["수익률"].apply(
-                lambda x: float(str(x).replace("%","").replace("+","")) if x else 0
-            )
+            df["pnl_val"] = df["수익률"].apply(_num)   # '—' 등 이상값에도 예외 없이 0.0
             df["y"] = (df["pnl_val"] >= 5).astype(int)
             temp_map = {"🧊 냉각":0,"😴 관망":1,"😊 보통":2,"🔥 활성화":3,"🚀 과열/광풍":4}
             df["temp_n"]   = df.get("시장온도", pd.Series()).map(temp_map).fillna(2)
@@ -2653,15 +2712,42 @@ def score_potential_with_narrative(cands: list, coin_narr: dict, market_narr: di
         cphase   = (n.get("narrative_phase") or "").strip()
         catalyst = n.get("catalyst") or ""
         cdate    = n.get("catalyst_date") or ""
+        cdir     = (n.get("catalyst_direction") or "중립").strip()
+        cimpact  = (n.get("price_impact") or "").strip()
 
-        # ── 재료 점수 (0~50) ──
-        ns  = {"강": 25, "중": 15, "약": 8}.get(strength, 0)
-        ns += 10 if ctype == "scheduled" else 5 if ctype == "flow" else 0
-        ns += 10 if cphase == "초입" else 5 if cphase == "중반" else 0
-        ns  = min(ns, 50)
+        # ── 재료 점수 (방향 반영) ──────────────────────────────
+        # 과거 92건 분석: 촉매강도는 '크기'만 재고 방향을 안 봤기 때문에
+        # 언락·상장폐지 같은 악재가 호재와 똑같이 +25점을 받아 최고 등급에
+        # 올라갔다(악재 6건 적중 0건). 이제 방향으로 부호를 준다.
+        mag  = {"강": 25, "중": 15, "약": 8}.get(strength, 0)
+        mag += 10 if ctype == "scheduled" else 5 if ctype == "flow" else 0
+        mag += 10 if cphase == "초입" else 5 if cphase == "중반" else 0
+        mag  = min(mag, 50)
+
+        if cdir == "악재":
+            ns = -mag // 2          # 감점 (과잉 반응 방지로 절반만)
+        elif cdir == "호재":
+            ns = mag
+        else:
+            ns = mag // 3           # 중립 — 가중치 축소
+
+        # 방향이 불확실한 재료(상폐빔 등)는 등급에 반영하지 않고
+        # '변동성' 축으로만 표시한다. 진폭은 크지만 방향 예측력이 없기 때문.
+        if cimpact == "변동성확대":
+            ns = 0
+
+        # 변동성 라벨 (등급과 별개 축)
+        if strength in ("강", "중") or cimpact == "변동성확대":
+            c["변동성"] = "고변동"
+        else:
+            c["변동성"] = "보통"
+        c["재료방향"]   = cdir
+        c["가격영향"]   = cimpact
 
         total = max(0, min(100, c["차트점수"] + ns + macro_pen))
-        grade = "폭발임박" if total >= 80 else "주목" if total >= 60 else "응축관찰"
+        # 컷오프 재조정: 재료점수가 방향에 따라 감점/축소되면서 총점 분포가
+        # 아래로 이동했다. 기존 80/60을 그대로 쓰면 폭발임박이 5건밖에 안 남는다.
+        grade = "폭발임박" if total >= 45 else "주목" if total >= 35 else "응축관찰"
 
         # ── 동적 관찰 시한 ──
         deadline, reason = None, ""
@@ -2680,6 +2766,9 @@ def score_potential_with_narrative(cands: list, coin_narr: dict, market_narr: di
 
         c.update({
             "재료점수":     ns,
+            "재료방향":     c.get("재료방향", ""),
+            "가격영향":     c.get("가격영향", ""),
+            "변동성":       c.get("변동성", ""),
             "거시페널티":   macro_pen,
             "총점":        total,
             "등급":        grade,
@@ -2774,6 +2863,16 @@ def track_potential():
             ticker = str(c.get("티커", "")).upper()
             anchor = _num(c.get("포착가"))
             if anchor <= 0:
+                # 포착가 소실 → 수익률 계산 불가. 하지만 여기서 continue만 하면
+                # 아래 만료 판정에 영영 도달하지 못해 '관찰중' 좀비로 남는다.
+                # 시한이 지났으면 무효 처리하고 목록에서 종결시킨다.
+                _dl = _parse_kst_dt(c.get("관찰시한"))
+                if _dl and now >= _dl:
+                    c["상태"] = "무효"
+                    c["결과"] = "⚠️ 포착가 기록 오류 — 판정 불가"
+                    c["결과확정일시"] = now_str
+                    updated = True
+                    print(f"  ⚠️ 무효 처리 {ticker} (포착가 0)")
                 continue
 
             cur = price_map.get(ticker) or fetch_current_price_bithumb(ticker)
@@ -2850,6 +2949,16 @@ def track_accumulation():
             ticker = str(c.get("티커", "")).upper()
             anchor = _num(c.get("포착가"))
             if anchor <= 0:
+                # 포착가 소실 → 수익률 계산 불가. 하지만 여기서 continue만 하면
+                # 아래 만료 판정에 영영 도달하지 못해 '관찰중' 좀비로 남는다.
+                # 시한이 지났으면 무효 처리하고 목록에서 종결시킨다.
+                _dl = _parse_kst_dt(c.get("관찰시한"))
+                if _dl and now >= _dl:
+                    c["상태"] = "무효"
+                    c["결과"] = "⚠️ 포착가 기록 오류 — 판정 불가"
+                    c["결과확정일시"] = now_str
+                    updated = True
+                    print(f"  ⚠️ 무효 처리 {ticker} (포착가 0)")
                 continue
 
             cur = price_map.get(ticker) or fetch_current_price_bithumb(ticker)
@@ -2858,6 +2967,40 @@ def track_accumulation():
 
             pnl = round((cur - anchor) / anchor * 100, 2)
             c["현재수익률"] = pnl
+
+            # ── 거래량 회복 추적 ────────────────────────────────
+            # 매집의 출구 신호는 가격이 아니라 '거래량이 터지는 순간'이다.
+            # 기준선(포착 전 중앙값) 대비 오늘 거래량을 매일 기록한다.
+            _updated_vol = False
+            try:
+                _base = _num(c.get("기준거래량"))
+                _fetched = fetch_bithumb_candles(ticker, "24h", 5)
+                if _fetched and _base > 0:
+                    _, _vols = _fetched
+                    # 마지막 봉은 '오늘'이라 아직 미완성이다. 봇이 낮에 돌면
+                    # 하루치의 절반만 집계돼 배율이 실제보다 낮게 나온다.
+                    # 완성된 직전 봉을 쓴다.
+                    _today_vol = float(_vols[-2]) if len(_vols) >= 2 else 0.0
+                    if _today_vol > 0:
+                        _ratio = round(_today_vol / _base * 100, 1)
+                        c["거래량배율"] = _ratio
+                        c["거래량단계"] = ("폭발"   if _ratio >= 200
+                                      else "깨어남" if _ratio >= 130
+                                      else "조용함")
+                        _series = c.get("거래량추이")
+                        if not isinstance(_series, list):
+                            _series = []
+                        _series.append({"d": now_str[:13], "r": _ratio})
+                        c["거래량추이"] = _series[-30:]   # 최근 30개만 유지
+                        # 관찰 중 최대 배율 — '한 번이라도 터졌나' 판정용
+                        _pk = c.get("최고거래량배율")
+                        c["최고거래량배율"] = max(_ratio, _num(_pk)) if _pk is not None else _ratio
+                        _updated_vol = True
+            except Exception as _e:
+                print(f"  ⚠️ {ticker} 거래량 추적 실패: {_e}")
+            if _updated_vol:
+                updated = True
+
             # 진짜 고점/저점 — 포착 이후 캔들 고가·저가(6시간봉, 30일 윈도우) 기반
             _since = _parse_kst_dt(c.get("포착일시"))
             _abs_low, _abs_high = fetch_lohi_since_bithumb(ticker, _since, "6h")
@@ -2962,6 +3105,23 @@ def scan_accumulation(target_coins, indicators):
         score += 10 if 35 <= rsi <= 48 else 5
         score += 5 if "수렴" in str(d1.get("ma_align", "")) else 0
 
+        # ── 거래량 기준선 + 시계열 (매집 논리의 핵심) ────────────
+        # 매집 전제는 "떨어졌는데 조용하다 → 거래량 터질 때 폭발"이다.
+        # 그런데 기존에는 포착 시점의 조용함만 확인하고, 이후 거래량이
+        # 살아나는지를 전혀 추적하지 않아 '터지는 순간'을 감지할 수 없었다.
+        # 여기서 기준선을 남겨두고, track_accumulation이 매일 비교한다.
+        _vt = [float(v) for v in (d1.get("vols_tail") or []) if v is not None]
+        _ct = [float(c) for c in (d1.get("closes_tail") or []) if c is not None]
+        # 기준선 = 포착 직전 구간(최근 10일 제외한 앞쪽)의 중앙값.
+        # 최근 10일은 이미 '조용해진' 구간이라 기준선으로 쓰면 안 된다.
+        _base_pool = _vt[:-10] if len(_vt) > 15 else _vt
+        try:
+            base_vol = float(np.median(_base_pool)) if _base_pool else 0.0
+        except Exception:
+            base_vol = 0.0
+        # 마지막 봉은 오늘(미완성) — 완성된 직전 봉으로 초기 배율 산출
+        cur_vol = _vt[-2] if len(_vt) >= 2 else (_vt[-1] if _vt else 0.0)
+
         out.append({
             "티커":        ticker,
             "포착가":      info.get("price", 0),
@@ -2970,6 +3130,13 @@ def scan_accumulation(target_coins, indicators):
             "밴드폭백분위": pctile,
             "rsi":         rsi,
             "매집점수":     score,
+            # 거래량 추적
+            "기준거래량":   round(base_vol, 2),
+            "거래량배율":   round(cur_vol / base_vol * 100, 1) if base_vol > 0 else None,
+            "거래량단계":   "조용함",
+            # 차트용 시계열 (이미 메모리에 있는 값 — 추가 API 호출 없음)
+            "포착시_종가": [round(c, 8) for c in _ct[-31:]],
+            "포착시_거래량": [round(v, 2) for v in _vt[-31:]],
         })
     out.sort(key=lambda x: -x["매집점수"])
     out = out[:6]
@@ -3064,10 +3231,10 @@ def run_and_send_to_slack():
                     change = float(d.get("fluctate_rate_24H", 0))
                     if price > 0:
                         target_coins.append((ticker, {
-                            "price": price, "volume": volume,
+                            "price": _round_krw(price), "volume": volume,
                             "change": change, "is_watchlist": True
                         }))
-                        print(f"  ✅ 관심종목 {ticker} 추가 (현재가: {price:,}원)")
+                        print(f"  ✅ 관심종목 {ticker} 추가 (현재가: {_fmt_krw(price)}원)")
                 except Exception as e:
                     print(f"  ⚠️ 관심종목 {ticker} 수집 실패: {e}")
 
