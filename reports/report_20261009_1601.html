@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>차기 주도주 리포트 — 2026년 10월 09일 16:01</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+          background: #f5f5f5; color: #1a1a1a; line-height: 1.6; }
+  .container { max-width: 900px; margin: 0 auto; padding: 24px 16px; }
+  .report-header { background: #fff; border-radius: 12px; padding: 24px; margin-bottom: 16px;
+                    border: 1px solid #e5e5e5; }
+  .report-title { font-size: 20px; font-weight: 600; margin-bottom: 4px; }
+  .report-sub { font-size: 13px; color: #888; }
+  .temp-badge { display:inline-block; padding:4px 12px; border-radius:20px;
+                 background:#FEF3C7; color:#92400E; font-size:12px; font-weight:500; margin-top:8px; }
+  .section { background:#fff; border-radius:12px; padding:20px 24px;
+              margin-bottom:16px; border:1px solid #e5e5e5; }
+  .section h2 { font-size:16px; font-weight:600; margin-bottom:16px; }
+  .metric-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; }
+  .metric { background:#f8f8f8; border-radius:8px; padding:12px; }
+  .metric-label { font-size:11px; color:#888; margin-bottom:4px; }
+  .metric-value { font-size:20px; font-weight:600; }
+  .strategy-box { background:#FFFBEB; border:1px solid #FDE68A; border-radius:8px;
+                   padding:12px 16px; font-size:13px; color:#92400E; margin-top:12px; }
+  .editor-pick { background:#F0FDF4; border:1px solid #BBF7D0; border-radius:8px;
+                  padding:14px 16px; margin-bottom:16px; }
+  .pick-card { background:#fff; border-radius:12px; padding:20px 24px;
+                margin-bottom:14px; border:1px solid #e5e5e5; }
+  .pick-header { display:flex; align-items:center; justify-content:space-between;
+                  margin-bottom:8px; flex-wrap:wrap; gap:6px; }
+  .persp-badge { display:inline-block; padding:3px 10px; border-radius:20px;
+                  font-size:12px; font-weight:500; }
+  .category-badge { display:inline-block; background:#f0f0f0; color:#555;
+                     padding:3px 10px; border-radius:20px; font-size:12px; margin-left:6px; }
+  .pick-title { display:flex; align-items:baseline; gap:8px; margin:8px 0 4px; flex-wrap:wrap; }
+  .ticker { font-size:22px; font-weight:700; }
+  .full-name { font-size:13px; color:#888; }
+  .price { font-size:18px; font-weight:500; margin-left:4px; }
+  .trade-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
+                 gap:10px; margin:14px 0; }
+  .trade-box { background:#fafafa; border:1px solid #e5e5e5; border-radius:8px; padding:12px; }
+  .trade-label { font-size:11px; color:#888; margin-bottom:4px; }
+  .trade-value { font-size:16px; font-weight:600; }
+  .trade-sub { font-size:11px; color:#aaa; margin-top:2px; }
+  .rr-section { background:#fafafa; border-radius:8px; padding:12px 14px; margin:12px 0; }
+  .rr-label-row { display:flex; justify-content:space-between; align-items:center;
+                   margin-bottom:8px; flex-wrap:wrap; gap:6px; }
+  .rr-verdict { font-size:13px; font-weight:600; }
+  .info-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
+                gap:10px; margin:14px 0; font-size:13px; }
+  .info-label { font-weight:500; margin-right:4px; display:block; font-size:11px;
+                 color:#888; margin-bottom:2px; }
+  .reason-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin:12px 0; }
+  @media(max-width:600px) { .reason-grid { grid-template-columns:1fr; } }
+  .reason-box { background:#fafafa; border-radius:8px; padding:12px; font-size:13px; }
+  .reason-title { font-weight:600; font-size:12px; margin-bottom:6px; color:#555; }
+  .whatif-box { background:#EFF6FF; border-radius:8px; padding:12px 14px;
+                 font-size:13px; color:#1e40af; margin-top:10px; line-height:1.8; }
+  .alert-box { background:#FEF2F2; border:1px solid #FECACA; border-radius:8px;
+                padding:10px 14px; font-size:13px; color:#991B1B; margin:10px 0; }
+  .review-block { background:#f8f8f8; border-radius:8px; padding:12px 14px; margin-bottom:10px; }
+  .review-title { font-weight:600; font-size:13px; margin-bottom:6px; }
+  .review-block p { font-size:13px; color:#555; }
+  .rule-item { padding:10px 0; border-bottom:1px solid #eee; font-size:13px; }
+  .rule-item:last-child { border-bottom:none; }
+  .rule-tag { background:#f0f0f0; color:#555; padding:2px 8px; border-radius:6px;
+               font-size:11px; margin-right:6px; }
+  .kw-badge { background:#EFF6FF; color:#1D4ED8; padding:3px 10px;
+               border-radius:20px; font-size:12px; margin:2px; display:inline-block; }
+  .nav-bar { background:#fff; border-radius:12px; padding:12px 16px; margin-bottom:16px;
+              border:1px solid #e5e5e5; display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .nav-bar span { font-size:12px; color:#888; margin-right:4px; }
+  .nav-btn { padding:5px 14px; border-radius:20px; border:1px solid #e5e5e5;
+              font-size:12px; cursor:pointer; background:#fff; color:#333;
+              text-decoration:none; transition:all 0.15s; }
+  .nav-btn:hover { background:#f0f0f0; }
+  .nav-btn.active { background:#1a1a1a; color:#fff; border-color:#1a1a1a; }
+  @media(max-width:600px) {
+    .trade-grid { grid-template-columns:1fr 1fr; }
+    .info-grid  { grid-template-columns:1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- 헤더 -->
+  <div class="report-header">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;">
+      <div>
+        <p style="font-size:12px;color:#888;margin-bottom:4px;">차기 주도주 리포트</p>
+        <div class="report-title">🚀 2026년 10월 09일 16:01</div>
+        <div class="report-sub">빗썸 31~80위 스캔 · Gemini AI · BTC 동조화 · 김프</div>
+        <span class="temp-badge">🔥 활성화 (전월 평균 이상)</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 시장 온도계 -->
+  <div class="section">
+    <h2>🌡️ 시장 온도계</h2>
+    <div class="metric-grid">
+      <div class="metric">
+        <div class="metric-label">전체 거래대금</div>
+        <div class="metric-value">0.98조원</div>
+        <div style="font-size:11px;color:#888;margin-top:2px;">전월 평균 대비 150.2%</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">수급 주도</div>
+        <div class="metric-value" style="font-size:16px;">알트 주도장</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">메이저 / 알트</div>
+        <div class="metric-value" style="font-size:16px;">33.3% / 66.7%</div>
+      </div>
+      <div class="metric">
+        <div class="metric-label">시장 분위기</div>
+        <div class="metric-value" style="font-size:13px;line-height:1.4;">TOP30 종목에 대한 충분한 데이터 부재 및 돌파 관점 종목의 엄격한 ...</div>
+      </div>
+    </div>
+    <div class="strategy-box">📌 오늘의 전략: 수급 유입 중 — 모멘텀 코인 대응 가능</div>
+  </div>
+
+  <!-- 편집장 픽 -->
+  <div class="editor-pick">
+    ⭐ <strong>편집장 픽 — 오늘 1종목만 골라야 한다면?</strong><br>
+    <span style="font-size:15px;font-weight:600;">HBAR</span>
+    <span style="font-size:13px;color:#555;margin-left:8px;">거시경제 악재 속에서도 일봉 RSI가 눌림목 구간에 위치하며 이평선 수렴을 보여 기술적 반등 가능성이 높습니다. 또한, SEC/CFTC의 상품 분류로 기관 채택 기대감이 있어 중장기적인 성장 잠재력도 겸비하고 있습니다.</span>
+  </div>
+
+  <!-- 종목 분석 -->
+  <div class="section">
+    <h2>🎯 종목 분석 (7종목 — TOP30 2종 + 급등후보 4종)</h2>
+  </div>
+  
+        <div class="pick-card" style="border-left:4px solid #1D9E75;">
+          <div class="pick-header">
+            <div>
+              <span class="persp-badge" style="background:#1D9E7520;color:#1D9E75;">🚀 급등후보 돌파</span>
+              <span class="category-badge">음악 스트리밍</span>
+              
+            </div>
+          </div>
+          <div class="pick-title">
+            <span class="ticker">AUDIO</span>
+            <span class="full-name">오디우스</span>
+            <span class="price">23.79</span>
+            <span style="color:#1D9E75;font-weight:500;">+12.6%</span>
+          </div>
+          <p style="font-size:13px;color:#666;margin:4px 0 12px;">블록체인 기반 음악 스트리밍 플랫폼으로, 아티스트와 팬이 직접 소통하며 수익을 공유합니다.</p>
+          
+
+          <div class="trade-grid">
+            <div class="trade-box">
+              <div class="trade-label">🎯 진입가</div>
+              <div class="trade-value">23.9</div>
+              <div class="trade-sub">현재가가 돌파선 대비 +2% 이내이므로 현재가에 1.005를 곱한 가격으로 눌림을 기다립니다.</div>
+            </div>
+            <div class="trade-box" style="border-color:#1D9E75;">
+              <div class="trade-label">🥇 1차 목표 (절반 매도)</div>
+              <div class="trade-value" style="color:#1D9E75;">26.3</div>
+              <div class="trade-sub">+10.0%</div>
+            </div>
+            <div class="trade-box" style="border-color:#1D9E75;">
+              <div class="trade-label">🏆 2차 목표 (나머지 홀딩)</div>
+              <div class="trade-value" style="color:#1D9E75;">28.7</div>
+              <div class="trade-sub">+20.1%</div>
+            </div>
+            <div class="trade-box" style="border-color:#E24B4A;">
+              <div class="trade-label">🛑 손절가 (이 가격이면 포기)</div>
+              <div class="trade-value" style="color:#E24B4A;">22.7</div>
+              <div class="trade-sub">-5.0%</div>
+            </div>
+          </div>
+
+          <div class="rr-section">
+            <div class="rr-label-row">
+              <span style="font-size:12px;color:#666;">⚖️ 손익비 — 얼마나 유리한 거래인가</span>
+              <span class="rr-verdict" style="color:#1D9E75;">
+                ✅ 유리 4.0:1
+              </span>
+            </div>
+            <div style="margin:6px 0 2px;">
+              <span style="font-size:11px;color:#888;display:inline-block;width:70px;">벌 수 있음</span>
+              <div style="display:inline-block;width:120px;height:8px;background:#1D9E75;border-radius:4px;vertical-align:middle;"></div>
+              <span style="font-size:12px;color:#1D9E75;margin-left:6px;">최대 +20.1%</span>
+            </div>
+            <div>
+              <span style="font-size:11px;color:#888;display:inline-block;width:70px;">잃을 수 있음</span>
+              <div style="display:inline-block;width:30px;height:8px;background:#E24B4A;border-radius:4px;vertical-align:middle;"></div>
+              <span style="font-size:12px;color:#E24B4A;margin-left:6px;">최대 -5.0%</span>
+            </div>
+          </div>
+
+          <div class="info-grid">
+            <div><span class="info-label">🏷️ 김프</span><span>정보부족</span><br><span style="font-size:11px;color:#888;">정보부족</span></div>
+            <div><span class="info-label">🔗 BTC 동조화</span><span>낮음</span><br><span style="font-size:11px;color:#888;">압도적인 독자 수급으로 BTC 영향 제한적입니다.</span></div>
+            <div><span class="info-label">🛡️ 방어력</span><span>중</span><br><span style="font-size:11px;color:#888;">급등세로 인해 방어력 판단이 어렵습니다.</span></div>
+            <div><span class="info-label">📊 독자 수급</span><span>강세</span><br><span style="font-size:11px;color:#888;">가격 상승과 함께 거래량이 급증하며 강세 다이버전스를 보입니다.</span></div>
+          </div>
+
+          <div class="reason-grid">
+            <div class="reason-box">
+              <div class="reason-title">⚠️ 왜 지금 싸게 거래되나?</div>
+              <p>지난 9월 KuCoin 상장 폐지 이력이 투자 심리에 부정적인 영향을 미칠 수 있습니다.</p>
+            </div>
+            <div class="reason-box">
+              <div class="reason-title">✅ 그럼에도 지금 사는 이유</div>
+              <p>1h/6h 압도적인 거래량 급증과 볼밴 중단 돌파로 강한 상승 모멘텀이 확인됩니다.</p>
+            </div>
+          </div>
+
+          <div class="whatif-box">
+            <strong>💡 예상과 다를 때 대응책</strong><br>
+            • 1차 목표 못 가면: T1 미달성 시, 최고 수익률 3% 이상 도달했다면 손절가를 본절가로 상향 조정하고, 추가 하락 시 빠르게 포지션을 정리합니다.<br>
+            • 비트코인 급락 시: BTC 급락 시, 손절가 도달 여부와 관계없이 비중을 축소하거나 전량 손절하여 리스크를 관리합니다.
+          </div>
+
+          <div style="margin-top:12px;font-size:12px;color:#888;">
+            💼 권장 비중: 중간 &nbsp;|&nbsp;
+            ⏱️ 보유기간: 단기 &nbsp;|&nbsp;
+            ⭐⭐⭐⭐☆
+          </div>
+        </div>
+        <div class="pick-card" style="border-left:4px solid #F59E0B;">
+          <div class="pick-header">
+            <div>
+              <span class="persp-badge" style="background:#F59E0B20;color:#F59E0B;">📉 급등후보 눌림목</span>
+              <span class="category-badge">오라클</span>
+              
+            </div>
+          </div>
+          <div class="pick-title">
+            <span class="ticker">LINK</span>
+            <span class="full-name">체인링크</span>
+            <span class="price">17630</span>
+            <span style="color:#E24B4A;font-weight:500;">-1.4%</span>
+          </div>
+          <p style="font-size:13px;color:#666;margin:4px 0 12px;">블록체인과 외부 데이터를 연결하여 스마트 컨트랙트의 기능을 확장하는 탈중앙화 오라클 네트워크입니다.</p>
+          
+
+          <div class="trade-grid">
+            <div class="trade-box">
+              <div class="trade-label">🎯 진입가</div>
+              <div class="trade-value">17300</div>
+              <div class="trade-sub">일봉 RSI가 눌림목 구간에 있으며, 1시간 이평선이 수렴 중이므로 볼밴 중단 부근에서 지지 확인 후 진입합니다.</div>
+            </div>
+            <div class="trade-box" style="border-color:#1D9E75;">
+              <div class="trade-label">🥇 1차 목표 (절반 매도)</div>
+              <div class="trade-value" style="color:#1D9E75;">19030</div>
+              <div class="trade-sub">+10.0%</div>
+            </div>
+            <div class="trade-box" style="border-color:#1D9E75;">
+              <div class="trade-label">🏆 2차 목표 (나머지 홀딩)</div>
+              <div class="trade-value" style="color:#1D9E75;">20760</div>
+              <div class="trade-sub">+20.0%</div>
+            </div>
+            <div class="trade-box" style="border-color:#E24B4A;">
+              <div class="trade-label">🛑 손절가 (이 가격이면 포기)</div>
+              <div class="trade-value" style="color:#E24B4A;">16500</div>
+              <div class="trade-sub">-4.6%</div>
+            </div>
+          </div>
+
+          <div class="rr-section">
+            <div class="rr-label-row">
+              <span style="font-size:12px;color:#666;">⚖️ 손익비 — 얼마나 유리한 거래인가</span>
+              <span class="rr-verdict" style="color:#1D9E75;">
+                ✅ 유리 4.3:1
+              </span>
+            </div>
+            <div style="margin:6px 0 2px;">
+              <span style="font-size:11px;color:#888;display:inline-block;width:70px;">벌 수 있음</span>
+              <div style="display:inline-block;width:120px;height:8px;background:#1D9E75;border-radius:4px;vertical-align:middle;"></div>
+              <span style="font-size:12px;color:#1D9E75;margin-left:6px;">최대 +20.0%</span>
+            </div>
+            <div>
+              <span style="font-size:11px;color:#888;display:inline-block;width:70px;">잃을 수 있음</span>
+              <div style="display:inline-block;width:27px;height:8px;background:#E24B4A;border-radius:4px;vertical-align:middle;"></div>
+              <span style="font-size:12px;color:#E24B4A;margin-left:6px;">최대 -4.6%</span>
+            </div>
+          </div>
+
+          <div class="info-grid">
+            <div><span class="info-label">🏷️ 김프</span><span>정보부족</span><br><span style="font-size:11px;color:#888;">정보부족</span></div>
+            <div><span class="info-label">🔗 BTC 동조화</span><span>중간</span><br><span style="font-size:11px;color:#888;">메이저 알트코인으로 비트코인 움직임에 영향을 받습니다.</span></div>
+            <div><span class="info-label">🛡️ 방어력</span><span>중</span><br><span style="font-size:11px;color:#888;">데이터 부족하나 메이저 알트 특성상 중간 수준의 방어력을 보일 것으로 예상됩니다.</span></div>
+            <div><span class="info-label">📊 독자 수급</span><span>없음</span><br><span style="font-size:11px;color:#888;">거래량 다이버전스 징후가 뚜렷하게 확인되지 않습니다.</span></div>
+          </div>
+
+          <div class="reason-grid">
+            <div class="reason-box">
+              <div class="reason-title">⚠️ 왜 지금 싸게 거래되나?</div>
+              <p>미국 국채 금리 상승 및 비트코인 현물 ETF 자금 유출 등 거시경제 악재로 시장 전반의 하방 압력이 지속되고 있습니다.</p>
+            </div>
+            <div class="reason-box">
+              <div class="reason-title">✅ 그럼에도 지금 사는 이유</div>
+              <p>일봉 RSI가 눌림목 구간에 있으며, 단기 이평선 수렴으로 기술적 반등 시도가 예상됩니다.</p>
+            </div>
+          </div>
+
+          <div class="whatif-box">
+            <strong>💡 예상과 다를 때 대응책</strong><br>
+            • 1차 목표 못 가면: T1 미달성 시, 최고 수익률 3% 이상 도달했다면 손절가를 본절가로 상향 조정하고, 추가 하락 시 분할 매도를 고려합니다.<br>
+            • 비트코인 급락 시: BTC 급락 시, 손절가 도달 시 즉시 손절하며, 시장 상황을 재평가하여 재진입 여부를 결정합니다.
+          </div>
+
+          <div style="margin-top:12px;font-size:12px;color:#888;">
+            💼 권장 비중: 중간 &nbsp;|&nbsp;
+            ⏱️ 보유기간: 단기~중기 &nbsp;|&nbsp;
+            ⭐⭐⭐⭐☆
+          </div>
+        </div>
+        <div class="pick-card" style="border-left:4px solid #F59E0B;">
+          <div class="pick-header">
+            <div>
+              <span class="persp-badge" style="background:#F59E0B20;color:#F59E0B;">📉 급등후보 눌림목</span>
+              <span class="category-badge">밈 코인</span>
+              
+            </div>
+          </div>
+          <div class="pick-title">
+            <span class="ticker">PEPE</span>
+            <span class="full-name">페페</span>
+            <span class="price">0.0054</span>
+            <span style="color:#E24B4A;font-weight:500;">-1.8%</span>
+          </div>
+          <p style="font-size:13px;color:#666;margin:4px 0 12px;">인터넷 밈 '페페 더 프로그'를 기반으로 만들어진 암호화폐로, 커뮤니티 주도로 운영됩니다.</p>
+          
+
+          <div class="trade-grid">
+            <div class="trade-box">
+              <div class="trade-label">🎯 진입가</div>
+              <div class="trade-value">0.0053</div>
+              <div class="trade-sub">일봉 RSI가 눌림목 구간에 있으며, 1시간 이평선이 수렴 중이므로 볼밴 중단 부근에서 지지 확인 후 진입합니다.</div>
+            </div>
+            <div class="trade-box" style="border-color:#1D9E75;">
+              <div class="trade-label">🥇 1차 목표 (절반 매도)</div>
+              <div class="trade-value" style="color:#1D9E75;">0.00578</div>
+              <div class="trade-sub">+9.1%</div>
+            </div>
+            <div class="trade-box" style="border-color:#1D9E75;">
+              <div class="trade-label">🏆 2차 목표 (나머지 홀딩)</div>
+              <div class="trade-value" style="color:#1D9E75;">0.0064</div>
+              <div class="trade-sub">+20.8%</div>
+            </div>
+            <div class="trade-box" style="border-color:#E24B4A;">
+              <div class="trade-label">🛑 손절가 (이 가격이면 포기)</div>
+              <div class="trade-value" style="color:#E24B4A;">0.00505</div>
+              <div class="trade-sub">-4.7%</div>
+            </div>
+          </div>
+
+          <div class="rr-section">
+            <div class="rr-label-row">
+              <span style="font-size:12px;color:#666;">⚖️ 손익비 — 얼마나 유리한 거래인가</span>
+              <span class="rr-verdict" style="color:#1D9E75;">
+                ✅ 유리 4.4:1
+              </span>
+            </div>
+            <div style="margin:6px 0 2px;">
+              <span style="font-size:11px;color:#888;display:inline-block;width:70px;">벌 수 있음</span>
+              <div style="display:inline-block;width:124px;height:8px;background:#1D9E75;border-radius:4px;vertical-align:middle;"></div>
+              <span style="font-size:12px;color:#1D9E75;margin-left:6px;">최대 +20.8%</span>
+            </div>
+            <div>
+              <span style="font-size:11px;color:#888;display:inline-block;width:70px;">잃을 수 있음</span>
+              <div style="display:inline-block;width:28px;height:8px;background:#E24B4A;border-radius:4px;vertical-align:middle;"></div>
+              <span style="font-size:12px;color:#E24B4A;margin-left:6px;">최대 -4.7%</span>
+            </div>
+          </div>
+
+          <div class="info-grid">
+            <div><span class="info-label">🏷️ 김프</span><span>정보부족</span><br><span style="font-size:11px;color:#888;">정보부족</span></div>
+            <div><span class="info-label">🔗 BTC 동조화</span><span>중간</span><br><span style="font-size:11px;color:#888;">밈 코인 특성상 독자적인 움직임이 크지만, 시장 전반의 영향도 받습니다.</span></div>
+            <div><span class="info-label">🛡️ 방어력</span><span>중</span><br><span style="font-size:11px;color:#888;">밈 코인의 특성상 방어력 예측이 어렵습니다.</span></div>
+            <div><span class="info-label">📊 독자 수급</span><span>없음</span><br><span style="font-size:11px;color:#888;">거래량 다이버전스 징후가 뚜렷하게 확인되지 않습니다.</span></div>
+          </div>
+
+          <div class="reason-grid">
+            <div class="reason-box">
+              <div class="reason-title">⚠️ 왜 지금 싸게 거래되나?</div>
+              <p>밈 코인 특성상 펀더멘털보다는 시장 심리에 크게 좌우되며, 최근 시장 전반의 하방 압력에 동조하는 모습입니다.</p>
+            </div>
+            <div class="reason-box">
+              <div class="reason-title">✅ 그럼에도 지금 사는 이유</div>
+              <p>일봉 RSI가 매수 가능한 눌림목 구간에 있으며, 단기 이평선 수렴으로 기술적 반등 가능성이 있습니다.</p>
+            </div>
+          </div>
+
+          <div class="whatif-box">
+            <strong>💡 예상과 다를 때 대응책</strong><br>
+            • 1차 목표 못 가면: T1 미달성 시, 최고 수익률 3% 이상 도달했다면 손절가를 본절가로 상향 조정하고, 추가 하락 시 부분 익절을 고려합니다.<br>
+            • 비트코인 급락 시: BTC 급락 시, 밈 코인의 높은 변동성을 고려하여 손절가 도달 시 즉시 손절하고 관망합니다.
+          </div>
+
+          <div style="margin-top:12px;font-size:12px;color:#888;">
+            💼 권장 비중: 중간 &nbsp;|&nbsp;
+            ⏱️ 보유기간: 단기 &nbsp;|&nbsp;
+            ⭐⭐⭐⭐☆
+          </div>
+        </div>
+        <div class="pick-card" style="border-left:4px solid #F59E0B;">
+          <div class="pick-header">
+            <div>
+              <span class="persp-badge" style="background:#F59E0B20;color:#F59E0B;">📉 급등후보 눌림목</span>
+              <span class="category-badge">분산원장기술 (DLT)</span>
+              <span style="background:#FEF3C7;color:#92400E;padding:2px 8px;border-radius:6px;font-size:11px;margin-left:6px;">⭐ 편집장 픽</span>
+            </div>
+          </div>
+          <div class="pick-title">
+            <span class="ticker">HBAR</span>
+            <span class="full-name">헤데라</span>
+            <span class="price">126</span>
+            <span style="color:#1D9E75;font-weight:500;">+0.0%</span>
+          </div>
+          <p style="font-size:13px;color:#666;margin:4px 0 12px;">빠르고 안전하며 공정한 분산원장기술(DLT)을 제공하는 헤데라 해시그래프 네트워크의 기본 암호화폐입니다.</p>
+          
+
+          <div class="trade-grid">
+            <div class="trade-box">
+              <div class="trade-label">🎯 진입가</div>
+              <div class="trade-value">124</div>
+              <div class="trade-sub">일봉 RSI가 눌림목 구간에 있으며, 일봉 이평선이 수렴 중이므로 볼밴 중단 부근에서 지지 확인 후 진입합니다.</div>
+            </div>
+            <div class="trade-box" style="border-color:#1D9E75;">
+              <div class="trade-label">🥇 1차 목표 (절반 매도)</div>
+              <div class="trade-value" style="color:#1D9E75;">136</div>
+              <div class="trade-sub">+9.7%</div>
+            </div>
+            <div class="trade-box" style="border-color:#1D9E75;">
+              <div class="trade-label">🏆 2차 목표 (나머지 홀딩)</div>
+              <div class="trade-value" style="color:#1D9E75;">149</div>
+              <div class="trade-sub">+20.2%</div>
+            </div>
+            <div class="trade-box" style="border-color:#E24B4A;">
+              <div class="trade-label">🛑 손절가 (이 가격이면 포기)</div>
+              <div class="trade-value" style="color:#E24B4A;">118</div>
+              <div class="trade-sub">-4.8%</div>
+            </div>
+          </div>
+
+          <div class="rr-section">
+            <div class="rr-label-row">
+              <span style="font-size:12px;color:#666;">⚖️ 손익비 — 얼마나 유리한 거래인가</span>
+              <span class="rr-verdict" style="color:#1D9E75;">
+                ✅ 유리 4.2:1
+              </span>
+            </div>
+            <div style="margin:6px 0 2px;">
+              <span style="font-size:11px;color:#888;display:inline-block;width:70px;">벌 수 있음</span>
+              <div style="display:inline-block;width:121px;height:8px;background:#1D9E75;border-radius:4px;vertical-align:middle;"></div>
+              <span style="font-size:12px;color:#1D9E75;margin-left:6px;">최대 +20.2%</span>
+            </div>
+            <div>
+              <span style="font-size:11px;color:#888;display:inline-block;width:70px;">잃을 수 있음</span>
+              <div style="display:inline-block;width:28px;height:8px;background:#E24B4A;border-radius:4px;vertical-align:middle;"></div>
+              <span style="font-size:12px;color:#E24B4A;margin-left:6px;">최대 -4.8%</span>
+            </div>
+          </div>
+
+          <div class="info-grid">
+            <div><span class="info-label">🏷️ 김프</span><span>정보부족</span><br><span style="font-size:11px;color:#888;">정보부족</span></div>
+            <div><span class="info-label">🔗 BTC 동조화</span><span>중간</span><br><span style="font-size:11px;color:#888;">메이저 알트코인으로 비트코인 움직임에 영향을 받습니다.</span></div>
+            <div><span class="info-label">🛡️ 방어력</span><span>중</span><br><span style="font-size:11px;color:#888;">데이터 부족하나 메이저 알트 특성상 중간 수준의 방어력을 보일 것으로 예상됩니다.</span></div>
+            <div><span class="info-label">📊 독자 수급</span><span>없음</span><br><span style="font-size:11px;color:#888;">거래량 다이버전스 징후가 뚜렷하게 확인되지 않습니다.</span></div>
+          </div>
+
+          <div class="reason-grid">
+            <div class="reason-box">
+              <div class="reason-title">⚠️ 왜 지금 싸게 거래되나?</div>
+              <p>미국 국채 금리 상승 및 비트코인 현물 ETF 자금 유출 등 거시경제 악재로 시장 전반의 하방 압력이 지속되고 있습니다.</p>
+            </div>
+            <div class="reason-box">
+              <div class="reason-title">✅ 그럼에도 지금 사는 이유</div>
+              <p>일봉 RSI가 눌림목 구간에 있으며, 일봉 이평선 수렴으로 반등 시도 가능성이 있습니다. SEC/CFTC의 상품 분류로 기관 채택 기대감이 있습니다.</p>
+            </div>
+          </div>
+
+          <div class="whatif-box">
+            <strong>💡 예상과 다를 때 대응책</strong><br>
+            • 1차 목표 못 가면: T1 미달성 시, 최고 수익률 3% 이상 도달했다면 손절가를 본절가로 상향 조정하고, 추가 하락 시 분할 매도를 고려합니다.<br>
+            • 비트코인 급락 시: BTC 급락 시, 손절가 도달 시 즉시 손절하며, 시장 상황을 재평가하여 재진입 여부를 결정합니다.
+          </div>
+
+          <div style="margin-top:12px;font-size:12px;color:#888;">
+            💼 권장 비중: 중간 &nbsp;|&nbsp;
+            ⏱️ 보유기간: 단기~중기 &nbsp;|&nbsp;
+            ⭐⭐⭐⭐☆
+          </div>
+        </div>
+        <div class="pick-card" style="border-left:4px solid #F59E0B;">
+          <div class="pick-header">
+            <div>
+              <span class="persp-badge" style="background:#F59E0B20;color:#F59E0B;">📉 급등후보 눌림목</span>
+              <span class="category-badge">레이어1 블록체인</span>
+              
+            </div>
+          </div>
+          <div class="pick-title">
+            <span class="ticker">AVAX</span>
+            <span class="full-name">아발란체</span>
+            <span class="price">14110</span>
+            <span style="color:#E24B4A;font-weight:500;">-4.9%</span>
+          </div>
+          <p style="font-size:13px;color:#666;margin:4px 0 12px;">확장성이 뛰어난 레이어1 블록체인 플랫폼으로, 다양한 탈중앙화 애플리케이션(dApp)을 지원합니다.</p>
+          
+
+          <div class="trade-grid">
+            <div class="trade-box">
+              <div class="trade-label">🎯 진입가</div>
+              <div class="trade-value">13800</div>
+              <div class="trade-sub">일봉 RSI가 눌림목 구간에 있으며, 일봉 이평선이 수렴 중이므로 볼밴 중단 부근에서 지지 확인 후 진입합니다.</div>
+            </div>
+            <div class="trade-box" style="border-color:#1D9E75;">
+              <div class="trade-label">🥇 1차 목표 (절반 매도)</div>
+              <div class="trade-value" style="color:#1D9E75;">15100</div>
+              <div class="trade-sub">+9.4%</div>
+            </div>
+            <div class="trade-box" style="border-color:#1D9E75;">
+              <div class="trade-label">🏆 2차 목표 (나머지 홀딩)</div>
+              <div class="trade-value" style="color:#1D9E75;">16560</div>
+              <div class="trade-sub">+20.0%</div>
+            </div>
+            <div class="trade-box" style="border-color:#E24B4A;">
+              <div class="trade-label">🛑 손절가 (이 가격이면 포기)</div>
+              <div class="trade-value" style="color:#E24B4A;">13100</div>
+              <div class="trade-sub">-5.1%</div>
+            </div>
+          </div>
+
+          <div class="rr-section">
+            <div class="rr-label-row">
+              <span style="font-size:12px;color:#666;">⚖️ 손익비 — 얼마나 유리한 거래인가</span>
+              <span class="rr-verdict" style="color:#1D9E75;">
+                ✅ 유리 3.9:1
+              </span>
+            </div>
+            <div style="margin:6px 0 2px;">
+              <span style="font-size:11px;color:#888;display:inline-block;width:70px;">벌 수 있음</span>
+              <div style="display:inline-block;width:120px;height:8px;background:#1D9E75;border-radius:4px;vertical-align:middle;"></div>
+              <span style="font-size:12px;color:#1D9E75;margin-left:6px;">최대 +20.0%</span>
+            </div>
+            <div>
+              <span style="font-size:11px;color:#888;display:inline-block;width:70px;">잃을 수 있음</span>
+              <div style="display:inline-block;width:30px;height:8px;background:#E24B4A;border-radius:4px;vertical-align:middle;"></div>
+              <span style="font-size:12px;color:#E24B4A;margin-left:6px;">최대 -5.1%</span>
+            </div>
+          </div>
+
+          <div class="info-grid">
+            <div><span class="info-label">🏷️ 김프</span><span>정보부족</span><br><span style="font-size:11px;color:#888;">정보부족</span></div>
+            <div><span class="info-label">🔗 BTC 동조화</span><span>중간</span><br><span style="font-size:11px;color:#888;">메이저 알트코인으로 비트코인 움직임에 영향을 받습니다.</span></div>
+            <div><span class="info-label">🛡️ 방어력</span><span>중</span><br><span style="font-size:11px;color:#888;">데이터 부족하나 메이저 알트 특성상 중간 수준의 방어력을 보일 것으로 예상됩니다.</span></div>
+            <div><span class="info-label">📊 독자 수급</span><span>없음</span><br><span style="font-size:11px;color:#888;">거래량 다이버전스 징후가 뚜렷하게 확인되지 않습니다.</span></div>
+          </div>
+
+          <div class="reason-grid">
+            <div class="reason-box">
+              <div class="reason-title">⚠️ 왜 지금 싸게 거래되나?</div>
+              <p>미국 국채 금리 상승 및 비트코인 현물 ETF 자금 유출 등 거시경제 악재로 시장 전반의 하방 압력이 지속되고 있습니다.</p>
+            </div>
+            <div class="reason-box">
+              <div class="reason-title">✅ 그럼에도 지금 사는 이유</div>
+              <p>일봉 RSI가 눌림목 구간에 있으며, 일봉 이평선 수렴으로 기술적 반등 시도가 예상됩니다.</p>
+            </div>
+          </div>
+
+          <div class="whatif-box">
+            <strong>💡 예상과 다를 때 대응책</strong><br>
+            • 1차 목표 못 가면: T1 미달성 시, 최고 수익률 3% 이상 도달했다면 손절가를 본절가로 상향 조정하고, 추가 하락 시 분할 매도를 고려합니다.<br>
+            • 비트코인 급락 시: BTC 급락 시, 손절가 도달 시 즉시 손절하며, 시장 상황을 재평가하여 재진입 여부를 결정합니다.
+          </div>
+
+          <div style="margin-top:12px;font-size:12px;color:#888;">
+            💼 권장 비중: 중간 &nbsp;|&nbsp;
+            ⏱️ 보유기간: 단기~중기 &nbsp;|&nbsp;
+            ⭐⭐⭐⭐☆
+          </div>
+        </div>
+        <div class="pick-card" style="border-left:4px solid #F59E0B;">
+          <div class="pick-header">
+            <div>
+              <span class="persp-badge" style="background:#F59E0B20;color:#F59E0B;">📉 급등후보 눌림목</span>
+              <span class="category-badge">밈 코인</span>
+              
+            </div>
+          </div>
+          <div class="pick-title">
+            <span class="ticker">SHIB</span>
+            <span class="full-name">시바이누</span>
+            <span class="price">0.0074</span>
+            <span style="color:#1D9E75;font-weight:500;">+0.0%</span>
+          </div>
+          <p style="font-size:13px;color:#666;margin:4px 0 12px;">도지코인의 대항마로 불리는 밈 코인으로, 시바견을 마스코트로 하여 커뮤니티 중심으로 성장했습니다.</p>
+          
+
+          <div class="trade-grid">
+            <div class="trade-box">
+              <div class="trade-label">🎯 진입가</div>
+              <div class="trade-value">0.0072</div>
+              <div class="trade-sub">일봉 RSI가 눌림목 구간에 있으며, 일봉 이평선이 수렴 중이므로 볼밴 중단 부근에서 지지 확인 후 진입합니다.</div>
+            </div>
+            <div class="trade-box" style="border-color:#1D9E75;">
+              <div class="trade-label">🥇 1차 목표 (절반 매도)</div>
+              <div class="trade-value" style="color:#1D9E75;">0.00788</div>
+              <div class="trade-sub">+9.4%</div>
+            </div>
+            <div class="trade-box" style="border-color:#1D9E75;">
+              <div class="trade-label">🏆 2차 목표 (나머지 홀딩)</div>
+              <div class="trade-value" style="color:#1D9E75;">0.0086</div>
+              <div class="trade-sub">+19.4%</div>
+            </div>
+            <div class="trade-box" style="border-color:#E24B4A;">
+              <div class="trade-label">🛑 손절가 (이 가격이면 포기)</div>
+              <div class="trade-value" style="color:#E24B4A;">0.00685</div>
+              <div class="trade-sub">-4.9%</div>
+            </div>
+          </div>
+
+          <div class="rr-section">
+            <div class="rr-label-row">
+              <span style="font-size:12px;color:#666;">⚖️ 손익비 — 얼마나 유리한 거래인가</span>
+              <span class="rr-verdict" style="color:#1D9E75;">
+                ✅ 유리 4.0:1
+              </span>
+            </div>
+            <div style="margin:6px 0 2px;">
+              <span style="font-size:11px;color:#888;display:inline-block;width:70px;">벌 수 있음</span>
+              <div style="display:inline-block;width:116px;height:8px;background:#1D9E75;border-radius:4px;vertical-align:middle;"></div>
+              <span style="font-size:12px;color:#1D9E75;margin-left:6px;">최대 +19.4%</span>
+            </div>
+            <div>
+              <span style="font-size:11px;color:#888;display:inline-block;width:70px;">잃을 수 있음</span>
+              <div style="display:inline-block;width:29px;height:8px;background:#E24B4A;border-radius:4px;vertical-align:middle;"></div>
+              <span style="font-size:12px;color:#E24B4A;margin-left:6px;">최대 -4.9%</span>
+            </div>
+          </div>
+
+          <div class="info-grid">
+            <div><span class="info-label">🏷️ 김프</span><span>정보부족</span><br><span style="font-size:11px;color:#888;">정보부족</span></div>
+            <div><span class="info-label">🔗 BTC 동조화</span><span>중간</span><br><span style="font-size:11px;color:#888;">밈 코인 특성상 독자적인 움직임이 크지만, 시장 전반의 영향도 받습니다.</span></div>
+            <div><span class="info-label">🛡️ 방어력</span><span>중</span><br><span style="font-size:11px;color:#888;">밈 코인의 특성상 방어력 예측이 어렵습니다.</span></div>
+            <div><span class="info-label">📊 독자 수급</span><span>없음</span><br><span style="font-size:11px;color:#888;">거래량 다이버전스 징후가 뚜렷하게 확인되지 않습니다.</span></div>
+          </div>
+
+          <div class="reason-grid">
+            <div class="reason-box">
+              <div class="reason-title">⚠️ 왜 지금 싸게 거래되나?</div>
+              <p>밈 코인 특성상 펀더멘털보다는 시장 심리에 크게 좌우되며, 최근 시장 전반의 하방 압력에 동조하는 모습입니다.</p>
+            </div>
+            <div class="reason-box">
+              <div class="reason-title">✅ 그럼에도 지금 사는 이유</div>
+              <p>일봉 RSI가 매수 가능한 눌림목 구간에 있으며, 일봉 이평선 수렴으로 기술적 반등 가능성이 있습니다.</p>
+            </div>
+          </div>
+
+          <div class="whatif-box">
+            <strong>💡 예상과 다를 때 대응책</strong><br>
+            • 1차 목표 못 가면: T1 미달성 시, 최고 수익률 3% 이상 도달했다면 손절가를 본절가로 상향 조정하고, 추가 하락 시 부분 익절을 고려합니다.<br>
+            • 비트코인 급락 시: BTC 급락 시, 밈 코인의 높은 변동성을 고려하여 손절가 도달 시 즉시 손절하고 관망합니다.
+          </div>
+
+          <div style="margin-top:12px;font-size:12px;color:#888;">
+            💼 권장 비중: 중간 &nbsp;|&nbsp;
+            ⏱️ 보유기간: 단기 &nbsp;|&nbsp;
+            ⭐⭐⭐⭐☆
+          </div>
+        </div>
+        <div class="pick-card" style="border-left:4px solid #F59E0B;">
+          <div class="pick-header">
+            <div>
+              <span class="persp-badge" style="background:#F59E0B20;color:#F59E0B;">📉 급등후보 눌림목</span>
+              <span class="category-badge">레이어1 블록체인</span>
+              
+            </div>
+          </div>
+          <div class="pick-title">
+            <span class="ticker">BCH</span>
+            <span class="full-name">비트코인캐시</span>
+            <span class="price">384200</span>
+            <span style="color:#E24B4A;font-weight:500;">-4.6%</span>
+          </div>
+          <p style="font-size:13px;color:#666;margin:4px 0 12px;">비트코인에서 하드포크되어 더 빠른 거래 처리와 낮은 수수료를 목표로 하는 암호화폐입니다.</p>
+          
+
+          <div class="trade-grid">
+            <div class="trade-box">
+              <div class="trade-label">🎯 진입가</div>
+              <div class="trade-value">380000</div>
+              <div class="trade-sub">일봉 RSI가 눌림목 구간에 있으며, 일봉 이평선이 수렴 중이므로 볼밴 중단 부근에서 지지 확인 후 진입합니다.</div>
+            </div>
+            <div class="trade-box" style="border-color:#1D9E75;">
+              <div class="trade-label">🥇 1차 목표 (절반 매도)</div>
+              <div class="trade-value" style="color:#1D9E75;">418000</div>
+              <div class="trade-sub">+10.0%</div>
+            </div>
+            <div class="trade-box" style="border-color:#1D9E75;">
+              <div class="trade-label">🏆 2차 목표 (나머지 홀딩)</div>
+              <div class="trade-value" style="color:#1D9E75;">456000</div>
+              <div class="trade-sub">+20.0%</div>
+            </div>
+            <div class="trade-box" style="border-color:#E24B4A;">
+              <div class="trade-label">🛑 손절가 (이 가격이면 포기)</div>
+              <div class="trade-value" style="color:#E24B4A;">361000</div>
+              <div class="trade-sub">-5.0%</div>
+            </div>
+          </div>
+
+          <div class="rr-section">
+            <div class="rr-label-row">
+              <span style="font-size:12px;color:#666;">⚖️ 손익비 — 얼마나 유리한 거래인가</span>
+              <span class="rr-verdict" style="color:#1D9E75;">
+                ✅ 유리 4.0:1
+              </span>
+            </div>
+            <div style="margin:6px 0 2px;">
+              <span style="font-size:11px;color:#888;display:inline-block;width:70px;">벌 수 있음</span>
+              <div style="display:inline-block;width:120px;height:8px;background:#1D9E75;border-radius:4px;vertical-align:middle;"></div>
+              <span style="font-size:12px;color:#1D9E75;margin-left:6px;">최대 +20.0%</span>
+            </div>
+            <div>
+              <span style="font-size:11px;color:#888;display:inline-block;width:70px;">잃을 수 있음</span>
+              <div style="display:inline-block;width:30px;height:8px;background:#E24B4A;border-radius:4px;vertical-align:middle;"></div>
+              <span style="font-size:12px;color:#E24B4A;margin-left:6px;">최대 -5.0%</span>
+            </div>
+          </div>
+
+          <div class="info-grid">
+            <div><span class="info-label">🏷️ 김프</span><span>정보부족</span><br><span style="font-size:11px;color:#888;">정보부족</span></div>
+            <div><span class="info-label">🔗 BTC 동조화</span><span>중간</span><br><span style="font-size:11px;color:#888;">비트코인 파생 코인으로 비트코인 움직임에 영향을 받습니다.</span></div>
+            <div><span class="info-label">🛡️ 방어력</span><span>중</span><br><span style="font-size:11px;color:#888;">데이터 부족하나 메이저 알트 특성상 중간 수준의 방어력을 보일 것으로 예상됩니다.</span></div>
+            <div><span class="info-label">📊 독자 수급</span><span>없음</span><br><span style="font-size:11px;color:#888;">거래량 다이버전스 징후가 뚜렷하게 확인되지 않습니다.</span></div>
+          </div>
+
+          <div class="reason-grid">
+            <div class="reason-box">
+              <div class="reason-title">⚠️ 왜 지금 싸게 거래되나?</div>
+              <p>미국 국채 금리 상승 및 비트코인 현물 ETF 자금 유출 등 거시경제 악재로 시장 전반의 하방 압력이 지속되고 있습니다.</p>
+            </div>
+            <div class="reason-box">
+              <div class="reason-title">✅ 그럼에도 지금 사는 이유</div>
+              <p>일봉 RSI가 눌림목 구간에 있으며, 일봉 이평선 수렴으로 기술적 반등 시도가 예상됩니다.</p>
+            </div>
+          </div>
+
+          <div class="whatif-box">
+            <strong>💡 예상과 다를 때 대응책</strong><br>
+            • 1차 목표 못 가면: T1 미달성 시, 최고 수익률 3% 이상 도달했다면 손절가를 본절가로 상향 조정하고, 추가 하락 시 분할 매도를 고려합니다.<br>
+            • 비트코인 급락 시: BTC 급락 시, 손절가 도달 시 즉시 손절하며, 시장 상황을 재평가하여 재진입 여부를 결정합니다.
+          </div>
+
+          <div style="margin-top:12px;font-size:12px;color:#888;">
+            💼 권장 비중: 중간 &nbsp;|&nbsp;
+            ⏱️ 보유기간: 단기~중기 &nbsp;|&nbsp;
+            ⭐⭐⭐⭐☆
+          </div>
+        </div>
+
+  <!-- 성과 -->
+  
+
+  <!-- 복기 -->
+  
+        <div class="section">
+          <h2>🔬 AI 복기 분석</h2>
+          <div class="review-block">
+            <div class="review-title">수익 종목 공통 패턴</div>
+            <p>최근 20건의 상세 데이터 분석 결과, 수익을 기록한 종목들은 대부분 '급등후보 눌림목' 관점에서 추천되었으며, 특히 '🧊 냉각 (극도로 한산)' 시장 온도에서 수익을 낸 사례가 다수 관찰됩니다. 대부분 T1 목표가에 도달했으나 T2까지는 도달하지 못하는 경향이 있습니다. (표본 부족으로 확정적인 패턴으로 단정하기는 어렵습니다.)</p>
+          </div>
+          <div class="review-block">
+            <div class="review-title">손절 종목 공통 패턴</div>
+            <p>손절된 종목 중 '급등후보 돌파' 관점이 2건으로 나타났으며, 이는 '눌림목' 관점에 비해 손실 위험이 높은 경향을 보입니다. 손절은 다양한 시장 온도에서 발생했으며, 추천 후 비교적 단기간 내 손절가에 도달하는 경우가 관찰되었습니다. (표본 부족으로 확정적인 패턴으로 단정하기는 어렵습니다.)</p>
+          </div>
+          <div class="review-block">
+            <div class="review-title">다음 추천 핵심 포인트</div>
+            <p>다음 추천 시에는 '급등후보 눌림목' 관점을 최우선으로 고려하고, 특히 '냉각' 시장에서의 기회를 적극적으로 탐색해야 합니다. 또한, T1 목표가 달성 시 수익을 확정하는 전략을 통해 안정적인 성과를 추구해야 합니다.</p>
+          </div>
+          <h3 style="margin-top:16px;font-size:14px;">현재 적용 중인 강화규칙</h3>
+            <div class="rule-item">
+              <span class="rule-tag">추천 관점</span>
+              '급등후보 눌림목' 관점에 집중하여 추천 종목을 선정한다.
+              <span style="font-size:11px;color:#aaa;margin-left:6px;">근거: 최근 수익 종목의 90% 이상이 '급등후보 눌림목' 관점에서 나왔으며, 이는 안정적인 수익 확보에 유리한 패턴으로 관찰됩니다.</span>
+            </div>
+            <div class="rule-item">
+              <span class="rule-tag">수익 실현</span>
+              T1 목표가 달성 시 부분 익절 또는 전량 익절을 적극적으로 고려한다.
+              <span style="font-size:11px;color:#aaa;margin-left:6px;">근거: 대부분의 수익 종목이 T1을 달성했으나 T2까지 도달한 경우가 없으므로, T1 달성 시 수익을 확정하는 전략이 효과적일 수 있습니다.</span>
+            </div>
+            <div class="rule-item">
+              <span class="rule-tag">시장 온도 활용</span>
+              '🧊 냉각 (극도로 한산)' 시장 온도에서 '눌림목' 관점의 종목을 우선적으로 고려한다.
+              <span style="font-size:11px;color:#aaa;margin-left:6px;">근거: 한산한 시장 환경에서 '눌림목' 관점의 종목들이 높은 수익률을 기록하는 경향이 뚜렷하게 나타났습니다.</span>
+            </div>
+        </div>
+
+  <!-- 키워드 -->
+  <div class="section">
+    <h2>🌟 트렌드 키워드</h2>
+    <div><span class="kw-badge">알트코인</span>  <span class="kw-badge">눌림목</span>  <span class="kw-badge">돌파</span>  <span class="kw-badge">급등후보</span>  <span class="kw-badge">활성화장</span>  <span class="kw-badge">기술적반등</span></div>
+  </div>
+
+  <p style="text-align:center;font-size:12px;color:#aaa;padding:20px 0;">
+    ⚠️ 본 리포트는 투자 참고용이며, 투자 손실에 대한 책임은 본인에게 있습니다.
+  </p>
+</div>
+</body>
+</html>
