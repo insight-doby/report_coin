@@ -1,27 +1,27 @@
 {
  "version": 2,
- "generated_at": "2026-10-12T16:16:58+09:00",
- "generated_ts": 1791789418309,
+ "generated_at": "2026-10-13T03:54:36+09:00",
+ "generated_ts": 1791831276556,
  "horizon": "2~5일 스윙",
  "market": {
-  "gate": "GO",
-  "label": "매수 가능",
-  "size_mult": 1.0,
+  "gate": "SELECTIVE",
+  "label": "선별 매수",
+  "size_mult": 0.5,
   "checks": [
    {
-    "text": "BTC가 일봉 20일선 위 (+0.0%)",
-    "ok": true
+    "text": "BTC가 일봉 20일선 아래 (-1.3%)",
+    "ok": false
    },
    {
     "text": "20일선 하락 중",
     "ok": false
    },
    {
-    "text": "알트 58%가 20일선 위 (기준 50%)",
-    "ok": true
+    "text": "알트 45%가 20일선 위 (기준 50%)",
+    "ok": false
    },
    {
-    "text": "BTC 24시간 +0.2%",
+    "text": "BTC 24시간 -1.4%",
     "ok": true
    },
    {
@@ -30,338 +30,274 @@
    }
   ],
   "metrics": {
-   "btc_price": 113339000.0,
-   "btc_chg_24h": 0.24,
-   "btc_vs_ema20_pct": 0.04,
-   "btc_7d_pct": -2.36,
-   "breadth_pct": 57.5,
-   "advancers_pct": 51.4,
+   "btc_price": 111629000.0,
+   "btc_chg_24h": -1.44,
+   "btc_vs_ema20_pct": -1.33,
+   "btc_7d_pct": -4.35,
+   "breadth_pct": 45.1,
+   "advancers_pct": 26.1,
    "taker_buy_ratio": null,
-   "btc_volume_vs_30d_pct": 75.2
+   "btc_volume_vs_30d_pct": 95.8
   },
-  "headline": "추세가 살아 있고 시장 폭도 넓습니다. 추천 구간에서 계획대로 매수 가능."
+  "headline": "조건이 일부만 맞습니다. 확실한 자리만 평소의 절반 비중으로."
  },
  "picks": [
   {
-   "ticker": "DKA",
+   "ticker": "BMT",
    "setup": "pullback",
    "setup_label": "눌림목",
    "state": "now",
-   "price": 5.552,
-   "chg24": -10.18,
-   "entry": 5.55,
-   "zone_lo": 5.44,
-   "zone_hi": 5.63,
-   "stop": 5.25,
-   "t1": 6.01,
-   "t2": 6.32,
-   "stop_pct": 5.41,
-   "t1_pct": 8.29,
-   "t2_pct": 13.87,
+   "price": 25.84,
+   "chg24": -3.47,
+   "entry": 25.84,
+   "zone_lo": 25.41,
+   "zone_hi": 26.61,
+   "stop": 24.21,
+   "t1": 28.29,
+   "t2": 29.93,
+   "stop_pct": 6.32,
+   "t1_pct": 9.49,
+   "t2_pct": 15.81,
    "rr1": 1.5,
    "rr2": 2.5,
-   "score": 64,
+   "score": 74,
    "reasons": [
     "상승 추세 유지 (20일선 > 60일선, 60일선 우상향)",
-    "최근 고점 대비 -17.1% 눌림, 일봉 20일선 지지 구간",
-    "일봉 RSI 61 — 과열 해소"
+    "최근 고점 대비 -12.7% 눌림, 일봉 20일선 지지 구간",
+    "일봉 RSI 52 — 과열 해소",
+    "눌리는 동안 거래량 감소 — 매도 압력 약화"
    ],
    "risks": [],
    "metrics": {
-    "rsi_d": 61.1,
-    "atr_pct": 5.73,
-    "depth_pct": 17.1
+    "rsi_d": 51.8,
+    "atr_pct": 7.75,
+    "depth_pct": 12.7
    },
-   "rs7": 0.9,
-   "value24": 560172960.9354986,
-   "gate_at_issue": "GO",
+   "rs7": 2.4,
+   "value24": 351530261.81565714,
+   "gate_at_issue": "SELECTIVE",
    "ai": {
     "status": "ok",
     "note": "",
     "positive": null,
-    "checked_at": "2026-10-12T16:06:32+09:00",
+    "checked_at": "2026-10-13T03:54:36+09:00",
     "recheck": null
    },
    "valid_hours": 0,
-   "id": "DKA-pullback-202610121606",
-   "carried": true,
-   "issued_at": "2026-10-12T16:06:32+09:00",
-   "name": "디카르고"
+   "id": "BMT-pullback-202610130354",
+   "carried": false,
+   "issued_at": "2026-10-13T03:54:36+09:00",
+   "name": "버블맵스"
   },
   {
-   "ticker": "SHIB",
+   "ticker": "NEO",
    "setup": "pullback",
    "setup_label": "눌림목",
    "state": "now",
-   "price": 0.0074,
-   "chg24": 0.0,
-   "entry": 0.0074,
-   "zone_lo": 0.00730329,
-   "zone_hi": 0.00754337,
-   "stop": 0.00706321,
-   "t1": 0.00790518,
-   "t2": 0.00824196,
-   "stop_pct": 4.55,
-   "t1_pct": 6.83,
-   "t2_pct": 11.38,
+   "price": 3402.0,
+   "chg24": -5.13,
+   "entry": 3402.0,
+   "zone_lo": 3342.0,
+   "zone_hi": 3467.0,
+   "stop": 3217.0,
+   "t1": 3680.0,
+   "t2": 3865.0,
+   "stop_pct": 5.44,
+   "t1_pct": 8.16,
+   "t2_pct": 13.6,
+   "rr1": 1.5,
+   "rr2": 2.5,
+   "score": 68,
+   "reasons": [
+    "상승 추세 유지 (20일선 > 60일선, 60일선 우상향)",
+    "최근 고점 대비 -8.7% 눌림, 일봉 20일선 지지 구간",
+    "일봉 RSI 51 — 과열 해소"
+   ],
+   "risks": [],
+   "metrics": {
+    "rsi_d": 51.3,
+    "atr_pct": 6.12,
+    "depth_pct": 8.7
+   },
+   "rs7": 3.2,
+   "value24": 324389883.38204706,
+   "gate_at_issue": "SELECTIVE",
+   "ai": {
+    "status": "ok",
+    "note": "",
+    "positive": "NEO 분할 거래 가능성 및 Neo X의 DeFi 잠재력에 대한 긍정적 전망이 있습니다. 2026년 반등 시나리오가 언급되었습니다.",
+    "checked_at": "2026-10-13T03:54:36+09:00",
+    "recheck": null
+   },
+   "valid_hours": 0,
+   "id": "NEO-pullback-202610130354",
+   "carried": false,
+   "issued_at": "2026-10-13T03:54:36+09:00",
+   "name": "네오"
+  },
+  {
+   "ticker": "SXT",
+   "setup": "pullback",
+   "setup_label": "눌림목",
+   "state": "wait",
+   "price": 12.73,
+   "chg24": 0.16,
+   "entry": 12.72,
+   "zone_lo": 12.22,
+   "zone_hi": 12.72,
+   "stop": 11.72,
+   "t1": 14.22,
+   "t2": 15.22,
+   "stop_pct": 7.87,
+   "t1_pct": 11.81,
+   "t2_pct": 19.69,
+   "rr1": 1.5,
+   "rr2": 2.5,
+   "score": 66,
+   "reasons": [
+    "상승 추세 유지 (20일선 > 60일선, 60일선 우상향)",
+    "최근 고점 대비 -13.4% 눌림, 일봉 20일선 지지 구간",
+    "일봉 RSI 60 — 과열 해소"
+   ],
+   "risks": [],
+   "metrics": {
+    "rsi_d": 60.1,
+    "atr_pct": 6.56,
+    "depth_pct": 13.4
+   },
+   "rs7": 6.0,
+   "value24": 1274540330.7760262,
+   "gate_at_issue": "SELECTIVE",
+   "ai": {
+    "status": "ok",
+    "note": "",
+    "positive": null,
+    "checked_at": "2026-10-13T03:54:36+09:00",
+    "recheck": null
+   },
+   "valid_hours": 36,
+   "id": "SXT-pullback-202610130354",
+   "carried": false,
+   "issued_at": "2026-10-13T03:54:36+09:00",
+   "name": "스페이스앤드타임"
+  },
+  {
+   "ticker": "ENS",
+   "setup": "pullback",
+   "setup_label": "눌림목",
+   "state": "now",
+   "price": 8265.0,
+   "chg24": -3.45,
+   "entry": 8265.0,
+   "zone_lo": 8152.0,
+   "zone_hi": 8470.0,
+   "stop": 7835.0,
+   "t1": 8910.0,
+   "t2": 9341.0,
+   "stop_pct": 5.21,
+   "t1_pct": 7.81,
+   "t2_pct": 13.01,
    "rr1": 1.5,
    "rr2": 2.5,
    "score": 60,
    "reasons": [
     "상승 추세 유지 (20일선 > 60일선, 60일선 우상향)",
-    "최근 고점 대비 -9.8% 눌림, 일봉 60일선 지지 구간",
-    "일봉 RSI 48 — 과열 해소",
+    "최근 고점 대비 -15.8% 눌림, 일봉 60일선 지지 구간",
+    "일봉 RSI 44 — 과열 해소",
     "눌리는 동안 거래량 감소 — 매도 압력 약화"
    ],
    "risks": [
-    "최근 7일 BTC보다 약함 (-4.0%p)"
+    "최근 7일 BTC보다 약함 (-6.6%p)"
    ],
    "metrics": {
-    "rsi_d": 48.0,
-    "atr_pct": 5.41,
-    "depth_pct": 9.8
+    "rsi_d": 43.6,
+    "atr_pct": 6.4,
+    "depth_pct": 15.8
    },
-   "rs7": -4.0,
-   "value24": 995597224.0815176,
-   "gate_at_issue": "GO",
+   "rs7": -6.6,
+   "value24": 596886780.0083058,
+   "gate_at_issue": "SELECTIVE",
    "ai": {
-    "status": "ok",
-    "note": "",
+    "status": "caution",
+    "note": "ENSv2 도입 제안에 따라 도메인 만료 후 갱신 유예기간이 기존 90일에서 28일로 단축될 예정입니다.",
     "positive": null,
-    "checked_at": "2026-10-12T16:06:32+09:00",
+    "checked_at": "2026-10-13T03:54:36+09:00",
     "recheck": null
    },
    "valid_hours": 0,
-   "id": "SHIB-pullback-202610121606",
-   "carried": true,
-   "issued_at": "2026-10-12T16:06:32+09:00",
-   "name": "시바이누"
-  },
-  {
-   "ticker": "ETH",
-   "setup": "pullback",
-   "setup_label": "눌림목",
-   "state": "wait",
-   "price": 3465000.0,
-   "chg24": 1.61,
-   "entry": 3412197.0,
-   "zone_lo": 3356957.0,
-   "zone_hi": 3412197.0,
-   "stop": 3301717.0,
-   "t1": 3577917.0,
-   "t2": 3688397.0,
-   "stop_pct": 3.24,
-   "t1_pct": 4.86,
-   "t2_pct": 8.09,
-   "rr1": 1.5,
-   "rr2": 2.5,
-   "score": 54,
-   "reasons": [
-    "상승 추세 유지 (20일선 > 60일선, 60일선 우상향)",
-    "최근 고점 대비 -7.5% 눌림, 일봉 60일선 지지 구간",
-    "일봉 RSI 39 — 과열 해소",
-    "눌리는 동안 거래량 감소 — 매도 압력 약화"
-   ],
-   "risks": [
-    "최근 7일 BTC보다 약함 (-3.1%p)"
-   ],
-   "metrics": {
-    "rsi_d": 38.6,
-    "atr_pct": 2.66,
-    "depth_pct": 7.5
-   },
-   "rs7": -3.1,
-   "value24": 17223261121.99343,
-   "gate_at_issue": "GO",
-   "ai": {
-    "status": "caution",
-    "note": "현물 ETF에서 9일 연속 자금 유출이 발생하며 하방 압력이 지속되고 있으며, 최근 7일간 거래소 순유입량이 급증하여 매도 압력이 확대되고 있습니다. 또한 이더리움 재단 연관 지갑에서 대규모 ETH가 거래소로 입금되었습니다.",
-    "positive": "태국 펀드가 10월 16일부터 현지 상장 현물 이더리움 ETF에 투자할 수 있도록 승인되었습니다.",
-    "checked_at": "2026-10-12T16:06:32+09:00",
-    "recheck": null
-   },
-   "valid_hours": 36,
-   "id": "ETH-pullback-202610121606",
-   "carried": true,
-   "issued_at": "2026-10-12T16:06:32+09:00",
-   "name": "이더리움"
-  },
-  {
-   "ticker": "ETC",
-   "setup": "pullback",
-   "setup_label": "눌림목",
-   "state": "wait",
-   "price": 11460.0,
-   "chg24": 0.97,
-   "entry": 11396.0,
-   "zone_lo": 11046.0,
-   "zone_hi": 11396.0,
-   "stop": 10695.0,
-   "t1": 12446.0,
-   "t2": 13147.0,
-   "stop_pct": 6.15,
-   "t1_pct": 9.21,
-   "t2_pct": 15.37,
-   "rr1": 1.5,
-   "rr2": 2.5,
-   "score": 54,
-   "reasons": [
-    "상승 추세 유지 (20일선 > 60일선, 60일선 우상향)",
-    "최근 고점 대비 -8.8% 눌림, 일봉 60일선 지지 구간",
-    "일봉 RSI 46 — 과열 해소",
-    "눌리는 동안 거래량 감소 — 매도 압력 약화"
-   ],
-   "risks": [
-    "최근 7일 BTC보다 약함 (-2.1%p)"
-   ],
-   "metrics": {
-    "rsi_d": 46.1,
-    "atr_pct": 5.09,
-    "depth_pct": 8.8
-   },
-   "rs7": -2.1,
-   "value24": 436526166.74612224,
-   "gate_at_issue": "GO",
-   "ai": {
-    "status": "ok",
-    "note": "",
-    "positive": "'Fifthening'이라 불리는 발행량 감소가 계획대로 적용되어 공급량 감소로 희소성이 높아질 수 있습니다.",
-    "checked_at": "2026-10-12T16:06:32+09:00",
-    "recheck": null
-   },
-   "valid_hours": 36,
-   "id": "ETC-pullback-202610121606",
-   "carried": true,
-   "issued_at": "2026-10-12T16:06:32+09:00",
-   "name": "이더리움클래식"
-  },
-  {
-   "ticker": "AHT",
-   "setup": "pullback",
-   "setup_label": "눌림목",
-   "state": "now",
-   "price": 1.512,
-   "chg24": -3.14,
-   "entry": 1.53,
-   "zone_lo": 1.52,
-   "zone_hi": 1.57,
-   "stop": 1.48,
-   "t1": 1.6,
-   "t2": 1.64,
-   "stop_pct": 3.27,
-   "t1_pct": 4.58,
-   "t2_pct": 7.19,
-   "rr1": 1.5,
-   "rr2": 2.5,
-   "score": 54,
-   "reasons": [
-    "상승 추세 유지 (20일선 > 60일선, 60일선 우상향)",
-    "최근 고점 대비 -8.3% 눌림, 일봉 60일선 지지 구간",
-    "일봉 RSI 54 — 과열 해소"
-   ],
-   "risks": [
-    "최근 7일 BTC보다 약함 (-0.7%p)"
-   ],
-   "metrics": {
-    "rsi_d": 54.1,
-    "atr_pct": 4.56,
-    "depth_pct": 8.3
-   },
-   "rs7": -0.7,
-   "value24": 400602854.25640714,
-   "gate_at_issue": "GO",
-   "ai": {
-    "status": "ok",
-    "note": "",
-    "positive": null,
-    "checked_at": "2026-10-12T16:06:32+09:00",
-    "recheck": null
-   },
-   "valid_hours": 0,
-   "id": "AHT-pullback-202610121606",
-   "carried": true,
-   "issued_at": "2026-10-12T16:06:32+09:00",
-   "name": "아하토큰"
-  },
-  {
-   "ticker": "SOL",
-   "setup": "pullback",
-   "setup_label": "눌림목",
-   "state": "wait",
-   "price": 151900.0,
-   "chg24": 1.67,
-   "entry": 146382.0,
-   "zone_lo": 143026.0,
-   "zone_hi": 146382.0,
-   "stop": 139670.0,
-   "t1": 156451.0,
-   "t2": 163163.0,
-   "stop_pct": 4.59,
-   "t1_pct": 6.88,
-   "t2_pct": 11.46,
-   "rr1": 1.5,
-   "rr2": 2.5,
-   "score": 52,
-   "reasons": [
-    "상승 추세 유지 (20일선 > 60일선, 60일선 우상향)",
-    "최근 고점 대비 -9.3% 눌림, 일봉 60일선 지지 구간",
-    "일봉 RSI 43 — 과열 해소"
-   ],
-   "risks": [
-    "최근 7일 BTC보다 약함 (-3.9%p)"
-   ],
-   "metrics": {
-    "rsi_d": 43.3,
-    "atr_pct": 3.68,
-    "depth_pct": 9.3
-   },
-   "rs7": -3.9,
-   "value24": 8116204515.959911,
-   "gate_at_issue": "GO",
-   "ai": {
-    "status": "caution",
-    "note": "미국 현물 솔라나 ETF에서 4거래일 연속 자금 유출이 발생했으며, 이달 들어 2,940만 달러 이상의 자산이 상실되었습니다. 최근 24시간 동안 5.2%의 가격 하락이 보고되었습니다.",
-    "positive": "네트워크 업그레이드를 통해 블록 생성 간격 200ms를 목표로 하고 있으며, Securitize가 솔라나에서 토큰화 주식을 출시했습니다.",
-    "checked_at": "2026-10-12T16:06:32+09:00",
-    "recheck": null
-   },
-   "valid_hours": 36,
-   "id": "SOL-pullback-202610121606",
-   "carried": true,
-   "issued_at": "2026-10-12T16:06:32+09:00",
-   "name": "솔라나"
+   "id": "ENS-pullback-202610130354",
+   "carried": false,
+   "issued_at": "2026-10-13T03:54:36+09:00",
+   "name": "이더리움네임서비스"
   }
  ],
  "watch": [
   {
-   "ticker": "NEAR",
-   "setup": "squeeze",
-   "setup_label": "수렴 돌파 대기",
-   "price": 7815.0,
-   "chg24": 9.3,
-   "trigger_price": 7610.0,
-   "trigger_text": "일봉 종가가 7,610.0원 위 + 거래량 1.5배↑이면 돌파 확정 → 이후 눌림 구간에서 매수 추천이 열립니다 (장중 돌파 시도 — 일봉 종가 확인)",
-   "dist_pct": 2.69,
-   "score": 63,
+   "ticker": "TDROP",
+   "setup": "pullback",
+   "setup_label": "눌림목",
+   "price": 0.6374,
+   "chg24": 1.3,
+   "trigger_price": 0.6453,
+   "trigger_text": "1시간봉 반등(양봉) 마감 확인 후 진입",
+   "dist_pct": -1.22,
+   "score": 62,
    "reasons": [
-    "저항선 7,610.0원을 3번 두드림, 저점은 높아지는 중",
-    "볼린저 밴드폭이 최근 120일 중 하위 22% — 에너지 응축"
+    "상승 추세 유지 (20일선 > 60일선, 60일선 우상향)",
+    "최근 고점 대비 -8.4% 눌림, 일봉 60일선 지지 구간",
+    "일봉 RSI 46 — 과열 해소"
    ],
    "risks": [],
    "note": "",
-   "preview": null,
-   "name": "니어프로토콜"
+   "preview": {
+    "entry": 0.6374,
+    "stop": 0.6065,
+    "t1": 0.6838,
+    "t2": 0.7148,
+    "stop_pct": 4.85,
+    "t1_pct": 7.28,
+    "t2_pct": 12.14
+   },
+   "name": "티드랍"
+  },
+  {
+   "ticker": "ZRC",
+   "setup": "pullback",
+   "setup_label": "눌림목",
+   "price": 1.416,
+   "chg24": 1.87,
+   "trigger_price": 1.48,
+   "trigger_text": "1시간봉 반등(양봉) 마감 확인 후 진입",
+   "dist_pct": -4.32,
+   "score": 62,
+   "reasons": [
+    "상승 추세 유지 (20일선 > 60일선, 60일선 우상향)",
+    "최근 고점 대비 -15.2% 눌림, 일봉 20일선 지지 구간",
+    "일봉 RSI 52 — 과열 해소"
+   ],
+   "risks": [],
+   "note": "",
+   "preview": {
+    "entry": 1.42,
+    "stop": 1.31,
+    "t1": 1.58,
+    "t2": 1.69,
+    "stop_pct": 7.7,
+    "t1_pct": 11.55,
+    "t2_pct": 19.25
+   },
+   "name": "저킷"
   },
   {
    "ticker": "WAL",
    "setup": "squeeze",
    "setup_label": "수렴 돌파 대기",
-   "price": 50.45,
-   "chg24": -2.89,
+   "price": 49.1,
+   "chg24": -2.79,
    "trigger_price": 52.22,
    "trigger_text": "일봉 종가가 52.22원 위 + 거래량 1.5배↑이면 돌파 확정 → 이후 눌림 구간에서 매수 추천이 열립니다 (수렴 중)",
-   "dist_pct": -3.39,
-   "score": 63,
+   "dist_pct": -5.97,
+   "score": 59,
    "reasons": [
     "저항선 52.22원을 2번 두드림, 저점은 높아지는 중",
     "볼린저 밴드폭이 최근 120일 중 하위 9% — 에너지 응축"
@@ -372,122 +308,99 @@
    "name": "월러스"
   },
   {
-   "ticker": "INJ",
-   "setup": "squeeze",
-   "setup_label": "수렴 돌파 대기",
-   "price": 10780.0,
-   "chg24": 3.75,
-   "trigger_price": 11770.0,
-   "trigger_text": "일봉 종가가 11,770.0원 위 + 거래량 1.5배↑이면 돌파 확정 → 이후 눌림 구간에서 매수 추천이 열립니다 (수렴 중)",
-   "dist_pct": -8.41,
-   "score": 61,
-   "reasons": [
-    "저항선 11,770.0원을 3번 두드림, 저점은 높아지는 중",
-    "볼린저 밴드폭이 최근 120일 중 하위 18% — 에너지 응축"
-   ],
-   "risks": [],
-   "note": "",
-   "preview": null,
-   "name": "인젝티브"
-  },
-  {
-   "ticker": "MLK",
+   "ticker": "ETH",
    "setup": "pullback",
    "setup_label": "눌림목",
-   "price": 57.56,
-   "chg24": -1.2,
-   "trigger_price": 58.76,
+   "price": 3404000.0,
+   "chg24": -0.73,
+   "trigger_price": 3412831.0,
    "trigger_text": "1시간봉 반등(양봉) 마감 확인 후 진입",
-   "dist_pct": -2.04,
+   "dist_pct": -0.26,
    "score": 58,
    "reasons": [
     "상승 추세 유지 (20일선 > 60일선, 60일선 우상향)",
-    "최근 고점 대비 -11.4% 눌림, 일봉 20일선 지지 구간",
-    "일봉 RSI 58 — 과열 해소"
+    "최근 고점 대비 -9.1% 눌림, 일봉 60일선 지지 구간",
+    "일봉 RSI 39 — 과열 해소",
+    "눌리는 동안 거래량 감소 — 매도 압력 약화"
    ],
-   "risks": [],
+   "risks": [
+    "최근 7일 BTC보다 약함 (-2.9%p)"
+   ],
    "note": "",
    "preview": {
-    "entry": 57.56,
-    "stop": 54.61,
-    "t1": 61.98,
-    "t2": 64.93,
-    "stop_pct": 5.12,
-    "t1_pct": 7.68,
-    "t2_pct": 12.81
+    "entry": 3404000.0,
+    "stop": 3288746.0,
+    "t1": 3576881.0,
+    "t2": 3692136.0,
+    "stop_pct": 3.39,
+    "t1_pct": 5.08,
+    "t2_pct": 8.46
    },
-   "name": "밀크"
+   "name": "이더리움"
   },
   {
-   "ticker": "ALT",
-   "setup": "squeeze",
-   "setup_label": "수렴 돌파 대기",
-   "price": 11.72,
-   "chg24": 7.52,
-   "trigger_price": 11.98,
-   "trigger_text": "일봉 종가가 11.98원 위 + 거래량 1.5배↑이면 돌파 확정 → 이후 눌림 구간에서 매수 추천이 열립니다 (돌파 임박)",
-   "dist_pct": -2.17,
+   "ticker": "SOL",
+   "setup": "pullback",
+   "setup_label": "눌림목",
+   "price": 145900.0,
+   "chg24": -3.38,
+   "trigger_price": 146479.0,
+   "trigger_text": "1시간봉 반등(양봉) 마감 확인 후 진입",
+   "dist_pct": -0.4,
    "score": 58,
    "reasons": [
-    "저항선 11.98원을 2번 두드림, 저점은 높아지는 중",
-    "볼린저 밴드폭이 최근 120일 중 하위 26% — 에너지 응축"
+    "상승 추세 유지 (20일선 > 60일선, 60일선 우상향)",
+    "최근 고점 대비 -12.8% 눌림, 일봉 60일선 지지 구간",
+    "일봉 RSI 41 — 과열 해소",
+    "눌리는 동안 거래량 감소 — 매도 압력 약화"
+   ],
+   "risks": [
+    "최근 7일 BTC보다 약함 (-6.7%p)"
+   ],
+   "note": "",
+   "preview": {
+    "entry": 145900.0,
+    "stop": 139715.0,
+    "t1": 155178.0,
+    "t2": 161363.0,
+    "stop_pct": 4.24,
+    "t1_pct": 6.36,
+    "t2_pct": 10.6
+   },
+   "name": "솔라나"
+  },
+  {
+   "ticker": "NEAR",
+   "setup": "squeeze",
+   "setup_label": "수렴 돌파 대기",
+   "price": 7360.0,
+   "chg24": -4.6,
+   "trigger_price": 7610.0,
+   "trigger_text": "일봉 종가가 7,610.0원 위 + 거래량 1.5배↑이면 돌파 확정 → 이후 눌림 구간에서 매수 추천이 열립니다 (수렴 중)",
+   "dist_pct": -3.29,
+   "score": 57,
+   "reasons": [
+    "저항선 7,610.0원을 3번 두드림, 저점은 높아지는 중",
+    "볼린저 밴드폭이 최근 120일 중 하위 22% — 에너지 응축"
    ],
    "risks": [],
    "note": "",
    "preview": null,
-   "name": "알트레이어"
-  },
-  {
-   "ticker": "WAXL",
-   "setup": "squeeze",
-   "setup_label": "수렴 돌파 대기",
-   "price": 80.67,
-   "chg24": 7.79,
-   "trigger_price": 78.94,
-   "trigger_text": "일봉 종가가 78.94원 위 + 거래량 1.5배↑이면 돌파 확정 → 이후 눌림 구간에서 매수 추천이 열립니다 (장중 돌파 시도 — 일봉 종가 확인)",
-   "dist_pct": 2.19,
-   "score": 58,
-   "reasons": [
-    "저항선 78.94원을 2번 두드림, 저점은 높아지는 중",
-    "볼린저 밴드폭이 최근 120일 중 하위 25% — 에너지 응축"
-   ],
-   "risks": [],
-   "note": "",
-   "preview": null,
-   "name": "엑셀라"
-  },
-  {
-   "ticker": "IO",
-   "setup": "squeeze",
-   "setup_label": "수렴 돌파 대기",
-   "price": 256.0,
-   "chg24": 21.33,
-   "trigger_price": 246.0,
-   "trigger_text": "일봉 종가가 246.0원 위 + 거래량 1.5배↑이면 돌파 확정 → 이후 눌림 구간에서 매수 추천이 열립니다 (장중 돌파 시도 — 일봉 종가 확인)",
-   "dist_pct": 4.07,
-   "score": 58,
-   "reasons": [
-    "저항선 246.0원을 2번 두드림, 저점은 높아지는 중",
-    "볼린저 밴드폭이 최근 120일 중 하위 27% — 에너지 응축"
-   ],
-   "risks": [],
-   "note": "",
-   "preview": null,
-   "name": "아이오넷"
+   "name": "니어프로토콜"
   },
   {
    "ticker": "DOT",
    "setup": "squeeze",
    "setup_label": "수렴 돌파 대기",
-   "price": 1714.0,
-   "chg24": 1.84,
+   "price": 1650.0,
+   "chg24": -2.6,
    "trigger_price": 1768.0,
    "trigger_text": "일봉 종가가 1,768.0원 위 + 거래량 1.5배↑이면 돌파 확정 → 이후 눌림 구간에서 매수 추천이 열립니다 (수렴 중)",
-   "dist_pct": -3.05,
+   "dist_pct": -6.67,
    "score": 57,
    "reasons": [
     "저항선 1,768.0원을 4번 두드림, 저점은 높아지는 중",
-    "볼린저 밴드폭이 최근 120일 중 하위 26% — 에너지 응축"
+    "볼린저 밴드폭이 최근 120일 중 하위 27% — 에너지 응축"
    ],
    "risks": [],
    "note": "",
@@ -495,99 +408,118 @@
    "name": "폴카닷"
   },
   {
-   "ticker": "XLM",
+   "ticker": "POL",
    "setup": "pullback",
    "setup_label": "눌림목",
-   "price": 273.0,
-   "chg24": 2.63,
-   "trigger_price": 275.8,
+   "price": 139.0,
+   "chg24": -0.71,
+   "trigger_price": 140.2,
    "trigger_text": "1시간봉 반등(양봉) 마감 확인 후 진입",
-   "dist_pct": -1.02,
+   "dist_pct": -0.86,
    "score": 54,
    "reasons": [
     "상승 추세 유지 (20일선 > 60일선, 60일선 우상향)",
-    "최근 고점 대비 -13.3% 눌림, 일봉 60일선 지지 구간",
+    "최근 고점 대비 -11.5% 눌림, 일봉 60일선 지지 구간",
     "일봉 RSI 46 — 과열 해소",
     "눌리는 동안 거래량 감소 — 매도 압력 약화"
    ],
    "risks": [
-    "최근 7일 BTC보다 약함 (-4.1%p)"
+    "최근 7일 BTC보다 약함 (-0.4%p)"
    ],
    "note": "",
    "preview": {
-    "entry": 273.0,
-    "stop": 258.1,
-    "t1": 295.3,
-    "t2": 310.2,
-    "stop_pct": 5.45,
-    "t1_pct": 8.17,
-    "t2_pct": 13.62
+    "entry": 139.0,
+    "stop": 130.5,
+    "t1": 151.8,
+    "t2": 160.3,
+    "stop_pct": 6.14,
+    "t1_pct": 9.21,
+    "t2_pct": 15.35
    },
-   "name": "스텔라루멘"
+   "name": "폴리곤에코시스템토큰"
   },
   {
    "ticker": "LINK",
    "setup": "pullback",
    "setup_label": "눌림목",
-   "price": 18120.0,
-   "chg24": 3.25,
-   "trigger_price": 18484.0,
-   "trigger_text": "1시간봉 반등(양봉) 마감 확인 후 진입",
-   "dist_pct": -1.97,
+   "price": 17460.0,
+   "chg24": -3.05,
+   "trigger_price": 17016.0,
+   "trigger_text": "점수 54 < 기준 55 — 관찰만",
+   "dist_pct": 2.61,
    "score": 54,
    "reasons": [
     "상승 추세 유지 (20일선 > 60일선, 60일선 우상향)",
-    "최근 고점 대비 -13.7% 눌림, 일봉 20일선 지지 구간",
-    "일봉 RSI 49 — 과열 해소",
+    "최근 고점 대비 -12.7% 눌림, 일봉 60일선 지지 구간",
+    "일봉 RSI 47 — 과열 해소",
     "눌리는 동안 거래량 감소 — 매도 압력 약화"
    ],
    "risks": [
-    "최근 7일 BTC보다 약함 (-0.8%p)"
+    "최근 7일 BTC보다 약함 (-3.8%p)"
    ],
    "note": "",
    "preview": {
-    "entry": 18120.0,
-    "stop": 17339.0,
-    "t1": 19291.0,
-    "t2": 20071.0,
-    "stop_pct": 4.31,
-    "t1_pct": 6.46,
-    "t2_pct": 10.77
+    "entry": 17016.0,
+    "stop": 15885.0,
+    "t1": 18711.0,
+    "t2": 19842.0,
+    "stop_pct": 6.64,
+    "t1_pct": 9.96,
+    "t2_pct": 16.61
    },
    "name": "체인링크"
   },
   {
-   "ticker": "NEO",
+   "ticker": "IO",
    "setup": "squeeze",
    "setup_label": "수렴 돌파 대기",
-   "price": 3486.0,
-   "chg24": -3.03,
-   "trigger_price": 3725.0,
-   "trigger_text": "일봉 종가가 3,725.0원 위 + 거래량 1.5배↑이면 돌파 확정 → 이후 눌림 구간에서 매수 추천이 열립니다 (수렴 중)",
-   "dist_pct": -6.42,
+   "price": 227.0,
+   "chg24": -1.73,
+   "trigger_price": 246.0,
+   "trigger_text": "일봉 종가가 246.0원 위 + 거래량 1.5배↑이면 돌파 확정 → 이후 눌림 구간에서 매수 추천이 열립니다 (수렴 중)",
+   "dist_pct": -7.72,
    "score": 53,
    "reasons": [
-    "저항선 3,725.0원을 3번 두드림, 저점은 높아지는 중",
-    "볼린저 밴드폭이 최근 120일 중 하위 27% — 에너지 응축"
+    "저항선 246.0원을 3번 두드림, 저점은 높아지는 중",
+    "볼린저 밴드폭이 최근 120일 중 하위 22% — 에너지 응축"
    ],
    "risks": [],
    "note": "",
    "preview": null,
-   "name": "네오"
+   "name": "아이오넷"
+  },
+  {
+   "ticker": "PYTH",
+   "setup": "squeeze",
+   "setup_label": "수렴 돌파 대기",
+   "price": 111.0,
+   "chg24": 6.73,
+   "trigger_price": 120.0,
+   "trigger_text": "일봉 종가가 120.0원 위 + 거래량 1.5배↑이면 돌파 확정 → 이후 눌림 구간에서 매수 추천이 열립니다 (수렴 중)",
+   "dist_pct": -7.5,
+   "score": 52,
+   "reasons": [
+    "저항선 120.0원을 2번 두드림, 저점은 높아지는 중",
+    "볼린저 밴드폭이 최근 120일 중 하위 29% — 에너지 응축"
+   ],
+   "risks": [],
+   "note": "",
+   "preview": null,
+   "name": "피스네트워크"
   },
   {
    "ticker": "ATOM",
    "setup": "squeeze",
    "setup_label": "수렴 돌파 대기",
-   "price": 2533.0,
-   "chg24": -3.65,
-   "trigger_price": 2700.0,
-   "trigger_text": "일봉 종가가 2,700.0원 위 + 거래량 1.5배↑이면 돌파 확정 → 이후 눌림 구간에서 매수 추천이 열립니다 (수렴 중)",
-   "dist_pct": -6.19,
+   "price": 2500.0,
+   "chg24": -2.31,
+   "trigger_price": 2720.0,
+   "trigger_text": "일봉 종가가 2,720.0원 위 + 거래량 1.5배↑이면 돌파 확정 → 이후 눌림 구간에서 매수 추천이 열립니다 (수렴 중)",
+   "dist_pct": -8.09,
    "score": 52,
    "reasons": [
-    "저항선 2,700.0원을 2번 두드림, 저점은 높아지는 중",
-    "볼린저 밴드폭이 최근 120일 중 하위 30% — 에너지 응축"
+    "저항선 2,720.0원을 2번 두드림, 저점은 높아지는 중",
+    "볼린저 밴드폭이 최근 120일 중 하위 29% — 에너지 응축"
    ],
    "risks": [],
    "note": "",
@@ -595,185 +527,53 @@
    "name": "코스모스"
   },
   {
-   "ticker": "ARB",
+   "ticker": "DYDX",
    "setup": "pullback",
    "setup_label": "눌림목",
-   "price": 261.0,
-   "chg24": -2.61,
-   "trigger_price": 270.5,
+   "price": 180.0,
+   "chg24": -5.26,
+   "trigger_price": 180.7,
    "trigger_text": "1시간봉 반등(양봉) 마감 확인 후 진입",
-   "dist_pct": -3.51,
-   "score": 50,
-   "reasons": [
-    "상승 추세 유지 (20일선 > 60일선, 60일선 우상향)",
-    "최근 고점 대비 -9.7% 눌림, 일봉 20일선 지지 구간",
-    "일봉 RSI 55 — 과열 해소",
-    "눌리는 동안 거래량 감소 — 매도 압력 약화"
-   ],
-   "risks": [
-    "최근 7일 BTC보다 약함 (-2.0%p)"
-   ],
-   "note": "",
-   "preview": {
-    "entry": 261.0,
-    "stop": 242.6,
-    "t1": 288.7,
-    "t2": 307.1,
-    "stop_pct": 7.07,
-    "t1_pct": 10.6,
-    "t2_pct": 17.67
-   },
-   "name": "아비트럼"
-  },
-  {
-   "ticker": "POL",
-   "setup": "pullback",
-   "setup_label": "눌림목",
-   "price": 140.0,
-   "chg24": 1.45,
-   "trigger_price": 140.2,
-   "trigger_text": "1시간봉 반등(양봉) 마감 확인 후 진입",
-   "dist_pct": -0.14,
+   "dist_pct": -0.39,
    "score": 48,
    "reasons": [
     "상승 추세 유지 (20일선 > 60일선, 60일선 우상향)",
-    "최근 고점 대비 -14.6% 눌림, 일봉 60일선 지지 구간",
-    "일봉 RSI 46 — 과열 해소"
+    "최근 고점 대비 -14.7% 눌림, 일봉 60일선 지지 구간",
+    "일봉 RSI 50 — 과열 해소"
    ],
    "risks": [
-    "최근 7일 BTC보다 약함 (-1.7%p)"
+    "최근 7일 BTC보다 약함 (-4.7%p)"
    ],
    "note": "",
    "preview": {
-    "entry": 140.0,
-    "stop": 130.3,
-    "t1": 154.5,
-    "t2": 164.2,
-    "stop_pct": 6.9,
-    "t1_pct": 10.36,
-    "t2_pct": 17.26
+    "entry": 180.0,
+    "stop": 165.8,
+    "t1": 201.2,
+    "t2": 215.4,
+    "stop_pct": 7.86,
+    "t1_pct": 11.79,
+    "t2_pct": 19.65
    },
-   "name": "폴리곤에코시스템토큰"
+   "name": "디와이디엑스"
   },
   {
-   "ticker": "ADA",
-   "setup": "pullback",
-   "setup_label": "눌림목",
-   "price": 342.0,
-   "chg24": 1.18,
-   "trigger_price": 342.5,
-   "trigger_text": "1시간봉 반등(양봉) 마감 확인 후 진입",
-   "dist_pct": -0.15,
-   "score": 48,
+   "ticker": "RENDER",
+   "setup": "squeeze",
+   "setup_label": "수렴 돌파 대기",
+   "price": 2755.0,
+   "chg24": 2.34,
+   "trigger_price": 2947.0,
+   "trigger_text": "일봉 종가가 2,947.0원 위 + 거래량 1.5배↑이면 돌파 확정 → 이후 눌림 구간에서 매수 추천이 열립니다 (수렴 중)",
+   "dist_pct": -6.52,
+   "score": 41,
    "reasons": [
-    "상승 추세 유지 (20일선 > 60일선, 60일선 우상향)",
-    "최근 고점 대비 -10.2% 눌림, 일봉 20일선 지지 구간",
-    "일봉 RSI 53 — 과열 해소"
+    "저항선 2,947.0원을 2번 두드림, 저점은 높아지는 중",
+    "볼린저 밴드폭이 최근 120일 중 하위 26% — 에너지 응축"
    ],
-   "risks": [
-    "최근 7일 BTC보다 약함 (-3.7%p)"
-   ],
+   "risks": [],
    "note": "",
-   "preview": {
-    "entry": 342.0,
-    "stop": 316.3,
-    "t1": 380.5,
-    "t2": 406.2,
-    "stop_pct": 7.51,
-    "t1_pct": 11.27,
-    "t2_pct": 18.78
-   },
-   "name": "에이다"
-  },
-  {
-   "ticker": "BCH",
-   "setup": "pullback",
-   "setup_label": "눌림목",
-   "price": 386700.0,
-   "chg24": 2.19,
-   "trigger_price": 384002.0,
-   "trigger_text": "점수 48 < 기준 50 — 관찰만",
-   "dist_pct": 0.7,
-   "score": 48,
-   "reasons": [
-    "상승 추세 유지 (20일선 > 60일선, 60일선 우상향)",
-    "최근 고점 대비 -11.8% 눌림, 일봉 60일선 지지 구간",
-    "일봉 RSI 44 — 과열 해소"
-   ],
-   "risks": [
-    "최근 7일 BTC보다 약함 (-6.7%p)"
-   ],
-   "note": "",
-   "preview": {
-    "entry": 384002.0,
-    "stop": 359295.0,
-    "t1": 421063.0,
-    "t2": 445770.0,
-    "stop_pct": 6.43,
-    "t1_pct": 9.65,
-    "t2_pct": 16.09
-   },
-   "name": "비트코인캐시"
-  },
-  {
-   "ticker": "ENS",
-   "setup": "pullback",
-   "setup_label": "눌림목",
-   "price": 8605.0,
-   "chg24": 1.83,
-   "trigger_price": 8470.0,
-   "trigger_text": "점수 48 < 기준 50 — 관찰만",
-   "dist_pct": 1.59,
-   "score": 48,
-   "reasons": [
-    "상승 추세 유지 (20일선 > 60일선, 60일선 우상향)",
-    "최근 고점 대비 -12.7% 눌림, 일봉 60일선 지지 구간",
-    "일봉 RSI 46 — 과열 해소"
-   ],
-   "risks": [
-    "최근 7일 BTC보다 약함 (-4.6%p)"
-   ],
-   "note": "",
-   "preview": {
-    "entry": 8470.0,
-    "stop": 7827.0,
-    "t1": 9435.0,
-    "t2": 10078.0,
-    "stop_pct": 7.59,
-    "t1_pct": 11.38,
-    "t2_pct": 18.97
-   },
-   "name": "이더리움네임서비스"
-  },
-  {
-   "ticker": "TOKAMAK",
-   "setup": "pullback",
-   "setup_label": "눌림목",
-   "price": 486.0,
-   "chg24": -2.02,
-   "trigger_price": 498.4,
-   "trigger_text": "1시간봉 반등(양봉) 마감 확인 후 진입",
-   "dist_pct": -2.49,
-   "score": 48,
-   "reasons": [
-    "상승 추세 유지 (20일선 > 60일선, 60일선 우상향)",
-    "최근 고점 대비 -12.7% 눌림, 일봉 20일선 지지 구간",
-    "일봉 RSI 54 — 과열 해소"
-   ],
-   "risks": [
-    "최근 7일 BTC보다 약함 (-1.2%p)"
-   ],
-   "note": "",
-   "preview": {
-    "entry": 486.0,
-    "stop": 456.4,
-    "t1": 530.3,
-    "t2": 559.9,
-    "stop_pct": 6.08,
-    "t1_pct": 9.12,
-    "t2_pct": 15.21
-   },
-   "name": "토카막네트워크"
+   "preview": null,
+   "name": "렌더토큰"
   }
  ],
  "excluded": [],
@@ -781,12 +581,12 @@
  "pumps": [
   {
    "ticker": "XAI",
-   "price": 13.31,
+   "price": 13.74,
    "peak": 23.9,
    "base": 12.52,
    "pump_pct": 90.9,
-   "from_peak_pct": -44.3,
-   "days_since_peak": 1,
+   "from_peak_pct": -42.5,
+   "days_since_peak": 2,
    "levels": {
     "15": 20.31,
     "20": 19.12,
@@ -794,35 +594,17 @@
     "30": 16.73
    },
    "below_base": false,
-   "value24": 772006052.9457029,
+   "value24": 478079771.492903,
    "name": "자이"
   },
   {
-   "ticker": "OGN",
-   "price": 40.85,
-   "peak": 72.04,
-   "base": 29.11,
-   "pump_pct": 147.5,
-   "from_peak_pct": -43.3,
-   "days_since_peak": 2,
-   "levels": {
-    "15": 61.23,
-    "20": 57.63,
-    "25": 54.03,
-    "30": 50.43
-   },
-   "below_base": false,
-   "value24": 2146130277.9556952,
-   "name": "오리진프로토콜"
-  },
-  {
    "ticker": "MBL",
-   "price": 1.107,
+   "price": 1.082,
    "peak": 1.85,
    "base": 0.9991,
    "pump_pct": 84.8,
-   "from_peak_pct": -40.0,
-   "days_since_peak": 0,
+   "from_peak_pct": -41.4,
+   "days_since_peak": 1,
    "levels": {
     "15": 1.57,
     "20": 1.48,
@@ -830,35 +612,17 @@
     "30": 1.29
    },
    "below_base": false,
-   "value24": 3225940329.4739943,
+   "value24": 884889442.1999248,
    "name": "무비블록"
   },
   {
-   "ticker": "BLUE",
-   "price": 14.16,
-   "peak": 22.27,
-   "base": 12.36,
-   "pump_pct": 80.2,
-   "from_peak_pct": -36.4,
-   "days_since_peak": 0,
-   "levels": {
-    "15": 18.93,
-    "20": 17.82,
-    "25": 16.7,
-    "30": 15.59
-   },
-   "below_base": false,
-   "value24": 4850635419.079909,
-   "name": "블루핀"
-  },
-  {
    "ticker": "ERA",
-   "price": 96.03,
+   "price": 92.92,
    "peak": 150.0,
    "base": 81.16,
    "pump_pct": 84.8,
-   "from_peak_pct": -36.0,
-   "days_since_peak": 1,
+   "from_peak_pct": -38.1,
+   "days_since_peak": 2,
    "levels": {
     "15": 127.5,
     "20": 120.0,
@@ -866,35 +630,17 @@
     "30": 105.0
    },
    "below_base": false,
-   "value24": 1646649206.4531024,
+   "value24": 914318489.9464997,
    "name": "칼데라"
   },
   {
-   "ticker": "FORT",
-   "price": 23.63,
-   "peak": 36.22,
-   "base": 21.61,
-   "pump_pct": 67.6,
-   "from_peak_pct": -34.8,
-   "days_since_peak": 4,
-   "levels": {
-    "15": 30.79,
-    "20": 28.98,
-    "25": 27.16,
-    "30": 25.35
-   },
-   "below_base": false,
-   "value24": 438833972.05575085,
-   "name": "포르타"
-  },
-  {
    "ticker": "RLC",
-   "price": 1338.0,
+   "price": 1283.0,
    "peak": 2006.0,
    "base": 945.0,
    "pump_pct": 112.3,
-   "from_peak_pct": -33.3,
-   "days_since_peak": 2,
+   "from_peak_pct": -36.0,
+   "days_since_peak": 3,
    "levels": {
     "15": 1705.0,
     "20": 1605.0,
@@ -902,89 +648,71 @@
     "30": 1404.0
    },
    "below_base": false,
-   "value24": 9089242928.898376,
+   "value24": 4284429915.385568,
    "name": "아이젝"
   },
   {
-   "ticker": "GTC",
-   "price": 221.0,
-   "peak": 329.0,
-   "base": 163.0,
-   "pump_pct": 101.8,
-   "from_peak_pct": -32.8,
-   "days_since_peak": 6,
+   "ticker": "BLUE",
+   "price": 14.25,
+   "peak": 22.27,
+   "base": 12.36,
+   "pump_pct": 80.2,
+   "from_peak_pct": -36.0,
+   "days_since_peak": 1,
    "levels": {
-    "15": 279.6,
-    "20": 263.2,
-    "25": 246.8,
-    "30": 230.3
+    "15": 18.93,
+    "20": 17.82,
+    "25": 16.7,
+    "30": 15.59
    },
    "below_base": false,
-   "value24": 3097153048.8281665,
-   "name": "깃코인"
+   "value24": 930601832.90285,
+   "name": "블루핀"
   },
   {
-   "ticker": "ORCA",
-   "price": 3096.0,
-   "peak": 4498.0,
-   "base": 2453.0,
-   "pump_pct": 83.4,
-   "from_peak_pct": -31.2,
-   "days_since_peak": 4,
-   "levels": {
-    "15": 3823.0,
-    "20": 3598.0,
-    "25": 3374.0,
-    "30": 3149.0
-   },
-   "below_base": false,
-   "value24": 345520618.7331747,
-   "name": "오르카"
-  },
-  {
-   "ticker": "PYR",
-   "price": 73.88,
-   "peak": 105.0,
-   "base": 70.48,
-   "pump_pct": 49.0,
-   "from_peak_pct": -29.6,
+   "ticker": "W",
+   "price": 28.11,
+   "peak": 42.37,
+   "base": 23.44,
+   "pump_pct": 80.8,
+   "from_peak_pct": -33.7,
    "days_since_peak": 0,
    "levels": {
-    "15": 89.25,
-    "20": 84.0,
-    "25": 78.75,
-    "30": 73.5
+    "15": 36.01,
+    "20": 33.9,
+    "25": 31.78,
+    "30": 29.66
    },
    "below_base": false,
-   "value24": 849713657.4942346,
-   "name": "불칸포지드"
+   "value24": 25530210441.169067,
+   "name": "웜홀"
   },
   {
-   "ticker": "MED",
-   "price": 2.29,
-   "peak": 3.25,
-   "base": 2.23,
-   "pump_pct": 46.0,
-   "from_peak_pct": -29.5,
+   "ticker": "CUDIS",
+   "price": 4.108,
+   "peak": 6.05,
+   "base": 3.68,
+   "pump_pct": 64.4,
+   "from_peak_pct": -32.1,
    "days_since_peak": 0,
    "levels": {
-    "15": 2.76,
-    "20": 2.6,
-    "25": 2.44,
-    "30": 2.27
+    "15": 5.14,
+    "20": 4.84,
+    "25": 4.54,
+    "30": 4.23
    },
    "below_base": false,
-   "value24": 353801868.1846254,
-   "name": "메디블록"
+   "value24": 9584927735.183277,
+   "name": "쿠디스"
   },
   {
    "ticker": "AEON",
-   "price": 71.12,
+   "price": 68.49,
    "peak": 99.95,
    "base": 73.06,
    "pump_pct": 36.8,
-   "from_peak_pct": -28.8,
-   "days_since_peak": 4,
+   "from_peak_pct": -31.5,
+   "days_since_peak": 5,
    "levels": {
     "15": 84.96,
     "20": 79.96,
@@ -992,35 +720,35 @@
     "30": 69.97
    },
    "below_base": true,
-   "value24": 612030027.7416958,
+   "value24": 384803717.51520944,
    "name": "이온"
   },
   {
-   "ticker": "SENT",
-   "price": 28.43,
-   "peak": 39.8,
-   "base": 27.29,
-   "pump_pct": 45.8,
-   "from_peak_pct": -28.6,
-   "days_since_peak": 0,
+   "ticker": "NIL",
+   "price": 108.0,
+   "peak": 157.0,
+   "base": 113.0,
+   "pump_pct": 38.9,
+   "from_peak_pct": -31.2,
+   "days_since_peak": 6,
    "levels": {
-    "15": 33.83,
-    "20": 31.84,
-    "25": 29.85,
-    "30": 27.86
+    "15": 133.4,
+    "20": 125.6,
+    "25": 117.8,
+    "30": 109.9
    },
-   "below_base": false,
-   "value24": 3861825852.24547,
-   "name": "센티언트"
+   "below_base": true,
+   "value24": 867803233.5045043,
+   "name": "닐리온"
   },
   {
    "ticker": "SAND",
-   "price": 86.88,
+   "price": 83.67,
    "peak": 120.0,
    "base": 89.0,
    "pump_pct": 34.8,
-   "from_peak_pct": -27.6,
-   "days_since_peak": 3,
+   "from_peak_pct": -30.3,
+   "days_since_peak": 4,
    "levels": {
     "15": 102.0,
     "20": 96.0,
@@ -1028,60 +756,132 @@
     "30": 84.0
    },
    "below_base": true,
-   "value24": 1602481320.867802,
+   "value24": 2360144448.7400613,
    "name": "샌드박스"
   },
   {
-   "ticker": "MANTRA",
-   "price": 9.601,
-   "peak": 13.11,
-   "base": 9.97,
-   "pump_pct": 31.5,
-   "from_peak_pct": -26.8,
-   "days_since_peak": 4,
+   "ticker": "ICX",
+   "price": 15.02,
+   "peak": 21.55,
+   "base": 16.43,
+   "pump_pct": 31.2,
+   "from_peak_pct": -30.3,
+   "days_since_peak": 1,
    "levels": {
-    "15": 11.14,
-    "20": 10.49,
-    "25": 9.83,
-    "30": 9.18
+    "15": 18.32,
+    "20": 17.24,
+    "25": 16.16,
+    "30": 15.08
    },
    "below_base": true,
-   "value24": 1332497250.793707,
-   "name": "만트라"
+   "value24": 343329261.0292195,
+   "name": "아이콘"
+  },
+  {
+   "ticker": "SENT",
+   "price": 27.89,
+   "peak": 39.8,
+   "base": 27.29,
+   "pump_pct": 45.8,
+   "from_peak_pct": -29.9,
+   "days_since_peak": 1,
+   "levels": {
+    "15": 33.83,
+    "20": 31.84,
+    "25": 29.85,
+    "30": 27.86
+   },
+   "below_base": false,
+   "value24": 520207245.60048133,
+   "name": "센티언트"
+  },
+  {
+   "ticker": "MET",
+   "price": 523.0,
+   "peak": 742.0,
+   "base": 394.0,
+   "pump_pct": 88.3,
+   "from_peak_pct": -29.5,
+   "days_since_peak": 4,
+   "levels": {
+    "15": 630.7,
+    "20": 593.6,
+    "25": 556.5,
+    "30": 519.4
+   },
+   "below_base": false,
+   "value24": 1070896325.1617609,
+   "name": "메테오라"
+  },
+  {
+   "ticker": "PYR",
+   "price": 74.58,
+   "peak": 105.0,
+   "base": 70.48,
+   "pump_pct": 49.0,
+   "from_peak_pct": -29.0,
+   "days_since_peak": 1,
+   "levels": {
+    "15": 89.25,
+    "20": 84.0,
+    "25": 78.75,
+    "30": 73.5
+   },
+   "below_base": false,
+   "value24": 1269007614.7110472,
+   "name": "불칸포지드"
+  },
+  {
+   "ticker": "RAD",
+   "price": 408.0,
+   "peak": 569.0,
+   "base": 349.0,
+   "pump_pct": 63.0,
+   "from_peak_pct": -28.3,
+   "days_since_peak": 6,
+   "levels": {
+    "15": 483.6,
+    "20": 455.2,
+    "25": 426.8,
+    "30": 398.3
+   },
+   "below_base": false,
+   "value24": 1273038099.4876022,
+   "name": "래드웍스"
   }
  ],
  "funnel": {
-  "scanned": 146,
-  "enough_history": 137,
-  "uptrend": 96,
-  "downtrend": 21,
-  "sideways": 20,
-  "uptrend_pulled_back": 52,
-  "pullback_rsi_ok": 40,
-  "setups": 15,
-  "squeeze": 9,
-  "picks": 6,
+  "scanned": 153,
+  "enough_history": 146,
+  "uptrend": 95,
+  "downtrend": 26,
+  "sideways": 25,
+  "uptrend_pulled_back": 57,
+  "pullback_rsi_ok": 42,
+  "setups": 11,
+  "squeeze": 7,
+  "picks": 4,
   "min_history_days": 130,
   "min_value_krw": 300000000.0
  },
  "universe": {
-  "count": 156,
-  "scanned": 147,
+  "count": 163,
+  "scanned": 154,
   "failed": [
-   "US",
-   "XDP",
-   "POD",
    "ZEST",
+   "US",
+   "KGEN",
+   "POD",
+   "XDP",
    "Q",
-   "AIA",
-   "BR",
    "PONS",
-   "CASHCAT"
+   "BR",
+   "AIA"
   ]
  },
  "ai_status": "ok",
- "ai_calls": 0,
- "ai_calls_today": 2,
+ "ai_calls": 1,
+ "ai_calls_today": 1,
  "params": {
   "min_stop_pct": 2.5,
   "max_stop_pct": 8.0,
@@ -1092,45 +892,43 @@
   "fee_pct_per_side": 0.04
  },
  "names": {
-  "ADA": "에이다",
   "AEON": "이온",
   "AHT": "아하토큰",
-  "ALT": "알트레이어",
-  "ARB": "아비트럼",
   "ATOM": "코스모스",
-  "BCH": "비트코인캐시",
   "BLUE": "블루핀",
+  "BMT": "버블맵스",
+  "CUDIS": "쿠디스",
   "DKA": "디카르고",
   "DOT": "폴카닷",
+  "DYDX": "디와이디엑스",
   "ENS": "이더리움네임서비스",
   "ERA": "칼데라",
   "ETC": "이더리움클래식",
   "ETH": "이더리움",
-  "FORT": "포르타",
-  "GTC": "깃코인",
-  "INJ": "인젝티브",
+  "ICX": "아이콘",
   "IO": "아이오넷",
   "LINK": "체인링크",
-  "MANTRA": "만트라",
   "MBL": "무비블록",
-  "MED": "메디블록",
-  "MLK": "밀크",
+  "MET": "메테오라",
   "NEAR": "니어프로토콜",
   "NEO": "네오",
-  "OGN": "오리진프로토콜",
+  "NIL": "닐리온",
   "ONG": "온톨로지가스",
-  "ORCA": "오르카",
   "POL": "폴리곤에코시스템토큰",
   "PYR": "불칸포지드",
+  "PYTH": "피스네트워크",
+  "RAD": "래드웍스",
+  "RENDER": "렌더토큰",
   "RLC": "아이젝",
   "SAND": "샌드박스",
   "SENT": "센티언트",
   "SHIB": "시바이누",
   "SOL": "솔라나",
-  "TOKAMAK": "토카막네트워크",
+  "SXT": "스페이스앤드타임",
+  "TDROP": "티드랍",
+  "W": "웜홀",
   "WAL": "월러스",
-  "WAXL": "엑셀라",
   "XAI": "자이",
-  "XLM": "스텔라루멘"
+  "ZRC": "저킷"
  }
 }
