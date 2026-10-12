@@ -770,6 +770,7 @@ verdict: "block"(지금 매수 비권장: 상폐·해킹·대규모 언락 임�
 
 
 AI_CACHE_HOURS = float(ENV("AI_CACHE_HOURS", "24"))   # 같은 종목은 이 시간 동안 AI 재검증 안 함
+AI_STICKY_HOURS = float(ENV("AI_STICKY_HOURS", "72"))  # 악재·주의 경고는 이 시간 동안 유지
 
 
 def ai_veto_cached(cand: list, store, at_ms: int) -> tuple:
@@ -778,7 +779,7 @@ def ai_veto_cached(cand: list, store, at_ms: int) -> tuple:
     cache = store.read("ai_cache.json", {})
     if not isinstance(cache, dict):
         cache = {}
-    fresh = {tk: v for tk, v in cache.items() if at_ms - v.get("checked_ts", 0) < AI_CACHE_HOURS * HOUR_MS}
+    fresh = {tk: v for tk, v in cache.items() if not v.get("stale") and at_ms - v.get("checked_ts", 0) < AI_CACHE_HOURS * HOUR_MS}
     need = [p for p in cand if p["ticker"] not in fresh]
     calls, state = 0, "ok"
     if need:
@@ -787,8 +788,24 @@ def ai_veto_cached(cand: list, store, at_ms: int) -> tuple:
         if state == "ok":
             for p in need:
                 v = got.get(p["ticker"], {"verdict": "ok", "note": "", "positive": None})
-                fresh[p["ticker"]] = {**v, "checked_ts": at_ms, "checked_at": iso_kst(at_ms)}
-    out = {tk: v for tk, v in fresh.items() if any(p["ticker"] == tk for p in cand)}
+                v = {k: x for k, x in v.items() if k != "stale"}
+                v.update(checked_ts=at_ms, checked_at=iso_kst(at_ms))
+                # AI 판정은 검색할 때마다 흔들릴 수 있다 → 72시간 안에 나온 더 심각한 경고는 유지
+                prev = cache.get(p["ticker"])
+                sev = {"ok": 0, "caution": 1, "block": 2}
+                if prev and at_ms - prev.get("warn_ts", prev.get("checked_ts", 0)) < AI_STICKY_HOURS * HOUR_MS \
+                        and sev.get(prev.get("verdict"), 0) > sev.get(v["verdict"], 0):
+                    v.update(verdict=prev["verdict"], note=prev.get("note", ""),
+                             warn_ts=prev.get("warn_ts", prev.get("checked_ts")), warn_at=prev.get("warn_at", prev.get("checked_at")),
+                             recheck="최근 재검색에서는 악재가 확인되지 않았지만 이전 경고를 유지합니다")
+                elif v["verdict"] != "ok":
+                    v.update(warn_ts=at_ms, warn_at=iso_kst(at_ms))
+                fresh[p["ticker"]] = v
+    # 만료됐어도 72시간 안의 경고는 다음 재검증 때 쓰도록 보관
+    for tk, v in cache.items():
+        if tk not in fresh and v.get("verdict") != "ok" and at_ms - v.get("warn_ts", v.get("checked_ts", 0)) < AI_STICKY_HOURS * HOUR_MS:
+            fresh[tk] = {**v, "stale": True}
+    out = {tk: v for tk, v in fresh.items() if not v.get("stale") and any(p["ticker"] == tk for p in cand)}
     if state != "ok" and any(p["ticker"] not in out for p in cand):
         state = "partial" if out else "unavailable"
     store.write("ai_cache.json", fresh, "AI 검증 캐시")
@@ -1136,11 +1153,12 @@ def run_scan() -> dict:
         for p in cand:
             v = verdicts.get(p["ticker"])
             if v:
-                p["ai"] = {"status": v["verdict"], "note": v["note"], "positive": v["positive"], "checked_at": v.get("checked_at")}
+                p["ai"] = {"status": v["verdict"], "note": v["note"], "positive": v.get("positive"), "checked_at": v.get("warn_at") or v.get("checked_at"),
+                           "recheck": v.get("recheck")}
                 if v["verdict"] == "block":
                     excluded.append({"ticker": p["ticker"], "setup": p["setup"], "setup_label": p["setup_label"], "kind": "악재",
                                      "reason": "AI 악재 검증에서 제외", "note": v["note"] or "(AI가 사유를 남기지 않음)",
-                                     "checked_at": v.get("checked_at"), "price": p["price"],
+                                     "checked_at": v.get("warn_at") or v.get("checked_at"), "recheck": v.get("recheck"), "price": p["price"],
                                      "plan": {k: p[k] for k in ("zone_lo", "zone_hi", "stop", "t1", "t2", "stop_pct", "t1_pct")},
                                      "reasons": p["reasons"]})
                     continue

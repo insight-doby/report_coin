@@ -197,6 +197,7 @@ function viewToday(){
       return `<div class="card"><div class="pick-h"><div>${tkTitle(x.ticker)}<span class="tag warn">${esc(x.kind||"제외")}</span>${x.setup_label?`<span class="tag">${esc(x.setup_label)}</span>`:""}</div><div class="price">${won(cur)}</div></div>
         <div class="status" style="color:var(--stop)">${esc(x.reason)}</div>
         <div style="margin-top:6px;font-size:14px;line-height:1.6">${esc(x.note||"")}</div>
+        ${x.recheck?`<div class="sub" style="margin-top:4px">${esc(x.recheck)}</div>`:""}
         ${x.checked_at?`<div class="sub" style="margin-top:4px">AI 확인: ${esc(x.checked_at.slice(5,16).replace("T"," "))} · 출처는 AI 검색 요약이므로 원문을 한 번 더 확인하세요</div>`:""}
         ${pl?`<div class="grid"><div>매수 구간<b>${won(pl.zone_lo)}~${won(pl.zone_hi)}</b></div><div>손절<b class="neg">${won(pl.stop)} (-${pl.stop_pct}%)</b></div><div>1차<b class="pos">${won(pl.t1)} (+${pl.t1_pct}%)</b></div><div>2차<b class="pos">${won(pl.t2)}</b></div></div>`:""}
         ${(x.reasons||[]).length?`<ul class="reasons">${x.reasons.map(r=>`<li>${esc(r)}</li>`).join("")}</ul>`:""}</div>`;}).join("");
