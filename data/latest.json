@@ -1,0 +1,527 @@
+{
+ "version": 2,
+ "generated_at": "2026-10-12T15:40:55+09:00",
+ "generated_ts": 1791787255284,
+ "horizon": "2~5일 스윙",
+ "market": {
+  "gate": "SELECTIVE",
+  "label": "선별 매수",
+  "size_mult": 0.5,
+  "checks": [
+   {
+    "text": "BTC가 일봉 20일선 아래 (-0.2%)",
+    "ok": false
+   },
+   {
+    "text": "20일선 하락 중",
+    "ok": false
+   },
+   {
+    "text": "알트 66%가 20일선 위 (기준 50%)",
+    "ok": true
+   },
+   {
+    "text": "BTC 24시간 +0.1%",
+    "ok": true
+   },
+   {
+    "text": "과열 아님",
+    "ok": true
+   }
+  ],
+  "metrics": {
+   "btc_price": 113089000.0,
+   "btc_chg_24h": 0.08,
+   "btc_vs_ema20_pct": -0.18,
+   "btc_7d_pct": -2.58,
+   "breadth_pct": 65.6,
+   "advancers_pct": 59.4,
+   "taker_buy_ratio": null,
+   "btc_volume_vs_30d_pct": 74.5
+  },
+  "headline": "조건이 일부만 맞습니다. 확실한 자리만 평소의 절반 비중으로."
+ },
+ "picks": [],
+ "watch": [
+  {
+   "ticker": "NEAR",
+   "setup": "squeeze",
+   "setup_label": "수렴 돌파 대기",
+   "price": 7850.0,
+   "chg24": 9.94,
+   "trigger_price": 7610.0,
+   "trigger_text": "일봉 종가가 7,610.0원 위 + 거래량 1.5배↑이면 돌파 확정 → 이후 눌림 구간에서 매수 추천이 열립니다 (장중 돌파 시도 — 일봉 종가 확인)",
+   "dist_pct": 3.15,
+   "score": 63,
+   "reasons": [
+    "저항선 7,610.0원을 3번 두드림, 저점은 높아지는 중",
+    "볼린저 밴드폭이 최근 120일 중 하위 22% — 에너지 응축"
+   ],
+   "risks": [],
+   "note": "",
+   "preview": null
+  },
+  {
+   "ticker": "ADA",
+   "setup": "pullback",
+   "setup_label": "눌림목",
+   "price": 341.0,
+   "chg24": 1.19,
+   "trigger_price": 342.5,
+   "trigger_text": "점수 54 < 기준 60 — 관찰만",
+   "dist_pct": -0.44,
+   "score": 54,
+   "reasons": [
+    "상승 추세 유지 (20일선 > 60일선, 60일선 우상향)",
+    "최근 고점 대비 -10.5% 눌림, 일봉 20일선 지지 구간",
+    "일봉 RSI 53 — 과열 해소"
+   ],
+   "risks": [
+    "최근 7일 BTC보다 약함 (-3.7%p)"
+   ],
+   "note": "",
+   "preview": {
+    "entry": 341.0,
+    "stop": 316.3,
+    "t1": 378.0,
+    "t2": 402.7,
+    "stop_pct": 7.24,
+    "t1_pct": 10.86,
+    "t2_pct": 18.1
+   }
+  },
+  {
+   "ticker": "ETH",
+   "setup": "pullback",
+   "setup_label": "눌림목",
+   "price": 3454000.0,
+   "chg24": 1.38,
+   "trigger_price": 3412197.0,
+   "trigger_text": "점수 54 < 기준 60 — 관찰만",
+   "dist_pct": 1.23,
+   "score": 54,
+   "reasons": [
+    "상승 추세 유지 (20일선 > 60일선, 60일선 우상향)",
+    "최근 고점 대비 -7.8% 눌림, 일봉 60일선 지지 구간",
+    "일봉 RSI 39 — 과열 해소",
+    "눌리는 동안 거래량 감소 — 매도 압력 약화"
+   ],
+   "risks": [
+    "최근 7일 BTC보다 약함 (-3.2%p)"
+   ],
+   "note": "",
+   "preview": {
+    "entry": 3412197.0,
+    "stop": 3301717.0,
+    "t1": 3577917.0,
+    "t2": 3688397.0,
+    "stop_pct": 3.24,
+    "t1_pct": 4.86,
+    "t2_pct": 8.09
+   }
+  },
+  {
+   "ticker": "XLM",
+   "setup": "pullback",
+   "setup_label": "눌림목",
+   "price": 272.0,
+   "chg24": 1.87,
+   "trigger_price": 275.8,
+   "trigger_text": "1시간봉 반등(양봉) 마감 확인 후 진입",
+   "dist_pct": -1.38,
+   "score": 54,
+   "reasons": [
+    "상승 추세 유지 (20일선 > 60일선, 60일선 우상향)",
+    "최근 고점 대비 -13.7% 눌림, 일봉 60일선 지지 구간",
+    "일봉 RSI 46 — 과열 해소",
+    "눌리는 동안 거래량 감소 — 매도 압력 약화"
+   ],
+   "risks": [
+    "최근 7일 BTC보다 약함 (-4.3%p)"
+   ],
+   "note": "",
+   "preview": {
+    "entry": 272.0,
+    "stop": 258.1,
+    "t1": 292.8,
+    "t2": 306.7,
+    "stop_pct": 5.1,
+    "t1_pct": 7.65,
+    "t2_pct": 12.75
+   }
+  },
+  {
+   "ticker": "PEPE",
+   "setup": "pullback",
+   "setup_label": "눌림목",
+   "price": 0.0057,
+   "chg24": 5.56,
+   "trigger_price": 0.00578036,
+   "trigger_text": "점수 54 < 기준 60 — 관찰만",
+   "dist_pct": -1.39,
+   "score": 54,
+   "reasons": [
+    "상승 추세 유지 (20일선 > 60일선, 60일선 우상향)",
+    "최근 고점 대비 -12.3% 눌림, 일봉 20일선 지지 구간",
+    "일봉 RSI 48 — 과열 해소"
+   ],
+   "risks": [
+    "최근 7일 BTC보다 약함 (-2.4%p)"
+   ],
+   "note": "",
+   "preview": {
+    "entry": 0.0057,
+    "stop": 0.00527636,
+    "t1": 0.00633545,
+    "t2": 0.00675909,
+    "stop_pct": 7.43,
+    "t1_pct": 11.15,
+    "t2_pct": 18.58
+   }
+  },
+  {
+   "ticker": "SOL",
+   "setup": "pullback",
+   "setup_label": "눌림목",
+   "price": 151600.0,
+   "chg24": 1.74,
+   "trigger_price": 146382.0,
+   "trigger_text": "점수 52 < 기준 60 — 관찰만",
+   "dist_pct": 3.56,
+   "score": 52,
+   "reasons": [
+    "상승 추세 유지 (20일선 > 60일선, 60일선 우상향)",
+    "최근 고점 대비 -9.4% 눌림, 일봉 60일선 지지 구간",
+    "일봉 RSI 43 — 과열 해소"
+   ],
+   "risks": [
+    "최근 7일 BTC보다 약함 (-3.8%p)"
+   ],
+   "note": "",
+   "preview": {
+    "entry": 146382.0,
+    "stop": 139670.0,
+    "t1": 156451.0,
+    "t2": 163163.0,
+    "stop_pct": 4.59,
+    "t1_pct": 6.88,
+    "t2_pct": 11.46
+   }
+  },
+  {
+   "ticker": "BCH",
+   "setup": "pullback",
+   "setup_label": "눌림목",
+   "price": 387000.0,
+   "chg24": 2.27,
+   "trigger_price": 384002.0,
+   "trigger_text": "점수 48 < 기준 60 — 관찰만",
+   "dist_pct": 0.78,
+   "score": 48,
+   "reasons": [
+    "상승 추세 유지 (20일선 > 60일선, 60일선 우상향)",
+    "최근 고점 대비 -11.8% 눌림, 일봉 60일선 지지 구간",
+    "일봉 RSI 44 — 과열 해소"
+   ],
+   "risks": [
+    "최근 7일 BTC보다 약함 (-6.4%p)"
+   ],
+   "note": "",
+   "preview": {
+    "entry": 384002.0,
+    "stop": 359295.0,
+    "t1": 421063.0,
+    "t2": 445770.0,
+    "stop_pct": 6.43,
+    "t1_pct": 9.65,
+    "t2_pct": 16.09
+   }
+  }
+ ],
+ "excluded": [
+  {
+   "ticker": "LINK",
+   "setup": "pullback",
+   "reason": "악재 확인: 2026년 10월 9일, 비유통 공급 지갑에서 740만 LINK(약 9,432만 달러 상당)가 바이낸스로 이동했습니다. 이는 대규모 토큰 언락 또는 잠재적인 매도 압력 증가로 이어질 수 있는 상당한 물량 이동입니다. 또한, 2026년 10월 8일, 연방준비제도(Fed)의 매파적 입장으로 인한 거시경제적 요인으로 암호화폐 시장이 하락하면서 LINK는 한 세션에서 7.9% 하락했습니다."
+  }
+ ],
+ "watchlist": [],
+ "pumps": [
+  {
+   "ticker": "OGN",
+   "price": 40.33,
+   "peak": 72.04,
+   "base": 29.11,
+   "pump_pct": 147.5,
+   "from_peak_pct": -44.0,
+   "days_since_peak": 2,
+   "levels": {
+    "15": 61.23,
+    "20": 57.63,
+    "25": 54.03,
+    "30": 50.43
+   },
+   "below_base": false,
+   "value24": 2211457153.8821
+  },
+  {
+   "ticker": "MBL",
+   "price": 1.083,
+   "peak": 1.85,
+   "base": 0.9991,
+   "pump_pct": 84.8,
+   "from_peak_pct": -41.3,
+   "days_since_peak": 0,
+   "levels": {
+    "15": 1.57,
+    "20": 1.48,
+    "25": 1.38,
+    "30": 1.29
+   },
+   "below_base": false,
+   "value24": 3242271106.078626
+  },
+  {
+   "ticker": "BLUE",
+   "price": 13.8,
+   "peak": 22.27,
+   "base": 12.36,
+   "pump_pct": 80.2,
+   "from_peak_pct": -38.0,
+   "days_since_peak": 0,
+   "levels": {
+    "15": 18.93,
+    "20": 17.82,
+    "25": 16.7,
+    "30": 15.59
+   },
+   "below_base": false,
+   "value24": 5063340295.574673
+  },
+  {
+   "ticker": "ERA",
+   "price": 96.07,
+   "peak": 150.0,
+   "base": 81.16,
+   "pump_pct": 84.8,
+   "from_peak_pct": -36.0,
+   "days_since_peak": 1,
+   "levels": {
+    "15": 127.5,
+    "20": 120.0,
+    "25": 112.5,
+    "30": 105.0
+   },
+   "below_base": false,
+   "value24": 1878616904.896721
+  },
+  {
+   "ticker": "GTC",
+   "price": 216.0,
+   "peak": 329.0,
+   "base": 163.0,
+   "pump_pct": 101.8,
+   "from_peak_pct": -34.3,
+   "days_since_peak": 6,
+   "levels": {
+    "15": 279.6,
+    "20": 263.2,
+    "25": 246.8,
+    "30": 230.3
+   },
+   "below_base": false,
+   "value24": 3046087729.4516134
+  },
+  {
+   "ticker": "RLC",
+   "price": 1329.0,
+   "peak": 2006.0,
+   "base": 945.0,
+   "pump_pct": 112.3,
+   "from_peak_pct": -33.7,
+   "days_since_peak": 2,
+   "levels": {
+    "15": 1705.0,
+    "20": 1605.0,
+    "25": 1504.0,
+    "30": 1404.0
+   },
+   "below_base": false,
+   "value24": 9100918272.26403
+  },
+  {
+   "ticker": "SENT",
+   "price": 28.42,
+   "peak": 39.8,
+   "base": 27.29,
+   "pump_pct": 45.8,
+   "from_peak_pct": -28.6,
+   "days_since_peak": 0,
+   "levels": {
+    "15": 33.83,
+    "20": 31.84,
+    "25": 29.85,
+    "30": 27.86
+   },
+   "below_base": false,
+   "value24": 3851988567.361878
+  },
+  {
+   "ticker": "SAND",
+   "price": 85.97,
+   "peak": 120.0,
+   "base": 89.0,
+   "pump_pct": 34.8,
+   "from_peak_pct": -28.4,
+   "days_since_peak": 3,
+   "levels": {
+    "15": 102.0,
+    "20": 96.0,
+    "25": 90.0,
+    "30": 84.0
+   },
+   "below_base": true,
+   "value24": 1619470831.7731354
+  },
+  {
+   "ticker": "MAGIC",
+   "price": 159.0,
+   "peak": 220.0,
+   "base": 86.75,
+   "pump_pct": 153.6,
+   "from_peak_pct": -27.7,
+   "days_since_peak": 1,
+   "levels": {
+    "15": 187.0,
+    "20": 176.0,
+    "25": 165.0,
+    "30": 154.0
+   },
+   "below_base": false,
+   "value24": 15427827381.656136
+  },
+  {
+   "ticker": "MANTRA",
+   "price": 9.639,
+   "peak": 13.11,
+   "base": 9.97,
+   "pump_pct": 31.5,
+   "from_peak_pct": -26.5,
+   "days_since_peak": 4,
+   "levels": {
+    "15": 11.14,
+    "20": 10.49,
+    "25": 9.83,
+    "30": 9.18
+   },
+   "below_base": true,
+   "value24": 1334288889.899892
+  },
+  {
+   "ticker": "MET",
+   "price": 558.0,
+   "peak": 742.0,
+   "base": 394.0,
+   "pump_pct": 88.3,
+   "from_peak_pct": -24.8,
+   "days_since_peak": 3,
+   "levels": {
+    "15": 630.7,
+    "20": 593.6,
+    "25": 556.5,
+    "30": 519.4
+   },
+   "below_base": false,
+   "value24": 1290656420.662652
+  },
+  {
+   "ticker": "NIL",
+   "price": 118.0,
+   "peak": 157.0,
+   "base": 113.0,
+   "pump_pct": 38.9,
+   "from_peak_pct": -24.8,
+   "days_since_peak": 5,
+   "levels": {
+    "15": 133.4,
+    "20": 125.6,
+    "25": 117.8,
+    "30": 109.9
+   },
+   "below_base": false,
+   "value24": 1146345165.1042004
+  },
+  {
+   "ticker": "KAIA",
+   "price": 66.66,
+   "peak": 86.98,
+   "base": 51.11,
+   "pump_pct": 70.2,
+   "from_peak_pct": -23.4,
+   "days_since_peak": 1,
+   "levels": {
+    "15": 73.93,
+    "20": 69.58,
+    "25": 65.23,
+    "30": 60.89
+   },
+   "below_base": false,
+   "value24": 75538039119.68918
+  },
+  {
+   "ticker": "STRK",
+   "price": 140.0,
+   "peak": 167.0,
+   "base": 82.82,
+   "pump_pct": 101.6,
+   "from_peak_pct": -16.2,
+   "days_since_peak": 0,
+   "levels": {
+    "15": 141.9,
+    "20": 133.6,
+    "25": 125.2,
+    "30": 116.9
+   },
+   "below_base": false,
+   "value24": 17391862194.028015
+  },
+  {
+   "ticker": "CHIP",
+   "price": 84.16,
+   "peak": 96.89,
+   "base": 65.71,
+   "pump_pct": 47.5,
+   "from_peak_pct": -13.1,
+   "days_since_peak": 0,
+   "levels": {
+    "15": 82.36,
+    "20": 77.51,
+    "25": 72.67,
+    "30": 67.82
+   },
+   "below_base": false,
+   "value24": 5231692409.583492
+  }
+ ],
+ "universe": {
+  "count": 70,
+  "scanned": 65,
+  "failed": [
+   "XDP",
+   "US",
+   "POD",
+   "ZEST",
+   "Q"
+  ]
+ },
+ "ai_status": "ok",
+ "params": {
+  "min_stop_pct": 2.5,
+  "max_stop_pct": 8.0,
+  "t1_r": 1.5,
+  "t2_r": 2.5,
+  "max_hold_hours": 120,
+  "wait_valid_hours": 36,
+  "fee_pct_per_side": 0.04
+ }
+}
