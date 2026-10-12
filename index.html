@@ -164,7 +164,8 @@ function statusOf(p, cur){
 function pickCard(p){
   const cur=priceOf(p.ticker,p.price), st=statusOf(p,cur);
   const ai=p.ai||{};
-  const aiTag = ai.status==="caution"?`<span class="tag warn">악재 주의</span>`: ai.status==="ok"?`<span class="tag">악재 없음</span>`:`<span class="tag">악재 미확인</span>`;
+  const aiTag = ai.status==="block"?`<span class="tag warn">심각한 악재</span>`: ai.status==="caution"?`<span class="tag warn">악재 주의</span>`: ai.status==="ok"?`<span class="tag">악재 없음</span>`:`<span class="tag">악재 미확인</span>`;
+  const aiBox = (ai.status==="block"||ai.status==="caution") ? `<div class="warn-box" style="margin-top:10px;border-color:var(--stop);background:rgba(220,38,38,.08)"><b>${ai.status==="block"?"⛔ 심각한 악재":"⚠️ 악재 주의"} — 직접 확인 후 판단하세요</b><div style="margin-top:4px">${esc(ai.note||"(AI가 사유를 남기지 않음)")}</div>${ai.recheck?`<div class="sub" style="margin-top:4px">${esc(ai.recheck)}</div>`:""}${ai.checked_at?`<div class="sub">AI 확인: ${esc(ai.checked_at.slice(5,16).replace("T"," "))} · AI 검색 요약이므로 원문을 확인하세요</div>`:""}</div>` : "";
   const mult = S.latest.market.size_mult;
   return `<div class="card">
     <div class="pick-h"><div>${tkTitle(p.ticker)}<span class="tag ${p.state}">${p.state==="now"?"지금":"지정가 대기"}</span><span class="tag">${esc(p.setup_label)}</span>${aiTag}</div>
@@ -179,7 +180,7 @@ function pickCard(p){
     </div>
     <ul class="reasons">${(p.reasons||[]).map(r=>`<li>${esc(r)}</li>`).join("")}${(p.risks||[]).map(r=>`<li class="risk">${esc(r)}</li>`).join("")}</ul>
     ${ai.positive?`<div class="sub" style="margin-top:6px">💡 AI가 찾은 호재: ${esc(ai.positive)}</div>`:""}
-    ${ai.checked_at?`<div class="sub">AI 악재 확인: ${esc(ai.checked_at.slice(5,16).replace("T"," "))}</div>`:""}
+    ${aiBox || (ai.checked_at?`<div class="sub">AI 악재 확인: ${esc(ai.checked_at.slice(5,16).replace("T"," "))}</div>`:"")}
     <div class="sub" style="margin-top:8px">권장 비중 ×${mult} · 1차 도달 시 절반 매도 후 손절을 본전으로 · 5일 지나면 정리${p.state==="wait"?` · 미체결 시 ${p.valid_hours}시간 후 취소`:""}</div>
   </div>`;
 }
@@ -192,7 +193,7 @@ function viewToday(){
   if(l.picks.length){ h+=`<h3 style="margin:16px 2px 8px">지금 볼 종목 ${l.picks.length}개</h3>`+l.picks.map(pickCard).join(""); }
   else h+=`<div class="card empty">${m.gate==="STOP"?"시장이 위험해 오늘은 신규 매수를 쉽니다.":"조건을 충족한 종목이 없습니다."}<br>억지로 사지 않는 것도 전략입니다. '감시' 탭에서 곧 열릴 후보를 확인하세요.</div>`;
   if(l.excluded&&l.excluded.length){
-    h+=`<h3 style="margin:16px 2px 4px">조건은 맞았지만 제외한 종목</h3><div class="sub" style="margin:0 2px 8px">차트 조건은 통과했지만 아래 이유로 추천에서 뺐습니다. 사유를 읽고 직접 판단하세요.</div>`;
+    h+=`<h3 style="margin:16px 2px 4px">규칙으로 제외한 종목</h3><div class="sub" style="margin:0 2px 8px">차트 조건은 통과했지만 아래 규칙으로 뺐습니다.</div>`;
     h+=l.excluded.map(x=>{ const cur=priceOf(x.ticker,x.price), pl=x.plan;
       return `<div class="card"><div class="pick-h"><div>${tkTitle(x.ticker)}<span class="tag warn">${esc(x.kind||"제외")}</span>${x.setup_label?`<span class="tag">${esc(x.setup_label)}</span>`:""}</div><div class="price">${won(cur)}</div></div>
         <div class="status" style="color:var(--stop)">${esc(x.reason)}</div>
@@ -201,6 +202,13 @@ function viewToday(){
         ${x.checked_at?`<div class="sub" style="margin-top:4px">AI 확인: ${esc(x.checked_at.slice(5,16).replace("T"," "))} · 출처는 AI 검색 요약이므로 원문을 한 번 더 확인하세요</div>`:""}
         ${pl?`<div class="grid"><div>매수 구간<b>${won(pl.zone_lo)}~${won(pl.zone_hi)}</b></div><div>손절<b class="neg">${won(pl.stop)} (-${pl.stop_pct}%)</b></div><div>1차<b class="pos">${won(pl.t1)} (+${pl.t1_pct}%)</b></div><div>2차<b class="pos">${won(pl.t2)}</b></div></div>`:""}
         ${(x.reasons||[]).length?`<ul class="reasons">${x.reasons.map(r=>`<li>${esc(r)}</li>`).join("")}</ul>`:""}</div>`;}).join("");
+  }
+  const f=l.funnel;
+  if(f){
+    const step=(n,t,c="")=>`<div style="flex:1;min-width:64px;text-align:center"><div class="big ${c}" style="font-size:18px">${n}</div><div class="sub" style="font-size:11px">${t}</div></div>`;
+    h+=`<div class="card"><b>오늘 몇 종목을 봤나</b><div style="display:flex;gap:4px;align-items:center;margin-top:10px;flex-wrap:wrap">
+      ${step(f.scanned,"스캔")}<span class="sub">›</span>${step(f.uptrend,"상승추세")}<span class="sub">›</span>${step(f.uptrend_pulled_back,"눌림 구간")}<span class="sub">›</span>${step(f.picks,"매수 조건","pos")}</div>
+      <div class="sub" style="margin-top:8px">하락추세 ${f.downtrend} · 횡보 ${f.sideways} · 상장 ${f.min_history_days}일 미만 ${f.scanned-f.enough_history}종목은 판단 제외 · 거래대금 ${Math.round(f.min_value_krw/1e8)}억 미만 종목은 스캔 안 함. 수렴(터지기 전) 후보 ${f.squeeze}개는 '감시' 탭에 있습니다.</div></div>`;
   }
   if(l.ai_calls_today!=null) h+=`<div class="sub" style="text-align:center;margin-top:8px">AI 악재 검증 호출: 이번 ${l.ai_calls||0}회 · 오늘 ${l.ai_calls_today}회 (같은 종목은 24시간 재사용)</div>`;
   return h;

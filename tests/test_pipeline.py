@@ -69,11 +69,15 @@ with tempfile.TemporaryDirectory() as td:
     bot.LOCAL_DATA_DIR = td
     bot.compute_market = lambda c, t: {"gate": "GO", "label": "매수 가능", "size_mult": 1.0, "checks": [], "metrics": {}, "headline": "t"}
     L = bot.run_scan()
-    assert [p["ticker"] for p in L["picks"]] == ["HBAR"], L["picks"]
-    assert L["excluded"] and L["excluded"][0]["ticker"] == "SUI"
-    p1 = L["picks"][0]
+    tks = {p["ticker"]: p for p in L["picks"]}
+    assert set(tks) == {"HBAR", "SUI"}, L["picks"]           # 악재가 있어도 제외하지 않음
+    assert tks["SUI"]["ai"]["status"] == "block" and tks["SUI"]["ai"]["note"] == "언락"
+    assert tks["HBAR"]["ai"]["status"] == "caution" and not L["excluded"]
+    assert "funnel" in L and L["funnel"]["scanned"] >= 1
+    p1 = tks["HBAR"]
     L2 = bot.run_scan()
-    assert L2["picks"][0]["entry"] == p1["entry"] and L2["picks"][0]["carried"], "계획 고정 실패"
+    p2 = [p for p in L2["picks"] if p["ticker"] == "HBAR"][0]
+    assert p2["entry"] == p1["entry"] and p2["carried"], "계획 고정 실패"
     led = json.load(open(os.path.join(td, "ledger.json")))
-    assert len(led) == 1
+    assert len(led) == 2
     print("PICK PATH OK", p1["entry"], p1["stop"], p1["t1"], p1["t2"])

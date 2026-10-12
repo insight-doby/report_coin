@@ -52,8 +52,8 @@ WATCHLIST = [t.strip().upper() for t in ENV("WATCHLIST", "").split(",") if t.str
 
 BITHUMB = "https://api.bithumb.com/public"
 
-UNIVERSE_N = int(ENV("UNIVERSE_N", "70"))             # 거래대금 상위 N종 스캔
-MIN_VALUE_KRW = float(ENV("MIN_VALUE_KRW", "1e9"))     # 24h 거래대금 최소 10억원
+UNIVERSE_N = int(ENV("UNIVERSE_N", "0"))              # 0이면 제한 없음(거래대금 하한만 적용)
+MIN_VALUE_KRW = float(ENV("MIN_VALUE_KRW", "3e8"))     # 24h 거래대금 최소 3억원 (너무 얇으면 원하는 가격에 못 산다)
 FEE_PCT_PER_SIDE = float(ENV("FEE_PCT_PER_SIDE", "0.04"))  # 빗썸 수수료 편도 0.04%
 
 MIN_STOP_PCT = 2.5     # 손절폭 하한 (너무 타이트하면 노이즈에 털림)
@@ -64,8 +64,8 @@ MAX_HOLD_HOURS = 120   # 체결 후 5일 지나면 종가 청산(타임스톱)
 WAIT_VALID_HOURS = 36  # 지정가 대기 추천 유효시간
 COOLDOWN_HOURS = 48    # 손절 난 종목 재추천 금지
 
-PICK_CAP = {"GO": 5, "SELECTIVE": 3, "STOP": 0, "UNKNOWN": 0}
-MIN_SCORE = {"GO": 50, "SELECTIVE": 60}
+PICK_CAP = {"GO": 8, "SELECTIVE": 6, "STOP": 0, "UNKNOWN": 0}
+MIN_SCORE = {"GO": 50, "SELECTIVE": 55}
 SIZE_MULT = {"GO": 1.0, "SELECTIVE": 0.5, "STOP": 0.0, "UNKNOWN": 0.0}
 GATE_LABEL = {"GO": "매수 가능", "SELECTIVE": "선별 매수", "STOP": "매수 금지", "UNKNOWN": "판단 보류"}
 
@@ -987,7 +987,7 @@ def has_recent_stop(ledger: list, ticker: str, at_ms: int) -> bool:
 def build_universe(tickers: dict) -> list:
     rows = [(tk, v) for tk, v in tickers.items() if tk not in STABLES and v["value"] >= MIN_VALUE_KRW]
     rows.sort(key=lambda x: x[1]["value"], reverse=True)
-    uni = [tk for tk, _ in rows[:UNIVERSE_N]]
+    uni = [tk for tk, _ in (rows[:UNIVERSE_N] if UNIVERSE_N > 0 else rows)]
     for tk in ["BTC"] + WATCHLIST:                      # BTC(시장판단)와 관심종목은 항상 포함
         if tk in tickers and tk not in uni:
             uni.append(tk)
@@ -999,10 +999,7 @@ def gather(tickers: dict, universe: list, at_ms: int) -> tuple:
 
     def one(tk):
         dcd = fetch_candles(tk, "24h", 300)
-        if not dcd:
-            return tk, None
-        hcd = fetch_candles(tk, "1h", 120)
-        return tk, (dcd, hcd)
+        return tk, ((dcd, None) if dcd else None)
 
     with ThreadPoolExecutor(max_workers=6) as ex:
         for f in as_completed([ex.submit(one, tk) for tk in universe]):
@@ -1019,6 +1016,55 @@ def gather(tickers: dict, universe: list, at_ms: int) -> tuple:
                         "d": slice_completed(dcd, DAY_MS, at_ms),
                         "h1": slice_completed(hcd, HOUR_MS, at_ms) if hcd else None}
     return ctxs, failed
+
+
+def attach_h1(ctxs: dict, tickers: set, at_ms: int):
+    """1시간봉은 매수 후보에만 받는다 (전 종목에 받으면 요청이 두 배)."""
+    with ThreadPoolExecutor(max_workers=6) as ex:
+        futs = {ex.submit(fetch_candles, tk, "1h", 120): tk for tk in tickers if tk in ctxs}
+        for f in as_completed(futs):
+            try:
+                h = f.result()
+            except Exception:
+                h = None
+            if h:
+                ctxs[futs[f]]["h1"] = slice_completed(h, HOUR_MS, at_ms)
+
+
+def funnel_stats(ctxs: dict, picks: list, watch: list) -> dict:
+    """추천이 왜 이만큼인지: 단계별로 몇 종목이 남는지."""
+    n_all = n_hist = n_up = n_down = n_side = n_depth = n_rsi = 0
+    for tk, cx in ctxs.items():
+        if tk == "BTC":
+            continue
+        n_all += 1
+        c = cx["d"]["c"]
+        if len(c) < MIN_BARS:
+            continue
+        n_hist += 1
+        e20, e60 = ema(c, 20), ema(c, 60)
+        if np.isnan(e60[-8]):
+            continue
+        up = e20[-1] > e60[-1] and e60[-1] > e60[-8] and c[-1] > e60[-1]
+        down = cx["cur"] < e60[-1] and e20[-1] < e60[-1]
+        up, down = bool(up), bool(down)
+        n_up += up
+        n_down += down
+        n_side += (not up and not down)
+        if not up:
+            continue
+        hh = float(np.max(cx["d"]["h"][-12:]))
+        depth = (hh - cx["cur"]) / hh * 100
+        if 4 <= depth <= 18:
+            n_depth += 1
+            r = rsi(c)
+            if r is not None and 33 <= r <= 62:
+                n_rsi += 1
+    return {"scanned": n_all, "enough_history": n_hist, "uptrend": n_up, "downtrend": n_down, "sideways": n_side,
+            "uptrend_pulled_back": n_depth, "pullback_rsi_ok": n_rsi,
+            "setups": len(picks) + len([w for w in watch if w.get("setup") != "squeeze"]),
+            "squeeze": len([w for w in watch if w.get("setup") == "squeeze"]), "picks": len(picks),
+            "min_history_days": MIN_BARS, "min_value_krw": MIN_VALUE_KRW}
 
 
 def rel_strength(ctx: dict, btc_ret7: Optional[float]) -> Optional[float]:
@@ -1124,6 +1170,9 @@ def run_scan() -> dict:
     events = track_ledger(ledger, at)          # 먼저 기존 추천 채점 (쿨다운 판단에 필요)
 
     raw_picks, raw_watch = scan_candidates(ctxs, btc_ret7)
+    if raw_picks:                                   # 후보만 1시간봉 받아 반등 확인 후 다시 판정
+        attach_h1(ctxs, {c["ticker"] for c in raw_picks}, at)
+        raw_picks, raw_watch = scan_candidates(ctxs, btc_ret7)
     excluded = []
     ai_calls, ai_calls_today = 0, None
 
@@ -1147,7 +1196,7 @@ def run_scan() -> dict:
             if c not in ranked:
                 watch.append(flatten_watch({**c, "state": "watch", "trigger_text": f"점수 {c['score']} < 기준 {floor} — 관찰만",
                                             "trigger_price": c["plan"]["zone_hi"]}))
-        cand = [flatten_pick(c, gate) for c in ranked[:PICK_CAP[gate] + 2]]
+        cand = [flatten_pick(c, gate) for c in ranked[:PICK_CAP[gate]]]
         verdicts, ai_state, ai_calls, ai_calls_today = ai_veto_cached(cand, store, at)
         final = []
         for p in cand:
@@ -1155,16 +1204,7 @@ def run_scan() -> dict:
             if v:
                 p["ai"] = {"status": v["verdict"], "note": v["note"], "positive": v.get("positive"), "checked_at": v.get("warn_at") or v.get("checked_at"),
                            "recheck": v.get("recheck")}
-                if v["verdict"] == "block":
-                    excluded.append({"ticker": p["ticker"], "setup": p["setup"], "setup_label": p["setup_label"], "kind": "악재",
-                                     "reason": "AI 악재 검증에서 제외", "note": v["note"] or "(AI가 사유를 남기지 않음)",
-                                     "checked_at": v.get("warn_at") or v.get("checked_at"), "recheck": v.get("recheck"), "price": p["price"],
-                                     "plan": {k: p[k] for k in ("zone_lo", "zone_hi", "stop", "t1", "t2", "stop_pct", "t1_pct")},
-                                     "reasons": p["reasons"]})
-                    continue
-                if v["verdict"] == "caution":
-                    p["score"] -= 12
-                    p["risks"].append(f"악재 주의: {v['note']}" if v["note"] else "악재 주의")
+                # 악재는 제외하지 않는다 — 내용을 보여주고 판단은 사용자가 한다
                 if v["verdict"] == "ok":
                     p["ai"]["status"] = "ok"
             elif ai_state == "ok":
@@ -1179,7 +1219,7 @@ def run_scan() -> dict:
         ai_state, ai_calls, ai_calls_today = "skipped", 0, None
 
     watch.sort(key=lambda w: (-w["score"], abs(w["dist_pct"] or 99)))
-    watch = watch[:12]
+    watch = watch[:25]
 
     wl_rows = []
     for tk in WATCHLIST:
@@ -1193,6 +1233,7 @@ def run_scan() -> dict:
     latest = {"version": 2, "generated_at": iso_kst(at), "generated_ts": at, "horizon": "2~5일 스윙",
               "market": market, "picks": picks, "watch": watch, "excluded": excluded, "watchlist": wl_rows,
               "pumps": live_pumps(ctxs),
+              "funnel": funnel_stats(ctxs, picks, watch),
               "universe": {"count": len(universe), "scanned": len(ctxs), "failed": failed},
               "ai_status": ai_state, "ai_calls": ai_calls, "ai_calls_today": ai_calls_today, "params": {"min_stop_pct": MIN_STOP_PCT, "max_stop_pct": MAX_STOP_PCT, "t1_r": T1_R,
                                                "t2_r": T2_R, "max_hold_hours": MAX_HOLD_HOURS, "wait_valid_hours": WAIT_VALID_HOURS,
@@ -1263,7 +1304,7 @@ def slack_scan(latest: dict, events: list):
         lines = []
         for p in latest["picks"]:
             tag = "✅ 지금 매수 구간" if p["state"] == "now" else f"⏳ 지정가 {fmt_krw(p['entry'])}"
-            ai = " ⚠️악재주의" if p["ai"]["status"] == "caution" else ""
+            ai = {"block": " ⛔심각한 악재", "caution": " ⚠️악재 주의"}.get(p["ai"]["status"], "")
             lines.append(f"*{label(p['ticker'])}* `{p['setup_label']}` {tag}{ai}\n"
                          f"    현재 {fmt_krw(p['price'])} · 손절 {fmt_krw(p['stop'])} (-{p['stop_pct']:.1f}%) · "
                          f"1차 {fmt_krw(p['t1'])} (+{p['t1_pct']:.1f}%) · 2차 {fmt_krw(p['t2'])} (+{p['t2_pct']:.1f}%)\n"
@@ -1273,13 +1314,17 @@ def slack_scan(latest: dict, events: list):
         blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": "🎯 *추천*\n" + "\n".join(lines)}})
     else:
         blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": "🎯 *오늘은 조건을 충족한 추천이 없습니다.* 억지로 사지 않는 것도 전략입니다."}})
+    f = latest.get("funnel")
+    if f:
+        blocks.append({"type": "context", "elements": [{"type": "mrkdwn", "text":
+            f"스캔 {f['scanned']}종목 → 상승추세 {f['uptrend']} (하락 {f['downtrend']}, 횡보 {f['sideways']}) → 눌림 구간 {f['uptrend_pulled_back']} → 매수 조건 {f['picks']}"}]})
     if latest.get("excluded"):
         ex_lines = []
         for x in latest["excluded"][:5]:
             plan = x.get("plan")
             pl = f" (계획: 매수 {fmt_krw(plan['zone_lo'])}~{fmt_krw(plan['zone_hi'])}, 손절 {fmt_krw(plan['stop'])})" if plan else ""
             ex_lines.append(f"• *{label(x['ticker'])}* {x.get('setup_label', '')} — {x['reason']}{pl}\n    _{x.get('note', '')[:300]}_")
-        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": "🚫 *조건은 맞았지만 제외한 종목* — 사유를 보고 직접 판단하세요\n" + "\n".join(ex_lines)}})
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": "🚫 *규칙으로 제외한 종목*\n" + "\n".join(ex_lines)}})
     near = [w for w in latest["watch"] if w.get("dist_pct") is not None][:3]
     if near:
         blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": "👀 *감시*\n" + "\n".join(
