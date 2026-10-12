@@ -3,14 +3,18 @@ on:
   workflow_dispatch:
     inputs:
       watchlist:
-        description: '관심종목 (쉼표 구분, 예: BTC,ETH,WLD)'
+        description: '관심종목 (쉼표 구분, 예: BTC,ETH,WLD) — 비우면 저장소 변수 WATCHLIST 사용'
         required: false
         default: ''
   schedule:
-    - cron: '0 1 * * *'
+    - cron: '5 23 * * *'   # 08:05 KST
+    - cron: '5 3 * * *'    # 12:05 KST
+    - cron: '5 9 * * *'    # 18:05 KST
+concurrency: { group: bot-data, cancel-in-progress: false }
 jobs:
   run-bot:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: write
     steps:
@@ -21,12 +25,17 @@ jobs:
         with:
           python-version: '3.11'
       - name: 라이브러리 설치
-        run: pip install requests numpy pytz slack_sdk
-      - name: 봇 실행
+        run: pip install requests numpy
+      - name: 스캔
         env:
+          LOCAL_DATA_DIR:   data
           SLACK_BOT_TOKEN:  ${{ secrets.SLACK_BOT_TOKEN }}
           GEMINI_API_KEY:   ${{ secrets.GEMINI_API_KEY }}
           SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
-          GITHUB_TOKEN_BOT: ${{ secrets.GITHUB_TOKEN }}
-          WATCHLIST:        ${{ github.event.inputs.watchlist }}
-        run: python -u bot.py
+          WATCHLIST:        ${{ github.event.inputs.watchlist || vars.WATCHLIST }}
+        run: python -u bot.py scan
+      - name: 데이터 커밋
+        run: |
+          git config user.name "bot"; git config user.email "bot@users.noreply.github.com"
+          git add data && (git diff --cached --quiet || git commit -m "스캔 $(date -u +%FT%TZ)")
+          git pull --rebase origin ${{ github.ref_name }} && git push

@@ -1,0 +1,22 @@
+name: backtest
+on:
+  workflow_dispatch:
+    inputs:
+      tickers:
+        description: "티커 (공백 구분, 비우면 거래대금 상위 30개)"
+        required: false
+        default: ""
+jobs:
+  backtest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - run: pip install requests numpy
+      - name: Backtest
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
+        run: python -u bot.py backtest ${{ github.event.inputs.tickers }}

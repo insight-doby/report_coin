@@ -1,0 +1,30 @@
+name: pumpdip
+on:
+  workflow_dispatch:
+    inputs:
+      days:
+        description: "최근 며칠을 볼지 (기본 730)"
+        required: false
+        default: "730"
+concurrency: { group: bot-data, cancel-in-progress: false }
+permissions: { contents: write }
+jobs:
+  pumpdip:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - run: pip install requests numpy
+      - name: Research
+        env:
+          LOCAL_DATA_DIR: data
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
+        run: python -u bot.py pumpdip ${{ github.event.inputs.days }}
+      - name: Commit data
+        run: |
+          git config user.name "bot"; git config user.email "bot@users.noreply.github.com"
+          git add data && (git diff --cached --quiet || git commit -m "pumpdip research $(date -u +%FT%TZ)")
+          git pull --rebase origin ${{ github.ref_name }} && git push
