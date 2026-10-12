@@ -1,7 +1,7 @@
 {
  "version": 2,
- "generated_at": "2026-10-12T15:40:55+09:00",
- "generated_ts": 1791787255284,
+ "generated_at": "2026-10-12T15:51:24+09:00",
+ "generated_ts": 1791787884704,
  "horizon": "2~5일 스윙",
  "market": {
   "gate": "SELECTIVE",
@@ -9,7 +9,7 @@
   "size_mult": 0.5,
   "checks": [
    {
-    "text": "BTC가 일봉 20일선 아래 (-0.2%)",
+    "text": "BTC가 일봉 20일선 아래 (-0.1%)",
     "ok": false
    },
    {
@@ -30,28 +30,77 @@
    }
   ],
   "metrics": {
-   "btc_price": 113089000.0,
-   "btc_chg_24h": 0.08,
-   "btc_vs_ema20_pct": -0.18,
-   "btc_7d_pct": -2.58,
+   "btc_price": 113195000.0,
+   "btc_chg_24h": 0.11,
+   "btc_vs_ema20_pct": -0.08,
+   "btc_7d_pct": -2.49,
    "breadth_pct": 65.6,
-   "advancers_pct": 59.4,
+   "advancers_pct": 53.1,
    "taker_buy_ratio": null,
-   "btc_volume_vs_30d_pct": 74.5
+   "btc_volume_vs_30d_pct": 73.5
   },
   "headline": "조건이 일부만 맞습니다. 확실한 자리만 평소의 절반 비중으로."
  },
- "picks": [],
+ "picks": [
+  {
+   "ticker": "LINK",
+   "setup": "pullback",
+   "setup_label": "눌림목",
+   "state": "now",
+   "price": 18060.0,
+   "chg24": 2.85,
+   "entry": 18060.0,
+   "zone_lo": 17912.0,
+   "zone_hi": 18484.0,
+   "stop": 17339.0,
+   "t1": 19141.0,
+   "t2": 19861.0,
+   "stop_pct": 3.99,
+   "t1_pct": 5.98,
+   "t2_pct": 9.97,
+   "rr1": 1.5,
+   "rr2": 2.5,
+   "score": 60,
+   "reasons": [
+    "상승 추세 유지 (20일선 > 60일선, 60일선 우상향)",
+    "최근 고점 대비 -14.0% 눌림, 일봉 20일선 지지 구간",
+    "일봉 RSI 49 — 과열 해소",
+    "눌리는 동안 거래량 감소 — 매도 압력 약화"
+   ],
+   "risks": [
+    "최근 7일 BTC보다 약함 (-1.0%p)"
+   ],
+   "metrics": {
+    "rsi_d": 49.1,
+    "atr_pct": 5.28,
+    "depth_pct": 14.0
+   },
+   "rs7": -1.0,
+   "value24": 2537072480.9065228,
+   "gate_at_issue": "SELECTIVE",
+   "ai": {
+    "status": "ok",
+    "note": "",
+    "positive": null,
+    "checked_at": "2026-10-12T15:51:24+09:00"
+   },
+   "valid_hours": 0,
+   "id": "LINK-pullback-202610121551",
+   "carried": false,
+   "issued_at": "2026-10-12T15:51:24+09:00",
+   "name": "체인링크"
+  }
+ ],
  "watch": [
   {
    "ticker": "NEAR",
    "setup": "squeeze",
    "setup_label": "수렴 돌파 대기",
-   "price": 7850.0,
-   "chg24": 9.94,
+   "price": 7865.0,
+   "chg24": 10.08,
    "trigger_price": 7610.0,
    "trigger_text": "일봉 종가가 7,610.0원 위 + 거래량 1.5배↑이면 돌파 확정 → 이후 눌림 구간에서 매수 추천이 열립니다 (장중 돌파 시도 — 일봉 종가 확인)",
-   "dist_pct": 3.15,
+   "dist_pct": 3.35,
    "score": 63,
    "reasons": [
     "저항선 7,610.0원을 3번 두드림, 저점은 높아지는 중",
@@ -59,14 +108,15 @@
    ],
    "risks": [],
    "note": "",
-   "preview": null
+   "preview": null,
+   "name": "니어프로토콜"
   },
   {
    "ticker": "ADA",
    "setup": "pullback",
    "setup_label": "눌림목",
    "price": 341.0,
-   "chg24": 1.19,
+   "chg24": 0.89,
    "trigger_price": 342.5,
    "trigger_text": "점수 54 < 기준 60 — 관찰만",
    "dist_pct": -0.44,
@@ -77,7 +127,7 @@
     "일봉 RSI 53 — 과열 해소"
    ],
    "risks": [
-    "최근 7일 BTC보다 약함 (-3.7%p)"
+    "최근 7일 BTC보다 약함 (-3.8%p)"
    ],
    "note": "",
    "preview": {
@@ -88,21 +138,22 @@
     "stop_pct": 7.24,
     "t1_pct": 10.86,
     "t2_pct": 18.1
-   }
+   },
+   "name": "에이다"
   },
   {
    "ticker": "ETH",
    "setup": "pullback",
    "setup_label": "눌림목",
-   "price": 3454000.0,
-   "chg24": 1.38,
+   "price": 3457000.0,
+   "chg24": 1.32,
    "trigger_price": 3412197.0,
    "trigger_text": "점수 54 < 기준 60 — 관찰만",
-   "dist_pct": 1.23,
+   "dist_pct": 1.31,
    "score": 54,
    "reasons": [
     "상승 추세 유지 (20일선 > 60일선, 60일선 우상향)",
-    "최근 고점 대비 -7.8% 눌림, 일봉 60일선 지지 구간",
+    "최근 고점 대비 -7.7% 눌림, 일봉 60일선 지지 구간",
     "일봉 RSI 39 — 과열 해소",
     "눌리는 동안 거래량 감소 — 매도 압력 약화"
    ],
@@ -118,7 +169,8 @@
     "stop_pct": 3.24,
     "t1_pct": 4.86,
     "t2_pct": 8.09
-   }
+   },
+   "name": "이더리움"
   },
   {
    "ticker": "XLM",
@@ -137,7 +189,7 @@
     "눌리는 동안 거래량 감소 — 매도 압력 약화"
    ],
    "risks": [
-    "최근 7일 BTC보다 약함 (-4.3%p)"
+    "최근 7일 BTC보다 약함 (-4.4%p)"
    ],
    "note": "",
    "preview": {
@@ -148,54 +200,26 @@
     "stop_pct": 5.1,
     "t1_pct": 7.65,
     "t2_pct": 12.75
-   }
-  },
-  {
-   "ticker": "PEPE",
-   "setup": "pullback",
-   "setup_label": "눌림목",
-   "price": 0.0057,
-   "chg24": 5.56,
-   "trigger_price": 0.00578036,
-   "trigger_text": "점수 54 < 기준 60 — 관찰만",
-   "dist_pct": -1.39,
-   "score": 54,
-   "reasons": [
-    "상승 추세 유지 (20일선 > 60일선, 60일선 우상향)",
-    "최근 고점 대비 -12.3% 눌림, 일봉 20일선 지지 구간",
-    "일봉 RSI 48 — 과열 해소"
-   ],
-   "risks": [
-    "최근 7일 BTC보다 약함 (-2.4%p)"
-   ],
-   "note": "",
-   "preview": {
-    "entry": 0.0057,
-    "stop": 0.00527636,
-    "t1": 0.00633545,
-    "t2": 0.00675909,
-    "stop_pct": 7.43,
-    "t1_pct": 11.15,
-    "t2_pct": 18.58
-   }
+   },
+   "name": "스텔라루멘"
   },
   {
    "ticker": "SOL",
    "setup": "pullback",
    "setup_label": "눌림목",
-   "price": 151600.0,
-   "chg24": 1.74,
+   "price": 151300.0,
+   "chg24": 1.2,
    "trigger_price": 146382.0,
    "trigger_text": "점수 52 < 기준 60 — 관찰만",
-   "dist_pct": 3.56,
+   "dist_pct": 3.36,
    "score": 52,
    "reasons": [
     "상승 추세 유지 (20일선 > 60일선, 60일선 우상향)",
-    "최근 고점 대비 -9.4% 눌림, 일봉 60일선 지지 구간",
+    "최근 고점 대비 -9.6% 눌림, 일봉 60일선 지지 구간",
     "일봉 RSI 43 — 과열 해소"
    ],
    "risks": [
-    "최근 7일 BTC보다 약함 (-3.8%p)"
+    "최근 7일 BTC보다 약함 (-4.1%p)"
    ],
    "note": "",
    "preview": {
@@ -206,21 +230,22 @@
     "stop_pct": 4.59,
     "t1_pct": 6.88,
     "t2_pct": 11.46
-   }
+   },
+   "name": "솔라나"
   },
   {
    "ticker": "BCH",
    "setup": "pullback",
    "setup_label": "눌림목",
-   "price": 387000.0,
-   "chg24": 2.27,
+   "price": 387200.0,
+   "chg24": 2.14,
    "trigger_price": 384002.0,
    "trigger_text": "점수 48 < 기준 60 — 관찰만",
-   "dist_pct": 0.78,
+   "dist_pct": 0.83,
    "score": 48,
    "reasons": [
     "상승 추세 유지 (20일선 > 60일선, 60일선 우상향)",
-    "최근 고점 대비 -11.8% 눌림, 일봉 60일선 지지 구간",
+    "최근 고점 대비 -11.7% 눌림, 일봉 60일선 지지 구간",
     "일봉 RSI 44 — 과열 해소"
    ],
    "risks": [
@@ -235,25 +260,20 @@
     "stop_pct": 6.43,
     "t1_pct": 9.65,
     "t2_pct": 16.09
-   }
+   },
+   "name": "비트코인캐시"
   }
  ],
- "excluded": [
-  {
-   "ticker": "LINK",
-   "setup": "pullback",
-   "reason": "악재 확인: 2026년 10월 9일, 비유통 공급 지갑에서 740만 LINK(약 9,432만 달러 상당)가 바이낸스로 이동했습니다. 이는 대규모 토큰 언락 또는 잠재적인 매도 압력 증가로 이어질 수 있는 상당한 물량 이동입니다. 또한, 2026년 10월 8일, 연방준비제도(Fed)의 매파적 입장으로 인한 거시경제적 요인으로 암호화폐 시장이 하락하면서 LINK는 한 세션에서 7.9% 하락했습니다."
-  }
- ],
+ "excluded": [],
  "watchlist": [],
  "pumps": [
   {
    "ticker": "OGN",
-   "price": 40.33,
+   "price": 40.28,
    "peak": 72.04,
    "base": 29.11,
    "pump_pct": 147.5,
-   "from_peak_pct": -44.0,
+   "from_peak_pct": -44.1,
    "days_since_peak": 2,
    "levels": {
     "15": 61.23,
@@ -262,15 +282,16 @@
     "30": 50.43
    },
    "below_base": false,
-   "value24": 2211457153.8821
+   "value24": 2179956291.96213,
+   "name": "오리진프로토콜"
   },
   {
    "ticker": "MBL",
-   "price": 1.083,
+   "price": 1.086,
    "peak": 1.85,
    "base": 0.9991,
    "pump_pct": 84.8,
-   "from_peak_pct": -41.3,
+   "from_peak_pct": -41.2,
    "days_since_peak": 0,
    "levels": {
     "15": 1.57,
@@ -279,15 +300,16 @@
     "30": 1.29
    },
    "below_base": false,
-   "value24": 3242271106.078626
+   "value24": 3235320774.382747,
+   "name": "무비블록"
   },
   {
    "ticker": "BLUE",
-   "price": 13.8,
+   "price": 13.78,
    "peak": 22.27,
    "base": 12.36,
    "pump_pct": 80.2,
-   "from_peak_pct": -38.0,
+   "from_peak_pct": -38.1,
    "days_since_peak": 0,
    "levels": {
     "15": 18.93,
@@ -296,11 +318,12 @@
     "30": 15.59
    },
    "below_base": false,
-   "value24": 5063340295.574673
+   "value24": 4937537149.809498,
+   "name": "블루핀"
   },
   {
    "ticker": "ERA",
-   "price": 96.07,
+   "price": 96.0,
    "peak": 150.0,
    "base": 81.16,
    "pump_pct": 84.8,
@@ -313,15 +336,16 @@
     "30": 105.0
    },
    "below_base": false,
-   "value24": 1878616904.896721
+   "value24": 1798734193.7344563,
+   "name": "칼데라"
   },
   {
    "ticker": "GTC",
-   "price": 216.0,
+   "price": 217.0,
    "peak": 329.0,
    "base": 163.0,
    "pump_pct": 101.8,
-   "from_peak_pct": -34.3,
+   "from_peak_pct": -34.0,
    "days_since_peak": 6,
    "levels": {
     "15": 279.6,
@@ -330,15 +354,16 @@
     "30": 230.3
    },
    "below_base": false,
-   "value24": 3046087729.4516134
+   "value24": 3038173452.749417,
+   "name": "깃코인"
   },
   {
    "ticker": "RLC",
-   "price": 1329.0,
+   "price": 1339.0,
    "peak": 2006.0,
    "base": 945.0,
    "pump_pct": 112.3,
-   "from_peak_pct": -33.7,
+   "from_peak_pct": -33.3,
    "days_since_peak": 2,
    "levels": {
     "15": 1705.0,
@@ -347,15 +372,16 @@
     "30": 1404.0
    },
    "below_base": false,
-   "value24": 9100918272.26403
+   "value24": 9068138865.424393,
+   "name": "아이젝"
   },
   {
    "ticker": "SENT",
-   "price": 28.42,
+   "price": 28.29,
    "peak": 39.8,
    "base": 27.29,
    "pump_pct": 45.8,
-   "from_peak_pct": -28.6,
+   "from_peak_pct": -28.9,
    "days_since_peak": 0,
    "levels": {
     "15": 33.83,
@@ -364,15 +390,16 @@
     "30": 27.86
    },
    "below_base": false,
-   "value24": 3851988567.361878
+   "value24": 3852901562.6822047,
+   "name": "센티언트"
   },
   {
    "ticker": "SAND",
-   "price": 85.97,
+   "price": 86.11,
    "peak": 120.0,
    "base": 89.0,
    "pump_pct": 34.8,
-   "from_peak_pct": -28.4,
+   "from_peak_pct": -28.2,
    "days_since_peak": 3,
    "levels": {
     "15": 102.0,
@@ -381,15 +408,16 @@
     "30": 84.0
    },
    "below_base": true,
-   "value24": 1619470831.7731354
+   "value24": 1598190005.5487669,
+   "name": "샌드박스"
   },
   {
    "ticker": "MAGIC",
-   "price": 159.0,
+   "price": 160.0,
    "peak": 220.0,
    "base": 86.75,
    "pump_pct": 153.6,
-   "from_peak_pct": -27.7,
+   "from_peak_pct": -27.3,
    "days_since_peak": 1,
    "levels": {
     "15": 187.0,
@@ -398,15 +426,16 @@
     "30": 154.0
    },
    "below_base": false,
-   "value24": 15427827381.656136
+   "value24": 15302307963.701506,
+   "name": "매직"
   },
   {
    "ticker": "MANTRA",
-   "price": 9.639,
+   "price": 9.62,
    "peak": 13.11,
    "base": 9.97,
    "pump_pct": 31.5,
-   "from_peak_pct": -26.5,
+   "from_peak_pct": -26.6,
    "days_since_peak": 4,
    "levels": {
     "15": 11.14,
@@ -415,15 +444,16 @@
     "30": 9.18
    },
    "below_base": true,
-   "value24": 1334288889.899892
+   "value24": 1335455604.802845,
+   "name": "만트라"
   },
   {
    "ticker": "MET",
-   "price": 558.0,
+   "price": 557.0,
    "peak": 742.0,
    "base": 394.0,
    "pump_pct": 88.3,
-   "from_peak_pct": -24.8,
+   "from_peak_pct": -24.9,
    "days_since_peak": 3,
    "levels": {
     "15": 630.7,
@@ -432,7 +462,8 @@
     "30": 519.4
    },
    "below_base": false,
-   "value24": 1290656420.662652
+   "value24": 1290560974.869852,
+   "name": "메테오라"
   },
   {
    "ticker": "NIL",
@@ -449,15 +480,16 @@
     "30": 109.9
    },
    "below_base": false,
-   "value24": 1146345165.1042004
+   "value24": 1146345165.1042004,
+   "name": "닐리온"
   },
   {
    "ticker": "KAIA",
-   "price": 66.66,
+   "price": 66.77,
    "peak": 86.98,
    "base": 51.11,
    "pump_pct": 70.2,
-   "from_peak_pct": -23.4,
+   "from_peak_pct": -23.2,
    "days_since_peak": 1,
    "levels": {
     "15": 73.93,
@@ -466,15 +498,16 @@
     "30": 60.89
    },
    "below_base": false,
-   "value24": 75538039119.68918
+   "value24": 72483084868.43762,
+   "name": "카이아"
   },
   {
    "ticker": "STRK",
-   "price": 140.0,
+   "price": 141.0,
    "peak": 167.0,
    "base": 82.82,
    "pump_pct": 101.6,
-   "from_peak_pct": -16.2,
+   "from_peak_pct": -15.6,
    "days_since_peak": 0,
    "levels": {
     "15": 141.9,
@@ -483,11 +516,12 @@
     "30": 116.9
    },
    "below_base": false,
-   "value24": 17391862194.028015
+   "value24": 17257172063.66317,
+   "name": "스타크넷"
   },
   {
    "ticker": "CHIP",
-   "price": 84.16,
+   "price": 84.18,
    "peak": 96.89,
    "base": 65.71,
    "pump_pct": 47.5,
@@ -500,7 +534,8 @@
     "30": 67.82
    },
    "below_base": false,
-   "value24": 5231692409.583492
+   "value24": 5100118999.5255575,
+   "name": "유에스디에이아이"
   }
  ],
  "universe": {
@@ -515,6 +550,8 @@
   ]
  },
  "ai_status": "ok",
+ "ai_calls": 1,
+ "ai_calls_today": 1,
  "params": {
   "min_stop_pct": 2.5,
   "max_stop_pct": 8.0,
@@ -523,5 +560,29 @@
   "max_hold_hours": 120,
   "wait_valid_hours": 36,
   "fee_pct_per_side": 0.04
+ },
+ "names": {
+  "ADA": "에이다",
+  "BCH": "비트코인캐시",
+  "BLUE": "블루핀",
+  "CHIP": "유에스디에이아이",
+  "ERA": "칼데라",
+  "ETH": "이더리움",
+  "GTC": "깃코인",
+  "KAIA": "카이아",
+  "LINK": "체인링크",
+  "MAGIC": "매직",
+  "MANTRA": "만트라",
+  "MBL": "무비블록",
+  "MET": "메테오라",
+  "NEAR": "니어프로토콜",
+  "NIL": "닐리온",
+  "OGN": "오리진프로토콜",
+  "RLC": "아이젝",
+  "SAND": "샌드박스",
+  "SENT": "센티언트",
+  "SOL": "솔라나",
+  "STRK": "스타크넷",
+  "XLM": "스텔라루멘"
  }
 }
