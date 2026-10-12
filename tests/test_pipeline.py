@@ -33,7 +33,7 @@ def fake_get(url, params=None, timeout=10, retries=3):
 
 bot.http_json = fake_get
 sent = []
-bot.slack_post = lambda text, blocks: sent.append(text) or True
+bot.slack_post = lambda text, blocks, thread_ts=None: sent.append(text) or "1.0"
 bot.fetch_taker_ratio = lambda: 0.52
 
 with tempfile.TemporaryDirectory() as td:
