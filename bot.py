@@ -734,6 +734,39 @@ verdict: "block"(지금 매수 비권장: 상폐·해킹·대규모 언락 임�
     return {}, "unavailable"
 
 
+AI_CACHE_HOURS = float(ENV("AI_CACHE_HOURS", "24"))   # 같은 종목은 이 시간 동안 AI 재검증 안 함
+
+
+def ai_veto_cached(cand: list, store, at_ms: int) -> tuple:
+    """종목별 AI 판정을 AI_CACHE_HOURS 동안 재사용. 새로 확인할 종목이 있을 때만 Gemini 1회 호출.
+    반환: (ticker→판정, 상태, 이번 호출 수, 오늘 누적 호출 수)"""
+    cache = store.read("ai_cache.json", {})
+    if not isinstance(cache, dict):
+        cache = {}
+    fresh = {tk: v for tk, v in cache.items() if at_ms - v.get("checked_ts", 0) < AI_CACHE_HOURS * HOUR_MS}
+    need = [p for p in cand if p["ticker"] not in fresh]
+    calls, state = 0, "ok"
+    if need:
+        got, state = ai_veto(need)
+        calls = 1 if GEMINI_API_KEY else 0
+        if state == "ok":
+            for p in need:
+                v = got.get(p["ticker"], {"verdict": "ok", "note": "", "positive": None})
+                fresh[p["ticker"]] = {**v, "checked_ts": at_ms, "checked_at": iso_kst(at_ms)}
+    out = {tk: v for tk, v in fresh.items() if any(p["ticker"] == tk for p in cand)}
+    if state != "ok" and any(p["ticker"] not in out for p in cand):
+        state = "partial" if out else "unavailable"
+    store.write("ai_cache.json", fresh, "AI 검증 캐시")
+    usage = store.read("ai_usage.json", {})
+    if not isinstance(usage, dict):
+        usage = {}
+    day = datetime.fromtimestamp(at_ms / 1000, KST).strftime("%Y-%m-%d")
+    usage[day] = usage.get(day, 0) + calls
+    usage = dict(sorted(usage.items())[-60:])
+    store.write("ai_usage.json", usage, "AI 호출 기록")
+    return out, state, calls, usage[day]
+
+
 # ==========================================================
 # 8. 장부(ledger): 고정된 계획을 캔들로 채점
 # ==========================================================
@@ -1038,12 +1071,15 @@ def run_scan() -> dict:
 
     raw_picks, raw_watch = scan_candidates(ctxs, btc_ret7)
     excluded = []
+    ai_calls, ai_calls_today = 0, None
 
     # 쿨다운: 최근 손절 난 종목은 재추천 금지
     keep = []
     for c in raw_picks:
         if has_recent_stop(ledger, c["ticker"], at):
-            excluded.append({"ticker": c["ticker"], "setup": c["setup"], "reason": f"최근 {COOLDOWN_HOURS}시간 내 손절 — 쿨다운"})
+            excluded.append({"ticker": c["ticker"], "setup": c["setup"], "setup_label": SETUP_LABEL[c["setup"]], "kind": "쿨다운",
+                             "reason": f"최근 {COOLDOWN_HOURS}시간 안에 손절된 종목", "note": "같은 종목 연속 손절을 막기 위한 규칙입니다.",
+                             "price": c["price"], "plan": None, "reasons": c["reasons"]})
         else:
             keep.append(c)
     raw_picks = keep
@@ -1058,14 +1094,18 @@ def run_scan() -> dict:
                 watch.append(flatten_watch({**c, "state": "watch", "trigger_text": f"점수 {c['score']} < 기준 {floor} — 관찰만",
                                             "trigger_price": c["plan"]["zone_hi"]}))
         cand = [flatten_pick(c, gate) for c in ranked[:PICK_CAP[gate] + 2]]
-        verdicts, ai_state = ai_veto(cand)
+        verdicts, ai_state, ai_calls, ai_calls_today = ai_veto_cached(cand, store, at)
         final = []
         for p in cand:
             v = verdicts.get(p["ticker"])
             if v:
-                p["ai"] = {"status": v["verdict"], "note": v["note"], "positive": v["positive"]}
+                p["ai"] = {"status": v["verdict"], "note": v["note"], "positive": v["positive"], "checked_at": v.get("checked_at")}
                 if v["verdict"] == "block":
-                    excluded.append({"ticker": p["ticker"], "setup": p["setup"], "reason": f"악재 확인: {v['note'] or 'AI 검증에서 제외'}"})
+                    excluded.append({"ticker": p["ticker"], "setup": p["setup"], "setup_label": p["setup_label"], "kind": "악재",
+                                     "reason": "AI 악재 검증에서 제외", "note": v["note"] or "(AI가 사유를 남기지 않음)",
+                                     "checked_at": v.get("checked_at"), "price": p["price"],
+                                     "plan": {k: p[k] for k in ("zone_lo", "zone_hi", "stop", "t1", "t2", "stop_pct", "t1_pct")},
+                                     "reasons": p["reasons"]})
                     continue
                 if v["verdict"] == "caution":
                     p["score"] -= 12
@@ -1081,7 +1121,7 @@ def run_scan() -> dict:
         for c in raw_picks:
             watch.append(flatten_watch({**c, "state": "watch", "trigger_price": c["plan"]["zone_hi"]},
                                        note="시장 신호등이 매수 금지 — 관찰만"))
-        ai_state = "skipped"
+        ai_state, ai_calls, ai_calls_today = "skipped", 0, None
 
     watch.sort(key=lambda w: (-w["score"], abs(w["dist_pct"] or 99)))
     watch = watch[:12]
@@ -1099,7 +1139,7 @@ def run_scan() -> dict:
               "market": market, "picks": picks, "watch": watch, "excluded": excluded, "watchlist": wl_rows,
               "pumps": live_pumps(ctxs),
               "universe": {"count": len(universe), "scanned": len(ctxs), "failed": failed},
-              "ai_status": ai_state, "params": {"min_stop_pct": MIN_STOP_PCT, "max_stop_pct": MAX_STOP_PCT, "t1_r": T1_R,
+              "ai_status": ai_state, "ai_calls": ai_calls, "ai_calls_today": ai_calls_today, "params": {"min_stop_pct": MIN_STOP_PCT, "max_stop_pct": MAX_STOP_PCT, "t1_r": T1_R,
                                                "t2_r": T2_R, "max_hold_hours": MAX_HOLD_HOURS, "wait_valid_hours": WAIT_VALID_HOURS,
                                                "fee_pct_per_side": FEE_PCT_PER_SIDE}}
     ledger = ledger[-600:]
@@ -1163,10 +1203,19 @@ def slack_scan(latest: dict, events: list):
             lines.append(f"*{p['ticker']}* `{p['setup_label']}` {tag}{ai}\n"
                          f"    현재 {fmt_krw(p['price'])} · 손절 {fmt_krw(p['stop'])} (-{p['stop_pct']:.1f}%) · "
                          f"1차 {fmt_krw(p['t1'])} (+{p['t1_pct']:.1f}%) · 2차 {fmt_krw(p['t2'])} (+{p['t2_pct']:.1f}%)\n"
-                         f"    {p['reasons'][1] if len(p['reasons']) > 1 else p['reasons'][0]}")
+                         f"    {p['reasons'][1] if len(p['reasons']) > 1 else p['reasons'][0]}"
+                         + (f"\n    ⚠️ AI: {p['ai']['note'][:200]}" if p["ai"].get("note") else "")
+                         + (f"\n    💡 AI: {p['ai']['positive'][:150]}" if p["ai"].get("positive") else ""))
         blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": "🎯 *추천*\n" + "\n".join(lines)}})
     else:
         blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": "🎯 *오늘은 조건을 충족한 추천이 없습니다.* 억지로 사지 않는 것도 전략입니다."}})
+    if latest.get("excluded"):
+        ex_lines = []
+        for x in latest["excluded"][:5]:
+            plan = x.get("plan")
+            pl = f" (계획: 매수 {fmt_krw(plan['zone_lo'])}~{fmt_krw(plan['zone_hi'])}, 손절 {fmt_krw(plan['stop'])})" if plan else ""
+            ex_lines.append(f"• *{x['ticker']}* {x.get('setup_label', '')} — {x['reason']}{pl}\n    _{x.get('note', '')[:300]}_")
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": "🚫 *조건은 맞았지만 제외한 종목* — 사유를 보고 직접 판단하세요\n" + "\n".join(ex_lines)}})
     near = [w for w in latest["watch"] if w.get("dist_pct") is not None][:3]
     if near:
         blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": "👀 *감시*\n" + "\n".join(
