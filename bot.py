@@ -281,6 +281,41 @@ def slice_completed(cd: dict, interval_ms: int, at_ms: float) -> dict:
     return {k: v[:n] for k, v in cd.items()}
 
 
+KR_NAMES = {}
+
+
+def fetch_korean_names(store=None) -> dict:
+    """티커→한글명. 빗썸 종목목록 → 실패 시 업비트 → 그래도 실패면 지난번 저장본."""
+    names = {}
+    for url in ("https://api.bithumb.com/v1/market/all?isDetails=false", "https://api.upbit.com/v1/market/all"):
+        j = http_json(url, retries=2)
+        if isinstance(j, list):
+            for m in j:
+                mk = str(m.get("market", ""))
+                if mk.startswith("KRW-") and m.get("korean_name"):
+                    names.setdefault(mk[4:].upper(), str(m["korean_name"]).strip())
+        if len(names) > 50:
+            break
+    if store is not None:
+        if names:
+            store.write("names.json", names, "한글명")
+        else:
+            names = store.read("names.json", {}) or {}
+    KR_NAMES.clear()
+    KR_NAMES.update(names)
+    return names
+
+
+def kname(tk: str) -> str:
+    return KR_NAMES.get(str(tk).upper(), "")
+
+
+def label(tk: str) -> str:
+    """'비트코인(BTC)' — 한글명이 없으면 티커만."""
+    n = kname(tk)
+    return f"{n}({tk})" if n else str(tk)
+
+
 def fetch_taker_ratio() -> Optional[float]:
     """바이낸스 BTC 선물 최근 4시간 테이커 매수비율 (실패해도 무방)."""
     j = http_json("https://fapi.binance.com/futures/data/takerlongshortRatio",
@@ -798,8 +833,8 @@ def _close(e: dict, ts: float, price: float, reason: str, events: list):
             gross = (price - fill) / risk
         cost = 2 * FEE_PCT_PER_SIDE / 100 * fill / risk
         e["r_gross"], e["r_net"] = round(gross, 3), round(gross - cost, 3)
-    label = {"stop": "손절", "be_stop": "본전 청산", "t2": "2차 목표 도달", "time": "5일 타임스톱"}.get(reason, reason)
-    events.append(f"{e['ticker']} {SETUP_LABEL.get(e['setup'], e['setup'])} — {label} (순수익 {e['r_net']:+.2f}R)")
+    why = {"stop": "손절", "be_stop": "본전 청산", "t2": "2차 목표 도달", "time": "5일 타임스톱"}.get(reason, reason)
+    events.append(f"{label(e['ticker'])} {SETUP_LABEL.get(e['setup'], e['setup'])} — {why} (순수익 {e['r_net']:+.2f}R)")
 
 
 def replay_entry(e: dict, cd: dict, at_ms: float, bar_ms: int = HOUR_MS, max_hold_ms: int = MAX_HOLD_HOURS * HOUR_MS) -> list:
@@ -821,16 +856,16 @@ def replay_entry(e: dict, cd: dict, at_ms: float, bar_ms: int = HOUR_MS, max_hol
         if e["status"] == "pending":
             if t >= e["valid_until_ts"]:
                 e["status"], e["exit_reason"], e["exit_ts"] = "expired", "unfilled", int(t)
-                events.append(f"{e['ticker']} {SETUP_LABEL.get(e['setup'], e['setup'])} — 유효시간 내 미체결(만료)")
+                events.append(f"{label(e['ticker'])} {SETUP_LABEL.get(e['setup'], e['setup'])} — 유효시간 내 미체결(만료)")
                 return events
             if l <= e["entry"]:
                 if o <= e["stop"]:                      # 손절선 아래로 갭 — 진입 무효
                     e["status"], e["exit_reason"], e["exit_ts"] = "expired", "invalidated", int(t)
-                    events.append(f"{e['ticker']} {SETUP_LABEL.get(e['setup'], e['setup'])} — 체결 전 손절선 이탈(무효)")
+                    events.append(f"{label(e['ticker'])} {SETUP_LABEL.get(e['setup'], e['setup'])} — 체결 전 손절선 이탈(무효)")
                     return events
                 e["status"], e["fill_ts"], e["fill_price"] = "open", int(t), min(e["entry"], o)
                 fill_candle = True
-                events.append(f"{e['ticker']} {SETUP_LABEL.get(e['setup'], e['setup'])} — 지정가 체결 {fmt_krw(e['fill_price'])}")
+                events.append(f"{label(e['ticker'])} {SETUP_LABEL.get(e['setup'], e['setup'])} — 지정가 체결 {fmt_krw(e['fill_price'])}")
             else:
                 continue
 
@@ -846,7 +881,7 @@ def replay_entry(e: dict, cd: dict, at_ms: float, bar_ms: int = HOUR_MS, max_hol
                 return events
             if (not fill_candle) and h >= e["t1"]:
                 e["t1_hit"], e["t1_ts"] = True, int(t)
-                events.append(f"{e['ticker']} {SETUP_LABEL.get(e['setup'], e['setup'])} — 1차 목표 도달 (절반 매도, 손절 본전으로)")
+                events.append(f"{label(e['ticker'])} {SETUP_LABEL.get(e['setup'], e['setup'])} — 1차 목표 도달 (절반 매도, 손절 본전으로)")
         else:
             if t > e["t1_ts"]:
                 if l <= fill:
@@ -1051,6 +1086,8 @@ def run_scan() -> dict:
     if not tickers:
         raise SystemExit("❌ 빗썸 시세 수집 실패 — 종료")
     universe = build_universe(tickers)
+    fetch_korean_names(store)
+    log(f"  🔤 한글명 {len(KR_NAMES)}개")
     log(f"📡 유니버스 {len(universe)}종 (거래대금 ≥ {MIN_VALUE_KRW / 1e8:.0f}억) 캔들 수집 중...")
     ctxs, failed = gather(tickers, universe, at)
     log(f"  ✅ 수집 {len(ctxs)}종 / 실패 {len(failed)}종")
@@ -1142,6 +1179,12 @@ def run_scan() -> dict:
               "ai_status": ai_state, "ai_calls": ai_calls, "ai_calls_today": ai_calls_today, "params": {"min_stop_pct": MIN_STOP_PCT, "max_stop_pct": MAX_STOP_PCT, "t1_r": T1_R,
                                                "t2_r": T2_R, "max_hold_hours": MAX_HOLD_HOURS, "wait_valid_hours": WAIT_VALID_HOURS,
                                                "fee_pct_per_side": FEE_PCT_PER_SIDE}}
+    shown = {p["ticker"] for p in picks} | {w["ticker"] for w in watch} | {x["ticker"] for x in excluded} \
+        | {r["ticker"] for r in latest["pumps"]} | {r["ticker"] for r in wl_rows} | {e["ticker"] for e in ledger[-600:]}
+    latest["names"] = {tk: kname(tk) for tk in sorted(shown) if kname(tk)}
+    for group in (picks, watch, excluded, latest["pumps"], wl_rows):
+        for row in group:
+            row["name"] = kname(row["ticker"])
     ledger = ledger[-600:]
     stats = compute_stats(ledger)
     store.write("latest.json", latest, f"스캔 {latest['generated_at']}")
@@ -1160,6 +1203,9 @@ def run_track():
     if not isinstance(ledger, list) or not ledger:
         log("ℹ️ 장부가 비어 있음")
         return
+    KR_NAMES.update(store.read("names.json", {}) or {})
+    if not KR_NAMES:
+        fetch_korean_names(store)
     events = track_ledger(ledger, at)
     store.write("ledger.json", ledger, f"장부 갱신 {iso_kst(at)}")
     store.write("stats.json", compute_stats(ledger), "통계 갱신")
@@ -1200,7 +1246,7 @@ def slack_scan(latest: dict, events: list):
         for p in latest["picks"]:
             tag = "✅ 지금 매수 구간" if p["state"] == "now" else f"⏳ 지정가 {fmt_krw(p['entry'])}"
             ai = " ⚠️악재주의" if p["ai"]["status"] == "caution" else ""
-            lines.append(f"*{p['ticker']}* `{p['setup_label']}` {tag}{ai}\n"
+            lines.append(f"*{label(p['ticker'])}* `{p['setup_label']}` {tag}{ai}\n"
                          f"    현재 {fmt_krw(p['price'])} · 손절 {fmt_krw(p['stop'])} (-{p['stop_pct']:.1f}%) · "
                          f"1차 {fmt_krw(p['t1'])} (+{p['t1_pct']:.1f}%) · 2차 {fmt_krw(p['t2'])} (+{p['t2_pct']:.1f}%)\n"
                          f"    {p['reasons'][1] if len(p['reasons']) > 1 else p['reasons'][0]}"
@@ -1214,12 +1260,12 @@ def slack_scan(latest: dict, events: list):
         for x in latest["excluded"][:5]:
             plan = x.get("plan")
             pl = f" (계획: 매수 {fmt_krw(plan['zone_lo'])}~{fmt_krw(plan['zone_hi'])}, 손절 {fmt_krw(plan['stop'])})" if plan else ""
-            ex_lines.append(f"• *{x['ticker']}* {x.get('setup_label', '')} — {x['reason']}{pl}\n    _{x.get('note', '')[:300]}_")
+            ex_lines.append(f"• *{label(x['ticker'])}* {x.get('setup_label', '')} — {x['reason']}{pl}\n    _{x.get('note', '')[:300]}_")
         blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": "🚫 *조건은 맞았지만 제외한 종목* — 사유를 보고 직접 판단하세요\n" + "\n".join(ex_lines)}})
     near = [w for w in latest["watch"] if w.get("dist_pct") is not None][:3]
     if near:
         blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": "👀 *감시*\n" + "\n".join(
-            f"• *{w['ticker']}* {w['setup_label']} — {w['trigger_text'][:70]}" for w in near)}})
+            f"• *{label(w['ticker'])}* {w['setup_label']} — {w['trigger_text'][:70]}" for w in near)}})
     if events:
         blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": "📣 *장부 업데이트*\n" + "\n".join(f"• {x}" for x in events[:8])}})
     blocks.append({"type": "context", "elements": [{"type": "mrkdwn", "text": f"<{DASHBOARD_URL}|대시보드 열기> · 투자 판단과 손실 책임은 본인에게 있습니다."}]})

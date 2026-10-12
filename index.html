@@ -29,6 +29,7 @@ ul.checks{list-style:none;padding:0;margin:10px 0 0;font-size:13px;color:var(--s
 ul.checks li{padding:2px 0}
 .pick-h{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
 .tk{font-size:18px;font-weight:700}
+.tkc{font-size:12px;color:var(--sub);margin-left:6px;font-weight:600}
 .tag{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:600;background:var(--soft);color:var(--sub);margin-left:6px}
 .tag.now{background:var(--go);color:#fff}.tag.wait{background:var(--sel);color:#fff}.tag.warn{background:var(--stop);color:#fff}
 .price{font-size:20px;font-weight:700}
@@ -83,6 +84,20 @@ svg{width:100%;height:120px;display:block}
 const RAW = "https://raw.githubusercontent.com/insight-doby/report_coin/main/data/";
 const SETUP = {pullback:"눌림목", breakout_retest:"돌파 후 안착", squeeze:"수렴 돌파 대기"};
 const S = {tab:"today", latest:null, ledger:[], stats:null, live:{}, liveAt:null, err:""};
+let NAMES = {};
+function loadNames(){
+  try{ NAMES = Object.assign({}, ls("names",{}), (S.latest&&S.latest.names)||{}); }catch(e){}
+  if(Object.keys(NAMES).length>50) return Promise.resolve();
+  return fetch("https://api.upbit.com/v1/market/all").then(r=>r.json()).then(j=>{
+    j.forEach(m=>{ if(m.market&&m.market.startsWith("KRW-")&&!NAMES[m.market.slice(4)]) NAMES[m.market.slice(4)]=m.korean_name; });
+    lsSet("names",NAMES); render();
+  }).catch(()=>{});
+}
+const kn = tk => NAMES[String(tk||"").toUpperCase()] || "";
+/* 카드 제목: 한글명 크게 + 티커 작게 */
+const tkTitle = tk => kn(tk) ? `<span class="tk">${esc(kn(tk))}</span><span class="tkc">${esc(tk)}</span>` : `<span class="tk">${esc(tk)}</span>`;
+/* 표 셀: 한글명 굵게, 아래 티커 */
+const tkCell = tk => kn(tk) ? `<b>${esc(kn(tk))}</b><br><span class="sub">${esc(tk)}</span>` : `<b>${esc(tk)}</b>`;
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -102,6 +117,7 @@ async function load(){
   const [l, g, st] = await Promise.all([getJSON("latest.json"), getJSON("ledger.json"), getJSON("stats.json")]);
   if(!l) S.err = "추천 데이터를 불러오지 못했습니다. 봇이 아직 한 번도 실행되지 않았을 수 있습니다.";
   S.latest=l; S.ledger=Array.isArray(g)?g:[]; S.stats=st;
+  loadNames();
   await loadLive();
   render();
 }
@@ -151,7 +167,7 @@ function pickCard(p){
   const aiTag = ai.status==="caution"?`<span class="tag warn">악재 주의</span>`: ai.status==="ok"?`<span class="tag">악재 없음</span>`:`<span class="tag">악재 미확인</span>`;
   const mult = S.latest.market.size_mult;
   return `<div class="card">
-    <div class="pick-h"><div><span class="tk">${esc(p.ticker)}</span><span class="tag ${p.state}">${p.state==="now"?"지금":"지정가 대기"}</span><span class="tag">${esc(p.setup_label)}</span>${aiTag}</div>
+    <div class="pick-h"><div>${tkTitle(p.ticker)}<span class="tag ${p.state}">${p.state==="now"?"지금":"지정가 대기"}</span><span class="tag">${esc(p.setup_label)}</span>${aiTag}</div>
       <div class="price">${won(cur)} <span class="sub ${p.chg24>=0?"pos":"neg"}">${pct(p.chg24)}</span></div></div>
     ${ladder(p,cur)}
     <div class="status ${st.c}">${st.t}</div>
@@ -178,7 +194,7 @@ function viewToday(){
   if(l.excluded&&l.excluded.length){
     h+=`<h3 style="margin:16px 2px 4px">조건은 맞았지만 제외한 종목</h3><div class="sub" style="margin:0 2px 8px">차트 조건은 통과했지만 아래 이유로 추천에서 뺐습니다. 사유를 읽고 직접 판단하세요.</div>`;
     h+=l.excluded.map(x=>{ const cur=priceOf(x.ticker,x.price), pl=x.plan;
-      return `<div class="card"><div class="pick-h"><div><span class="tk">${esc(x.ticker)}</span><span class="tag warn">${esc(x.kind||"제외")}</span>${x.setup_label?`<span class="tag">${esc(x.setup_label)}</span>`:""}</div><div class="price">${won(cur)}</div></div>
+      return `<div class="card"><div class="pick-h"><div>${tkTitle(x.ticker)}<span class="tag warn">${esc(x.kind||"제외")}</span>${x.setup_label?`<span class="tag">${esc(x.setup_label)}</span>`:""}</div><div class="price">${won(cur)}</div></div>
         <div class="status" style="color:var(--stop)">${esc(x.reason)}</div>
         <div style="margin-top:6px;font-size:14px;line-height:1.6">${esc(x.note||"")}</div>
         ${x.checked_at?`<div class="sub" style="margin-top:4px">AI 확인: ${esc(x.checked_at.slice(5,16).replace("T"," "))} · 출처는 AI 검색 요약이므로 원문을 한 번 더 확인하세요</div>`:""}
@@ -203,11 +219,11 @@ function viewPos(){
       else if(t1&&cur>=t1) advice=`<b class="pos">1차 목표 — 절반 매도</b>`;
       else if(stop) advice=`손절 ${won(stop)}${t1?` / 1차 ${won(t1)}`:""}`;
     }
-    rows+=`<tr><td><b>${esc(p.ticker)}</b></td><td>${won(p.buy)}</td><td>${cur?won(cur):"-"}</td><td class="${pl>=0?"pos":"neg"}">${pl==null?"-":pct(pl)}</td><td>${advice}</td><td><button class="ib" data-del="${i}">삭제</button></td></tr>`;
+    rows+=`<tr><td>${tkCell(p.ticker)}</td><td>${won(p.buy)}</td><td>${cur?won(cur):"-"}</td><td class="${pl>=0?"pos":"neg"}">${pl==null?"-":pct(pl)}</td><td>${advice}</td><td><button class="ib" data-del="${i}">삭제</button></td></tr>`;
   });
   return `<div class="card"><b>포지션 추가</b>
     <div class="form" style="margin-top:8px">
-      <input id="pt" placeholder="티커 (예: SUI)"><input id="pb" type="number" step="any" placeholder="매수가(원)">
+      <input id="pt" placeholder="티커 또는 한글명 (예: SUI, 수이)"><input id="pb" type="number" step="any" placeholder="매수가(원)">
       <input id="ps" type="number" step="any" placeholder="손절가(선택)"><input id="p1" type="number" step="any" placeholder="1차목표(선택)">
       <button class="ib" id="padd">추가</button></div>
     <div class="sub" style="margin-top:6px">입력은 이 브라우저에만 저장됩니다. 손절·목표를 비워두면 봇 추천 계획이 있을 때 그 값을 씁니다.</div></div>
@@ -221,16 +237,16 @@ function viewWatch(){
   if(l.watch.length){
     h+=`<div class="card"><b>곧 매수 신호가 열릴 후보</b><table style="margin-top:8px"><tr><th>종목</th><th>유형</th><th>현재가</th><th>조건</th></tr>`+
       l.watch.map(w=>{ const cur=priceOf(w.ticker,w.price), d=w.trigger_price?(cur/w.trigger_price-1)*100:null;
-        return `<tr><td><b>${esc(w.ticker)}</b></td><td>${esc(w.setup_label)}</td><td>${won(cur)}<br><span class="sub">기준가 ${pct(d)}</span></td><td style="text-align:left;font-size:12px">${esc(w.trigger_text||"")}${w.note?`<br><span class="sub">${esc(w.note)}</span>`:""}</td></tr>`;}).join("")+`</table></div>`;
+        return `<tr><td>${tkCell(w.ticker)}</td><td>${esc(w.setup_label)}</td><td>${won(cur)}<br><span class="sub">기준가 ${pct(d)}</span></td><td style="text-align:left;font-size:12px">${esc(w.trigger_text||"")}${w.note?`<br><span class="sub">${esc(w.note)}</span>`:""}</td></tr>`;}).join("")+`</table></div>`;
   } else h+=`<div class="card empty">감시 중인 후보가 없습니다.</div>`;
   if(l.pumps&&l.pumps.length){
     h+=`<div class="card"><b>최근 7일 급등 종목 — 고점 대비 위치</b><div class="sub">매수 신호가 아닙니다. 급등 후 눌림 전략은 '검증' 결과가 나오기 전까지 관찰만 하세요.</div><table style="margin-top:8px"><tr><th>종목</th><th>급등폭</th><th>고점 대비</th><th>-20% / -25% / -30%</th></tr>`+
       l.pumps.map(p=>{ const cur=priceOf(p.ticker,p.price), fp=(cur/p.peak-1)*100;
-        return `<tr><td><b>${esc(p.ticker)}</b><br><span class="sub">고점 ${p.days_since_peak}일 전</span></td><td class="pos">+${p.pump_pct}%</td><td class="neg">${pct(fp)}${cur<p.base?`<br><span class="sub">급등 전 가격 아래</span>`:""}</td><td style="font-size:12px">${won(p.levels["20"])}<br>${won(p.levels["25"])}<br>${won(p.levels["30"])}</td></tr>`;}).join("")+`</table></div>`;
+        return `<tr><td>${tkCell(p.ticker)}<br><span class="sub">고점 ${p.days_since_peak}일 전</span></td><td class="pos">+${p.pump_pct}%</td><td class="neg">${pct(fp)}${cur<p.base?`<br><span class="sub">급등 전 가격 아래</span>`:""}</td><td style="font-size:12px">${won(p.levels["20"])}<br>${won(p.levels["25"])}<br>${won(p.levels["30"])}</td></tr>`;}).join("")+`</table></div>`;
   }
   if(l.watchlist&&l.watchlist.length){
     h+=`<div class="card"><b>내 관심종목</b><table style="margin-top:8px"><tr><th>종목</th><th>현재가</th><th>추세</th><th>RSI</th><th>메모</th></tr>`+
-      l.watchlist.map(w=>`<tr><td><b>${esc(w.ticker)}</b></td><td>${won(priceOf(w.ticker,w.price))}</td><td>${esc(w.trend)}</td><td>${w.rsi_d??"-"}</td><td style="text-align:left;font-size:12px">${esc([w.flag,w.note].filter(Boolean).join(" · "))}</td></tr>`).join("")+`</table></div>`;
+      l.watchlist.map(w=>`<tr><td>${tkCell(w.ticker)}</td><td>${won(priceOf(w.ticker,w.price))}</td><td>${esc(w.trend)}</td><td>${w.rsi_d??"-"}</td><td style="text-align:left;font-size:12px">${esc([w.flag,w.note].filter(Boolean).join(" · "))}</td></tr>`).join("")+`</table></div>`;
   }
   return h;
 }
@@ -265,7 +281,7 @@ function viewVerify(){
   if(recent.length){
     const stl={pending:"대기",open:"진행",closed:"종료",expired:"만료"};
     h+=`<div class="card"><b>최근 추천 20건</b><table style="margin-top:8px"><tr><th>종목</th><th>유형</th><th>상태</th><th>결과</th></tr>`+
-      recent.map(e=>`<tr><td><b>${esc(e.ticker)}</b><br><span class="sub">${esc((e.issued_at||"").slice(5,16).replace("T"," "))}</span></td><td>${esc(SETUP[e.setup]||e.setup)}</td><td>${stl[e.status]||e.status}${e.t1_hit&&e.status==="open"?" (1차↑)":""}</td>
+      recent.map(e=>`<tr><td>${tkCell(e.ticker)}<br><span class="sub">${esc((e.issued_at||"").slice(5,16).replace("T"," "))}</span></td><td>${esc(SETUP[e.setup]||e.setup)}</td><td>${stl[e.status]||e.status}${e.t1_hit&&e.status==="open"?" (1차↑)":""}</td>
       <td class="${e.r_net>0?"pos":e.r_net<0?"neg":""}">${e.r_net!=null?(e.r_net>0?"+":"")+e.r_net+"R":e.status==="open"?`MFE ${e.mfe_r}R`:"-"}</td></tr>`).join("")+`</table></div>`;
   }
   return h;
@@ -278,7 +294,8 @@ function render(){
   document.querySelectorAll("#tabs button").forEach(b=>b.classList.toggle("on",b.dataset.t===S.tab));
   const add=$("#padd");
   if(add) add.onclick=()=>{
-    const ticker=$("#pt").value.trim().toUpperCase(), buy=parseFloat($("#pb").value);
+    let ticker=$("#pt").value.trim().toUpperCase(); const buy=parseFloat($("#pb").value);
+    if(ticker && !/^[A-Z0-9]+$/.test(ticker)){ const hit=Object.entries(NAMES).find(([k,v])=>v===$("#pt").value.trim()) || Object.entries(NAMES).find(([k,v])=>v.includes($("#pt").value.trim())); if(hit) ticker=hit[0]; }
     if(!ticker||!(buy>0)) return;
     const stop=parseFloat($("#ps").value)||null, t1=parseFloat($("#p1").value)||null;
     const pos=ls("positions",[]); pos.push({ticker,buy,stop,t1}); lsSet("positions",pos); render();
