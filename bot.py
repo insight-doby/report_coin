@@ -75,7 +75,7 @@ DAY_MS = 86_400_000
 STABLES = {"USDT", "USDC", "BUSD", "DAI", "TUSD", "USDP", "GUSD", "FRAX", "UST", "LUSD",
            "SUSD", "USDD", "PYUSD", "FDUSD", "USDS", "EURT", "EURC", "USDE", "WBTC", "WETH"}
 
-SETUP_LABEL = {"pullback": "눌림목", "breakout_retest": "돌파 후 안착", "squeeze": "수렴 돌파 대기"}
+SETUP_LABEL = {"pullback": "눌림목", "breakout_retest": "돌파 후 안착", "squeeze": "수렴 돌파 대기", "div4h": "4시간 다이버전스"}
 
 
 def log(*a):
@@ -475,7 +475,7 @@ def compute_market(ctxs: dict, taker_ratio: Optional[float]) -> dict:
 MIN_BARS = 130
 
 
-def make_plan(entry: float, stop_raw: float, state: str, zone_lo: float, zone_hi: float) -> Optional[dict]:
+def make_plan(entry: float, stop_raw: float, state: str, zone_lo: float, zone_hi: float, max_stop: float = None) -> Optional[dict]:
     """진입·손절·목표 확정. 손절폭이 범위를 벗어나면 None."""
     if entry <= 0 or stop_raw <= 0 or stop_raw >= entry:
         return None
@@ -485,7 +485,7 @@ def make_plan(entry: float, stop_raw: float, state: str, zone_lo: float, zone_hi
         stop = entry - min_dist
     risk = entry - stop
     stop_pct = risk / entry * 100
-    if stop_pct > MAX_STOP_PCT:
+    if stop_pct > (max_stop or MAX_STOP_PCT):
         return None
     t1, t2 = entry + T1_R * risk, entry + T2_R * risk
     return {
@@ -1072,6 +1072,180 @@ def funnel_stats(ctxs: dict, picks: list, watch: list) -> dict:
             "min_history_days": MIN_BARS, "min_value_krw": MIN_VALUE_KRW}
 
 
+# ── 4시간 RSI 상승 다이버전스 (2년 백테스트로 고른 규칙) ──────────────────
+#  일봉 상승추세 + 4시간봉 가격 저점↓·RSI 저점↑(두 번째 저점 RSI<40) + 반등 거래량 붙음
+#  거래량 붙음 = 저점 이후 4시간봉 3개 중 하나라도 직전 5일(30봉) 평균 거래대금의 1.0배 이상
+#  (거래량 안 붙은 다이버전스는 백테스트에서 손실: PF 0.80 / 붙은 경우 PF 4.8, 30건)
+DIV_K = 3                  # 저점 판정: 좌우 3봉보다 낮음
+DIV_RSI_MAX = 40
+DIV_VOL_MIN, DIV_VOL_HOT = 1.0, 3.0
+H4_MS = 4 * HOUR_MS
+
+
+def fetch_h4(ticker: str, count: int = 200) -> Optional[dict]:
+    """빗썸 v1 240분봉 → dict(t,o,h,l,c,v). v는 거래대금(원)."""
+    j = http_json("https://api.bithumb.com/v1/candles/minutes/240", params={"market": f"KRW-{ticker}", "count": count}, retries=2)
+    if not isinstance(j, list) or len(j) < 60:
+        return None
+    rows = []
+    for r in reversed(j):
+        try:
+            t = datetime.fromisoformat(r["candle_date_time_kst"]).replace(tzinfo=KST).timestamp() * 1000
+            o, h, l, c = (float(r[k]) for k in ("opening_price", "high_price", "low_price", "trade_price"))
+            v = float(r.get("candle_acc_trade_price") or 0)
+        except Exception:
+            continue
+        lo_, hi_ = min(o, c), max(o, c)
+        l = lo_ if l < lo_ * 0.7 else l           # 오류 체결 꼬리 보정
+        h = hi_ if h > hi_ * 1.5 else h
+        rows.append((t, o, h, l, c, v))
+    a = np.array(rows, float)
+    return {"t": a[:, 0], "o": a[:, 1], "h": a[:, 2], "l": a[:, 3], "c": a[:, 4], "v": a[:, 5]}
+
+
+def rsi_series(c, n: int = 14) -> np.ndarray:
+    out = np.full(len(c), np.nan)
+    d = np.diff(c)
+    if len(d) < n:
+        return out
+    g, ls = np.where(d > 0, d, 0.0), np.where(d < 0, -d, 0.0)
+    ag, al = g[:n].mean(), ls[:n].mean()
+    out[n] = 100 - 100 / (1 + ag / al) if al > 0 else 100.0
+    for i in range(n, len(d)):
+        ag = (ag * (n - 1) + g[i]) / n
+        al = (al * (n - 1) + ls[i]) / n
+        out[i + 1] = 100 - 100 / (1 + ag / al) if al > 0 else 100.0
+    return out
+
+
+def detect_div4h(ticker: str, h4: dict, at_ms: float, max_age_bars: int = 1) -> Optional[dict]:
+    """완성된 4시간봉 기준. 두 번째 저점이 확정된 봉(저점+3봉)이 최근 max_age_bars 안이면 신호."""
+    h4 = slice_completed(h4, H4_MS, at_ms)
+    o, h, l, c, v, t = h4["o"], h4["h"], h4["l"], h4["c"], h4["v"], h4["t"]
+    n = len(c)
+    if n < 60:
+        return None
+    R = rsi_series(c)
+    piv = [i for i in range(DIV_K, n - DIV_K) if l[i] == l[i - DIV_K:i + DIV_K + 1].min()]
+    if len(piv) < 2:
+        return None
+    x, y = piv[-2], piv[-1]
+    sig_i = y + DIV_K
+    if sig_i > n - 1 or sig_i < n - max_age_bars:
+        return None
+    if not (y - x <= 30 and l[y] < l[x] and R[y] > R[x] + 2 and R[y] < DIV_RSI_MAX):
+        return None
+    base = v[max(0, y - 30):y].mean() if y >= 10 else 0
+    if base <= 0:
+        return None
+    vol_x = float(v[y + 1:sig_i + 1].max() / base)
+    low_smaller = bool(v[y - 1:y + 2].sum() < v[x - 1:x + 2].sum())
+    a = atr(h, l, c) or 0
+    return {"pivot_ts": int(t[y]), "signal_ts": int(t[sig_i]), "low1": float(l[x]), "low2": float(l[y]),
+            "rsi1": round(float(R[x]), 1), "rsi2": round(float(R[y]), 1), "vol_x": round(vol_x, 2),
+            "vol_ok": DIV_VOL_MIN <= vol_x, "vol_hot": vol_x >= DIV_VOL_HOT, "low_vol_smaller": low_smaller,
+            "swing_low": float(l[max(0, sig_i - 5):sig_i + 1].min()), "atr4h": float(a), "close": float(c[sig_i])}
+
+
+def daily_uptrend(d: dict) -> bool:
+    c = d["c"]
+    if len(c) < 70:
+        return False
+    e20, e60 = ema(c, 20), ema(c, 60)
+    return bool(c[-1] > e60[-1] and e20[-1] > e60[-1] and e60[-1] > e60[-6])
+
+
+def div4h_pick(ticker: str, sig: dict, price: float, chg24: float = 0.0, value24: float = 0.0) -> Optional[dict]:
+    entry = price
+    stop = sig["swing_low"] - 0.2 * sig["atr4h"]
+    plan = make_plan(entry, stop, "now", min(entry, sig["close"]) * 0.995, max(entry, sig["close"]) * 1.005, max_stop=10.0)
+    if not plan:
+        return None
+    nm_t = datetime.fromtimestamp(sig["pivot_ts"] / 1000, KST).strftime("%m/%d %H시")
+    reasons = ["일봉 상승추세 (20일선 > 60일선, 60일선 우상향)",
+               f"4시간봉 저점 {fmt_krw(sig['low1'])} → {fmt_krw(sig['low2'])}(낮아짐), RSI {sig['rsi1']:.0f} → {sig['rsi2']:.0f}(높아짐)",
+               f"반등 거래량 평소의 {sig['vol_x']:.1f}배"]
+    risks = []
+    if sig["low_vol_smaller"]:
+        reasons.append("두 번째 저점 거래량이 첫 번째보다 적음 — 매도세 약화")
+    else:
+        risks.append("두 번째 저점 거래량이 첫 번째보다 많음 — 신호 약함")
+    if sig["vol_hot"]:
+        risks.append(f"반등 거래량 {sig['vol_x']:.1f}배 — 과열(3배↑) 구간은 백테스트에서 성과가 나빴음")
+    score = 70 + (8 if sig["low_vol_smaller"] else 0) - (15 if sig["vol_hot"] else 0)
+    p = {"ticker": ticker, "setup": "div4h", "setup_label": SETUP_LABEL["div4h"], "state": "now", "price": price, "chg24": chg24,
+         "entry": plan["entry"], "zone_lo": plan["zone_lo"], "zone_hi": plan["zone_hi"], "stop": plan["stop"], "t1": plan["t1"], "t2": plan["t2"],
+         "stop_pct": plan["stop_pct"], "t1_pct": plan["t1_pct"], "t2_pct": plan["t2_pct"], "rr1": plan["rr1"], "rr2": plan["rr2"],
+         "score": score, "reasons": reasons, "risks": risks, "metrics": {k: sig[k] for k in ("rsi1", "rsi2", "vol_x", "low_vol_smaller")},
+         "rs7": None, "value24": value24, "ai": {"status": "unverified", "note": "", "positive": None},
+         "valid_hours": 0, "signal_at": iso_kst(sig["signal_ts"] + H4_MS), "pivot_at": nm_t,
+         "sig_key": f"{ticker}-{sig['pivot_ts']}", "vol_ok": sig["vol_ok"]}
+    return p
+
+
+def scan_div4h(tickers: list, at_ms: int, price_map: dict, max_age_bars: int = 1) -> tuple:
+    """일봉 상승추세 종목만 4시간봉 확인. 반환: (거래량 붙은 신호, 거래량 안 붙은 참고 신호)"""
+    good, weak = [], []
+
+    def one(tk):
+        h = fetch_h4(tk)
+        return tk, (detect_div4h(tk, h, at_ms, max_age_bars) if h else None)
+
+    with ThreadPoolExecutor(max_workers=5) as ex:
+        for f in as_completed([ex.submit(one, tk) for tk in tickers]):
+            try:
+                tk, sig = f.result()
+            except Exception:
+                continue
+            if not sig:
+                continue
+            info = price_map.get(tk, {})
+            p = div4h_pick(tk, sig, info.get("price") or sig["close"], info.get("chg", 0.0), info.get("value", 0.0))
+            if not p:
+                continue
+            (good if sig["vol_ok"] else weak).append(p)
+    return good, weak
+
+
+def record_div4h(store, good: list, weak: list, ledger: list, at_ms: int, gate: str) -> list:
+    """새 신호만 장부에 기록하고 data/div4h.json(최근 7일 신호 목록)을 갱신. 새로 나온 '거래량 붙은' 신호를 반환."""
+    seen = {e.get("sig_key") for e in ledger if e.get("sig_key")}
+    hist = store.read("div4h.json", {"signals": []})
+    if not isinstance(hist, dict):
+        hist = {"signals": []}
+    known = {x.get("sig_key") for x in hist["signals"]}
+    fresh = []
+    for p in good:
+        if p["sig_key"] in seen:
+            continue
+        e = new_entry(p, at_ms, gate)
+        e["sig_key"] = p["sig_key"]
+        ledger.append(e)
+        p["id"], p["issued_at"] = e["id"], e["issued_at"]
+        fresh.append(p)
+    for p in good + weak:
+        if p["sig_key"] not in known:
+            hist["signals"].append({**p, "found_at": iso_kst(at_ms), "found_ts": at_ms, "name": kname(p["ticker"])})
+    hist["signals"] = [x for x in hist["signals"] if at_ms - x.get("found_ts", at_ms) < 7 * DAY_MS][-60:]
+    hist["checked_at"] = iso_kst(at_ms)
+    store.write("div4h.json", hist, "4시간 다이버전스")
+    return fresh
+
+
+def slack_div4h(fresh: list):
+    if not fresh:
+        return
+    blocks = [{"type": "header", "text": {"type": "plain_text", "text": f"⚡ 4시간 다이버전스 신호 {len(fresh)}개", "emoji": True}},
+              _ctx("일봉 상승추세 + 4시간 RSI 상승 다이버전스 + 반등 거래량 · 2년 백테스트 승률 77% (30건, 표본 적음) · AI 악재 확인 없음")]
+    for p in fresh:
+        blocks.append({"type": "divider"})
+        blocks += _pick_blocks(p)
+        if p["risks"]:
+            blocks.append(_ctx("⚠️ " + " · ".join(p["risks"])))
+    blocks.append(_ctx(f"<{DASHBOARD_URL}|대시보드 열기> · 투자 판단과 책임은 본인에게 있습니다"))
+    slack_post(f"⚡ 4시간 다이버전스 {', '.join(label(p['ticker']) for p in fresh)}", blocks)
+
+
 def rel_strength(ctx: dict, btc_ret7: Optional[float]) -> Optional[float]:
     c = ctx["d"]["c"]
     if len(c) < 8 or btc_ret7 is None:
@@ -1243,10 +1417,17 @@ def run_scan() -> dict:
               "ai_status": ai_state, "ai_calls": ai_calls, "ai_calls_today": ai_calls_today, "params": {"min_stop_pct": MIN_STOP_PCT, "max_stop_pct": MAX_STOP_PCT, "t1_r": T1_R,
                                                "t2_r": T2_R, "max_hold_hours": MAX_HOLD_HOURS, "wait_valid_hours": WAIT_VALID_HOURS,
                                                "fee_pct_per_side": FEE_PCT_PER_SIDE}}
+    up_list = sorted(tk for tk, cx in ctxs.items() if tk not in STABLES and daily_uptrend(cx["d"]))
+    latest["uptrend"] = up_list
+    d_good, d_weak = scan_div4h(up_list, at, tickers, max_age_bars=2)
+    d_fresh = record_div4h(store, d_good, d_weak, ledger, at, gate)
+    latest["div4h"] = d_good
+    log(f"⚡ 4시간 다이버전스: 거래량 붙음 {len(d_good)} / 안 붙음 {len(d_weak)} (새 신호 {len(d_fresh)})")
     shown = {p["ticker"] for p in picks} | {w["ticker"] for w in watch} | {x["ticker"] for x in excluded} \
         | {r["ticker"] for r in latest["pumps"]} | {r["ticker"] for r in wl_rows} | {e["ticker"] for e in ledger[-600:]}
+    shown |= {p["ticker"] for p in d_good + d_weak}
     latest["names"] = {tk: kname(tk) for tk in sorted(shown) if kname(tk)}
-    for group in (picks, watch, excluded, latest["pumps"], wl_rows):
+    for group in (picks, watch, excluded, latest["pumps"], wl_rows, d_good):
         for row in group:
             row["name"] = kname(row["ticker"])
     ledger = ledger[-600:]
@@ -1257,6 +1438,7 @@ def run_scan() -> dict:
 
     log(f"✅ 추천 {len(picks)}건 / 감시 {len(watch)}건 / 제외 {len(excluded)}건 — {time.time() - t0:.0f}초")
     slack_scan(latest, events)
+    slack_div4h(d_fresh)
     return latest
 
 
@@ -1264,16 +1446,25 @@ def run_track():
     store = Store()
     at = now_ms()
     ledger = store.read("ledger.json", [])
-    if not isinstance(ledger, list) or not ledger:
-        log("ℹ️ 장부가 비어 있음")
-        return
+    if not isinstance(ledger, list):
+        ledger = []
     KR_NAMES.update(store.read("names.json", {}) or {})
     if not KR_NAMES:
         fetch_korean_names(store)
-    events = track_ledger(ledger, at)
+    events = track_ledger(ledger, at) if ledger else []
+    # 매시간: 일봉 상승추세 종목(하루 3번 스캔에서 저장)의 4시간 다이버전스 확인
+    latest = store.read("latest.json", {}) or {}
+    up_list = latest.get("uptrend") or []
+    fresh = []
+    if up_list:
+        tickers = fetch_tickers_all() or {}
+        good, weak = scan_div4h(up_list, at, tickers, max_age_bars=1)
+        fresh = record_div4h(store, good, weak, ledger, at, (latest.get("market") or {}).get("gate", "UNKNOWN"))
+        log(f"⚡ 4시간 다이버전스 확인 {len(up_list)}종목 — 거래량 붙음 {len(good)} / 안 붙음 {len(weak)} / 새 신호 {len(fresh)}")
     store.write("ledger.json", ledger, f"장부 갱신 {iso_kst(at)}")
     store.write("stats.json", compute_stats(ledger), "통계 갱신")
     log(f"✅ 장부 갱신 — 이벤트 {len(events)}건")
+    slack_div4h(fresh)
     if events:
         slack_post("📣 추천 장부 업데이트", [{"type": "section", "text": {"type": "mrkdwn", "text": "📣 *추천 장부 업데이트*\n" + "\n".join(f"• {x}" for x in events)}}])
 

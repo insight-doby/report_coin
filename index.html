@@ -114,9 +114,9 @@ async function getJSON(name){
 }
 async function load(){
   S.err="";
-  const [l, g, st] = await Promise.all([getJSON("latest.json"), getJSON("ledger.json"), getJSON("stats.json")]);
+  const [l, g, st, dv] = await Promise.all([getJSON("latest.json"), getJSON("ledger.json"), getJSON("stats.json"), getJSON("div4h.json")]);
   if(!l) S.err = "추천 데이터를 불러오지 못했습니다. 봇이 아직 한 번도 실행되지 않았을 수 있습니다.";
-  S.latest=l; S.ledger=Array.isArray(g)?g:[]; S.stats=st;
+  S.latest=l; S.ledger=Array.isArray(g)?g:[]; S.stats=st; S.div=dv;
   loadNames();
   await loadLive();
   render();
@@ -190,6 +190,13 @@ function viewToday(){
   let h=`<div class="card"><div class="light"><div class="dot ${m.gate}"></div><div><h2>${esc(m.label)}</h2><p>${esc(m.headline)}</p></div></div>
     <ul class="checks">${(m.checks||[]).map(c=>`<li>${c.ok?"✅":"⚠️"} ${esc(c.text)}</li>`).join("")}</ul></div>`;
   if(l.ai_status==="unavailable") h+=`<div class="warn-box">AI 악재 검증이 이번에 작동하지 않았습니다. 매수 전에 공지·뉴스를 직접 확인하세요.</div>`;
+  const dv=(S.div&&S.div.signals)||[], now=Date.now();
+  const dGood=dv.filter(x=>x.vol_ok && now-(x.found_ts||0)<24*3600e3), dWeak=dv.filter(x=>!x.vol_ok && now-(x.found_ts||0)<24*3600e3);
+  if(dGood.length){
+    h+=`<h3 style="margin:16px 2px 4px">⚡ 4시간 다이버전스 ${dGood.length}개 <span class="sub">최근 24시간</span></h3><div class="sub" style="margin:0 2px 8px">일봉 상승추세 + 4시간 RSI 상승 다이버전스 + 반등 거래량 1배↑. 2년 백테스트 30건 승률 77% (표본 적음). AI 악재 확인 없음.</div>`;
+    h+=dGood.map(x=>pickCard({...x, setup_label:"4시간 다이버전스"})+`<div class="sub" style="margin:-8px 4px 12px">신호 ${esc((x.signal_at||"").slice(5,16).replace("T"," "))} · 발견 ${esc((x.found_at||"").slice(5,16).replace("T"," "))} — 시간이 지났으면 현재가가 매수 구간 안인지 확인하세요</div>`).join("");
+  }
+  if(S.div&&S.div.checked_at) h+=`<div class="sub" style="margin:4px 2px 0">4시간 다이버전스 마지막 확인 ${esc(S.div.checked_at.slice(5,16).replace("T"," "))}${dWeak.length?` · 거래량 안 붙은 신호(참고만): ${dWeak.map(x=>esc(kn(x.ticker)||x.ticker)).join(", ")}`:""}</div>`;
   if(l.picks.length){ h+=`<h3 style="margin:16px 2px 8px">지금 볼 종목 ${l.picks.length}개</h3>`+l.picks.map(pickCard).join(""); }
   else h+=`<div class="card empty">${m.gate==="STOP"?"시장이 위험해 오늘은 신규 매수를 쉽니다.":"조건을 충족한 종목이 없습니다."}<br>억지로 사지 않는 것도 전략입니다. '감시' 탭에서 곧 열릴 후보를 확인하세요.</div>`;
   if(l.excluded&&l.excluded.length){
