@@ -1708,7 +1708,7 @@ def run_snapshot(args: list):
     out = {}
 
     def one(tk):
-        d = fetch_candles(tk, "24h", 61)
+        d = fetch_candles(tk, "24h", None)
         h = fetch_candles(tk, "1h", 121)
         return tk, d, h
 
