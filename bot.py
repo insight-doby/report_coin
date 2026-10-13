@@ -1696,6 +1696,40 @@ def live_pumps(ctxs: dict) -> list:
 
 
 # ==========================================================
+# 13. 시세 스냅샷 (연구용: 전 종목 일봉 60개 + 1시간봉 120개)
+# ==========================================================
+def run_snapshot(args: list):
+    at = now_ms()
+    tickers = fetch_tickers_all()
+    if not tickers:
+        raise SystemExit("❌ 빗썸 시세 수집 실패")
+    fetch_korean_names(Store())
+    uni = build_universe(tickers)
+    out = {}
+
+    def one(tk):
+        d = fetch_candles(tk, "24h", 61)
+        h = fetch_candles(tk, "1h", 121)
+        return tk, d, h
+
+    with ThreadPoolExecutor(max_workers=6) as ex:
+        for f in as_completed([ex.submit(one, tk) for tk in uni]):
+            try:
+                tk, d, h = f.result()
+            except Exception:
+                continue
+            if not d:
+                continue
+            row = {"name": kname(tk), "price": tickers[tk]["price"], "chg24": tickers[tk]["chg"], "value24": tickers[tk]["value"],
+                   "d": [[int(d["t"][i]), d["o"][i], d["h"][i], d["l"][i], d["c"][i], d["v"][i]] for i in range(len(d["t"]))]}
+            if h:
+                row["h"] = [[int(h["t"][i]), h["o"][i], h["h"][i], h["l"][i], h["c"][i], h["v"][i]] for i in range(len(h["t"]))]
+            out[tk] = row
+    Store().write("snapshot.json", {"generated_at": iso_kst(at), "generated_ts": at, "coins": out}, "시세 스냅샷")
+    log(f"✅ 스냅샷 {len(out)}종목")
+
+
+# ==========================================================
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
     cmd = argv[0] if argv else "scan"
@@ -1707,6 +1741,8 @@ def main(argv=None):
         run_backtest(argv[1:])
     elif cmd == "pumpdip":
         run_pumpdip(argv[1:])
+    elif cmd == "snapshot":
+        run_snapshot(argv[1:])
     else:
         raise SystemExit("사용법: python bot.py [scan|track|backtest 티커...]")
 
