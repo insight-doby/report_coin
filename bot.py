@@ -1246,6 +1246,62 @@ def slack_div4h(fresh: list):
     slack_post(f"⚡ 4시간 다이버전스 {', '.join(label(p['ticker']) for p in fresh)}", blocks)
 
 
+# ── 섹터 온도 ─────────────────────────────────────────────────────────
+#  data/sector_map.json (CoinGecko 카테고리 + 과거 데이터로 뽑은 섹터별 대장)을 읽어
+#  빗썸 24시간 변동률로 섹터별 온도를 계산. 매수 신호가 아니라 '돈이 어디로 몰리는지' 정보.
+SECTOR_HOT_N, SECTOR_HOT_PCT, SECTOR_MED_HOT = 2, 10.0, 5.0
+SECTOR_ALERT_COOL_H = 12
+
+
+def sector_heat(tickers: dict, smap: dict) -> list:
+    rows = []
+    for g, info in (smap.get("groups") or {}).items():
+        mem = [t for t in info.get("members", []) if t in tickers]
+        if len(mem) < 3:
+            continue
+        ch = {t: float(tickers[t]["chg"]) for t in mem}
+        vals = sorted(ch.values())
+        med = float(np.median(vals))
+        n10 = sum(v >= SECTOR_HOT_PCT for v in vals)
+        lead_tks = [x["tk"] for x in info.get("leaders", [])]
+        movers = sorted(mem, key=lambda t: -ch[t])
+        need = max(SECTOR_HOT_N, math.ceil(0.15 * len(mem)))     # 큰 섹터는 15% 이상이 움직여야 '뜨거움'
+        hot = n10 >= need or med >= SECTOR_MED_HOT
+        rows.append({
+            "group": g, "n": len(mem), "median": round(med, 2), "n10": n10, "n5": sum(v >= 5 for v in vals),
+            "hot": bool(hot), "need": need, "top": [{"tk": t, "chg": round(ch[t], 2), "name": kname(t), "leader": t in lead_tks} for t in movers[:6]],
+            "leaders": [{"tk": t, "chg": round(ch[t], 2), "name": kname(t),
+                         "excess": next((x["excess"] for x in info["leaders"] if x["tk"] == t), None)} for t in lead_tks if t in ch],
+            "laggard_leaders": [t for t in lead_tks if t in ch and ch[t] < 3.0],
+            "value": round(sum(float(tickers[t].get("value") or 0) for t in mem)),
+        })
+    rows.sort(key=lambda r: (-int(r["hot"]), -(r["n10"] / r["n"]), -(r["n5"] / r["n"]), -r["median"]))
+    return rows
+
+
+def sector_alert(store, rows: list, at_ms: int) -> list:
+    """새로 뜨거워진 섹터만 (같은 섹터는 12시간에 한 번) 슬랙 알림."""
+    st = store.read("sector_alerts.json", {}) or {}
+    fresh = [r for r in rows if r["hot"] and at_ms - st.get(r["group"], 0) >= SECTOR_ALERT_COOL_H * HOUR_MS]
+    if not fresh:
+        return []
+    for r in fresh:
+        st[r["group"]] = at_ms
+    store.write("sector_alerts.json", st, "섹터 알림 기록")
+    blocks = [{"type": "header", "text": {"type": "plain_text", "text": "🔥 섹터 온도 상승: " + ", ".join(r["group"] for r in fresh), "emoji": True}},
+              _ctx("섹터 종목의 15% 이상(최소 2개)이 24시간 +10%↑ 또는 섹터 중앙값 +5%↑ · 매수 신호 아님 — 돈이 어디로 몰리는지 정보입니다")]
+    for r in fresh:
+        top = " · ".join(f"{'★' if x['leader'] else ''}{x['name'] or x['tk']} {x['chg']:+.1f}%" for x in r["top"][:5])
+        lag = ", ".join(kname(t) or t for t in r["laggard_leaders"])
+        txt = f"*{r['group']}* — 중앙값 {r['median']:+.1f}% · +10% 넘은 종목 {r['n10']}/{r['n']}\n{top}"
+        if lag:
+            txt += f"\n_이 섹터에서 평소 크게 움직이던 대장 중 아직 덜 오른 종목: {lag}_"
+        blocks.append(_md(txt))
+    blocks.append(_ctx("★ = 과거 이 섹터가 뜰 때 평균보다 더 크게 움직였던 종목. 과거 데이터상 덜 오른 종목이 뒤따라 오른다는 보장은 없습니다."))
+    slack_post("🔥 섹터 온도 상승", blocks)
+    return fresh
+
+
 def rel_strength(ctx: dict, btc_ret7: Optional[float]) -> Optional[float]:
     c = ctx["d"]["c"]
     if len(c) < 8 or btc_ret7 is None:
@@ -1417,6 +1473,8 @@ def run_scan() -> dict:
               "ai_status": ai_state, "ai_calls": ai_calls, "ai_calls_today": ai_calls_today, "params": {"min_stop_pct": MIN_STOP_PCT, "max_stop_pct": MAX_STOP_PCT, "t1_r": T1_R,
                                                "t2_r": T2_R, "max_hold_hours": MAX_HOLD_HOURS, "wait_valid_hours": WAIT_VALID_HOURS,
                                                "fee_pct_per_side": FEE_PCT_PER_SIDE}}
+    smap = store.read("sector_map.json", {}) or {}
+    latest["sectors"] = sector_heat(tickers, smap)
     up_list = sorted(tk for tk, cx in ctxs.items() if tk not in STABLES and daily_uptrend(cx["d"]))
     latest["uptrend"] = up_list
     d_good, d_weak = scan_div4h(up_list, at, tickers, max_age_bars=2)
@@ -1439,6 +1497,7 @@ def run_scan() -> dict:
     log(f"✅ 추천 {len(picks)}건 / 감시 {len(watch)}건 / 제외 {len(excluded)}건 — {time.time() - t0:.0f}초")
     slack_scan(latest, events)
     slack_div4h(d_fresh)
+    sector_alert(store, latest["sectors"], at)
     return latest
 
 
@@ -1456,8 +1515,14 @@ def run_track():
     latest = store.read("latest.json", {}) or {}
     up_list = latest.get("uptrend") or []
     fresh = []
-    if up_list:
-        tickers = fetch_tickers_all() or {}
+    tickers = fetch_tickers_all() or {}
+    smap = store.read("sector_map.json", {}) or {}
+    if tickers and smap:
+        srows = sector_heat(tickers, smap)
+        store.write("sectors_now.json", {"checked_at": iso_kst(at), "sectors": srows}, "섹터 온도")
+        sector_alert(store, srows, at)
+        log(f"🔥 섹터 온도: 뜨거운 섹터 {[r['group'] for r in srows if r['hot']]}")
+    if up_list and tickers:
         good, weak = scan_div4h(up_list, at, tickers, max_age_bars=1)
         fresh = record_div4h(store, good, weak, ledger, at, (latest.get("market") or {}).get("gate", "UNKNOWN"))
         log(f"⚡ 4시간 다이버전스 확인 {len(up_list)}종목 — 거래량 붙음 {len(good)} / 안 붙음 {len(weak)} / 새 신호 {len(fresh)}")

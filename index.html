@@ -62,6 +62,13 @@ input,select{font:inherit;background:var(--soft);color:var(--text);border:1px so
 .warn-box{background:rgba(217,119,6,.12);border:1px solid var(--sel);border-radius:10px;padding:8px 10px;font-size:13px;margin-bottom:10px}
 svg{width:100%;height:120px;display:block}
 .err{color:var(--stop)}
+.sec{display:grid;grid-template-columns:1fr;gap:8px;margin-top:8px}
+.secrow{border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.secrow.hot{border-color:var(--stop);background:rgba(220,38,38,.06)}
+.sech{display:flex;justify-content:space-between;align-items:baseline;gap:6px}
+.chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.chip{font-size:12px;padding:2px 7px;border-radius:999px;background:var(--soft);white-space:nowrap}
+.chip.up{background:rgba(220,38,38,.14)}.chip.up2{background:rgba(220,38,38,.3);font-weight:700}.chip.dn{background:rgba(37,99,235,.12)}
 </style>
 </head>
 <body>
@@ -114,9 +121,9 @@ async function getJSON(name){
 }
 async function load(){
   S.err="";
-  const [l, g, st, dv] = await Promise.all([getJSON("latest.json"), getJSON("ledger.json"), getJSON("stats.json"), getJSON("div4h.json")]);
+  const [l, g, st, dv, sn] = await Promise.all([getJSON("latest.json"), getJSON("ledger.json"), getJSON("stats.json"), getJSON("div4h.json"), getJSON("sectors_now.json")]);
   if(!l) S.err = "추천 데이터를 불러오지 못했습니다. 봇이 아직 한 번도 실행되지 않았을 수 있습니다.";
-  S.latest=l; S.ledger=Array.isArray(g)?g:[]; S.stats=st; S.div=dv;
+  S.latest=l; S.ledger=Array.isArray(g)?g:[]; S.stats=st; S.div=dv; S.sec=sn;
   loadNames();
   await loadLive();
   render();
@@ -184,11 +191,25 @@ function pickCard(p){
     <div class="sub" style="margin-top:8px">권장 비중 ×${mult} · 1차 도달 시 절반 매도 후 손절을 본전으로 · 5일 지나면 정리${p.state==="wait"?` · 미체결 시 ${p.valid_hours}시간 후 취소`:""}</div>
   </div>`;
 }
+function sectorCard(limit){
+  const src=(S.sec&&S.sec.sectors)||(S.latest&&S.latest.sectors)||[]; if(!src.length) return "";
+  const when=(S.sec&&S.sec.checked_at)||(S.latest&&S.latest.generated_at)||"";
+  const rows=src.slice(0,limit||src.length).map(r=>{
+    const live=r.top.map(x=>({...x, chg: S.live[x.tk]&&S.latest? x.chg : x.chg}));
+    const chips=live.map(x=>`<span class="chip ${x.chg>=10?"up2":x.chg>=3?"up":x.chg<=-3?"dn":""}">${x.leader?"★":""}${esc(kn(x.tk)||x.tk)} ${pct(x.chg)}</span>`).join("");
+    const lag=(r.laggard_leaders||[]).map(t=>esc(kn(t)||t)).join(", ");
+    return `<div class="secrow ${r.hot?"hot":""}"><div class="sech"><b>${r.hot?"🔥 ":""}${esc(r.group)}</b><span class="sub">중앙 ${pct(r.median)} · +10%↑ ${r.n10}/${r.n}</span></div><div class="chips">${chips}</div>${r.hot&&lag?`<div class="sub" style="margin-top:4px">평소 크게 움직이던 대장 중 아직 덜 오른: ${lag}</div>`:""}</div>`;}).join("");
+  return `<div class="card"><b>섹터 온도</b> <span class="sub">24시간 변동 · ${esc(when.slice(5,16).replace("T"," "))}</span>
+    <div class="sub" style="margin-top:4px">★ = 과거 이 섹터가 뜰 때 평균보다 더 크게 움직였던 종목(대장). 매수 신호가 아니라 돈이 어디로 몰리는지 보는 정보입니다.</div>
+    <div class="sec">${rows}</div></div>`;
+}
 function viewToday(){
   const l=S.latest; if(!l) return `<div class="card empty err">${esc(S.err)}</div>`;
   const m=l.market;
   let h=`<div class="card"><div class="light"><div class="dot ${m.gate}"></div><div><h2>${esc(m.label)}</h2><p>${esc(m.headline)}</p></div></div>
     <ul class="checks">${(m.checks||[]).map(c=>`<li>${c.ok?"✅":"⚠️"} ${esc(c.text)}</li>`).join("")}</ul></div>`;
+  { const src=(S.sec&&S.sec.sectors)||l.sectors||[]; const hot=src.filter(r=>r.hot);
+    h+= hot.length ? sectorCard(Math.max(hot.length,3)) : sectorCard(3); }
   if(l.ai_status==="unavailable") h+=`<div class="warn-box">AI 악재 검증이 이번에 작동하지 않았습니다. 매수 전에 공지·뉴스를 직접 확인하세요.</div>`;
   const dv=(S.div&&S.div.signals)||[], now=Date.now();
   const dGood=dv.filter(x=>x.vol_ok && now-(x.found_ts||0)<24*3600e3), dWeak=dv.filter(x=>!x.vol_ok && now-(x.found_ts||0)<24*3600e3);
@@ -249,7 +270,7 @@ function viewPos(){
 /* ---------- 감시 ---------- */
 function viewWatch(){
   const l=S.latest; if(!l) return `<div class="card empty err">${esc(S.err)}</div>`;
-  let h="";
+  let h=sectorCard(12);
   if(l.watch.length){
     h+=`<div class="card"><b>곧 매수 신호가 열릴 후보</b><table style="margin-top:8px"><tr><th>종목</th><th>유형</th><th>현재가</th><th>조건</th></tr>`+
       l.watch.map(w=>{ const cur=priceOf(w.ticker,w.price), d=w.trigger_price?(cur/w.trigger_price-1)*100:null;
