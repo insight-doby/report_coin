@@ -210,6 +210,11 @@ function viewToday(){
     <ul class="checks">${(m.checks||[]).map(c=>`<li>${c.ok?"✅":"⚠️"} ${esc(c.text)}</li>`).join("")}</ul></div>`;
   { const src=(S.sec&&S.sec.sectors)||l.sectors||[]; const hot=src.filter(r=>r.hot);
     h+= hot.length ? sectorCard(Math.max(hot.length,3)) : sectorCard(3); }
+  { const sp=(S.sec&&S.sec.picks)||l.sector_picks||[];
+    if(sp.length){
+      h+=`<h3 style="margin:16px 2px 4px">🎯 섹터 대장 매수 후보 ${sp.length}개</h3><div class="sub" style="margin:0 2px 8px">뜨거운 섹터에서 이미 +10% 이상 달리는 대장(★). 과거 검증(대장은 앞 1년으로 선정, 뒤 1년 시험): 다음날 사서 손절 −10% / 목표 +20% / 3일 → 132건 평균 +2.5%, 같은 날 아무 종목은 −0.5%. 덜 오른 종목 줍기보다 나았음. 약세장 구간에선 본전 수준.</div>`;
+      h+=sp.map(p=>pickCard(p)+`<div class="sub" style="margin:-8px 4px 12px">${esc(p.group)} 섹터 · 3일(72시간) 안에 결판 안 나면 정리</div>`).join("");
+    } }
   if(l.ai_status==="unavailable") h+=`<div class="warn-box">AI 악재 검증이 이번에 작동하지 않았습니다. 매수 전에 공지·뉴스를 직접 확인하세요.</div>`;
   const dv=(S.div&&S.div.signals)||[], now=Date.now();
   const dGood=dv.filter(x=>x.vol_ok && now-(x.found_ts||0)<24*3600e3), dWeak=dv.filter(x=>!x.vol_ok && now-(x.found_ts||0)<24*3600e3);

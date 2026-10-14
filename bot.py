@@ -75,7 +75,7 @@ DAY_MS = 86_400_000
 STABLES = {"USDT", "USDC", "BUSD", "DAI", "TUSD", "USDP", "GUSD", "FRAX", "UST", "LUSD",
            "SUSD", "USDD", "PYUSD", "FDUSD", "USDS", "EURT", "EURC", "USDE", "WBTC", "WETH"}
 
-SETUP_LABEL = {"pullback": "눌림목", "breakout_retest": "돌파 후 안착", "squeeze": "수렴 돌파 대기", "div4h": "4시간 다이버전스"}
+SETUP_LABEL = {"pullback": "눌림목", "breakout_retest": "돌파 후 안착", "squeeze": "수렴 돌파 대기", "div4h": "4시간 다이버전스", "sector_lead": "섹터 대장"}
 
 
 def log(*a):
@@ -975,7 +975,7 @@ def track_ledger(ledger: list, at_ms: int) -> list:
         if not cd:
             log(f"  ⚠️ {e['ticker']} 1시간봉 수집 실패 — 이번 회차 채점 건너뜀")
             continue
-        events += replay_entry(e, cd, at_ms)
+        events += replay_entry(e, cd, at_ms, max_hold_ms=int(e.get("max_hold_h", MAX_HOLD_HOURS) * HOUR_MS))
     return events
 
 
@@ -1279,7 +1279,44 @@ def sector_heat(tickers: dict, smap: dict) -> list:
     return rows
 
 
-def sector_alert(store, rows: list, at_ms: int) -> list:
+SECTOR_LEAD_MIN_CHG = 10.0
+SECTOR_STOP, SECTOR_TGT1, SECTOR_TGT2, SECTOR_HOLD_H = 0.10, 0.20, 0.30, 72
+
+
+def sector_picks(rows: list, tickers: dict, gate: str) -> list:
+    """뜨거운 섹터에서 이미 +10% 이상 달리는 대장(★)을 매수 후보로.
+    검증(대장은 앞 1년으로 선정, 뒤 1년 시험): 다음날 시가 매수·손절10/목표20/3일 → 132건 평균 +2.5%, PF 1.60
+    (같은 날 아무 종목 -0.5%). 단, 약세장 구간(25-09~26-03)은 +0.1%로 본전 수준."""
+    out, seen = [], set()
+    for r in rows:
+        if not r["hot"]:
+            continue
+        for x in r["leaders"]:
+            tk = x["tk"]
+            if tk in seen or x["chg"] < SECTOR_LEAD_MIN_CHG or tk not in tickers:
+                continue
+            seen.add(tk)
+            px = float(tickers[tk]["price"])
+            risks = ["이미 많이 오른 종목을 따라 사는 매매 — 하루 변동이 큼, 비중 작게"]
+            if gate in ("STOP", "SELECTIVE"):
+                risks.append(f"시장 신호등 '{GATE_LABEL.get(gate, gate)}' — 약세 구간에선 이 방법도 본전 수준이었음")
+            if x["chg"] >= 40:
+                risks.append(f"24시간 {x['chg']:+.0f}% — 과열, 되돌림 위험 큼")
+            out.append({"ticker": tk, "setup": "sector_lead", "setup_label": SETUP_LABEL["sector_lead"], "state": "now", "price": px,
+                        "chg24": x["chg"], "entry": rp(px), "zone_lo": rp(px * 0.98), "zone_hi": rp(px * 1.01),
+                        "stop": rp(px * (1 - SECTOR_STOP)), "t1": rp(px * (1 + SECTOR_TGT1)), "t2": rp(px * (1 + SECTOR_TGT2)),
+                        "stop_pct": SECTOR_STOP * 100, "t1_pct": SECTOR_TGT1 * 100, "t2_pct": SECTOR_TGT2 * 100, "rr1": 2.0, "rr2": 3.0,
+                        "score": 70, "group": r["group"], "max_hold_h": SECTOR_HOLD_H,
+                        "reasons": [f"{r['group']} 섹터 과열 (+10% 넘은 종목 {r['n10']}/{r['n']}, 중앙값 {r['median']:+.1f}%)",
+                                    f"이 섹터의 대장 — 과거 섹터가 뜰 때 평균보다 {x.get('excess') or 0:+.1f}%p 더 올랐던 종목",
+                                    f"지금 24시간 {x['chg']:+.1f}%로 섹터를 이끄는 중"],
+                        "risks": risks, "metrics": {}, "rs7": None, "value24": float(tickers[tk].get("value") or 0),
+                        "ai": {"status": "unverified", "note": "", "positive": None}, "valid_hours": 0,
+                        "sig_key": f"{tk}-sector-{r['group']}"})
+    return out
+
+
+def sector_alert(store, rows: list, at_ms: int, tickers: dict = None, ledger: list = None, gate: str = "UNKNOWN") -> list:
     """새로 뜨거워진 섹터만 (같은 섹터는 12시간에 한 번) 슬랙 알림."""
     st = store.read("sector_alerts.json", {}) or {}
     fresh = [r for r in rows if r["hot"] and at_ms - st.get(r["group"], 0) >= SECTOR_ALERT_COOL_H * HOUR_MS]
@@ -1288,6 +1325,14 @@ def sector_alert(store, rows: list, at_ms: int) -> list:
     for r in fresh:
         st[r["group"]] = at_ms
     store.write("sector_alerts.json", st, "섹터 알림 기록")
+    picks = sector_picks(fresh, tickers or {}, gate) if tickers else []
+    if ledger is not None:
+        for p in picks:
+            e = new_entry(p, at_ms, gate)
+            e["sig_key"] = f"{p['sig_key']}-{at_ms // (12 * HOUR_MS)}"
+            e["max_hold_h"] = SECTOR_HOLD_H
+            ledger.append(e)
+            p["id"], p["issued_at"] = e["id"], e["issued_at"]
     blocks = [{"type": "header", "text": {"type": "plain_text", "text": "🔥 섹터 온도 상승: " + ", ".join(r["group"] for r in fresh), "emoji": True}},
               _ctx("섹터 종목의 15% 이상(최소 2개)이 24시간 +10%↑ 또는 섹터 중앙값 +5%↑ · 매수 신호 아님 — 돈이 어디로 몰리는지 정보입니다")]
     for r in fresh:
@@ -1297,8 +1342,16 @@ def sector_alert(store, rows: list, at_ms: int) -> list:
         if lag:
             txt += f"\n_이 섹터에서 평소 크게 움직이던 대장 중 아직 덜 오른 종목: {lag}_"
         blocks.append(_md(txt))
-    blocks.append(_ctx("★ = 과거 이 섹터가 뜰 때 평균보다 더 크게 움직였던 종목. 과거 데이터상 덜 오른 종목이 뒤따라 오른다는 보장은 없습니다."))
+    if picks:
+        blocks.append({"type": "divider"})
+        blocks.append(_md("🎯 *매수 후보 — 지금 섹터를 이끄는 대장*\n_과거 검증: 섹터 과열 때 이미 +10% 오른 대장을 다음날 사서 손절 -10%/목표 +20%/3일 → 평균 +2.5% (132건). 덜 오른 종목 줍기보다 나았음. 약세장에선 본전 수준._"))
+        for p in picks:
+            blocks += _pick_blocks(p)
+            blocks.append(_ctx("⚠️ " + " · ".join(p["risks"]) + f" · 3일 안에 결판 안 나면 정리"))
+    blocks.append(_ctx("★ = 과거 이 섹터가 뜰 때 평균보다 더 크게 움직였던 종목. 덜 오른 종목이 뒤따라 오른다는 근거는 약합니다."))
     slack_post("🔥 섹터 온도 상승", blocks)
+    for r in fresh:
+        r["picks"] = [p for p in picks if p["group"] == r["group"]]
     return fresh
 
 
@@ -1475,6 +1528,8 @@ def run_scan() -> dict:
                                                "fee_pct_per_side": FEE_PCT_PER_SIDE}}
     smap = store.read("sector_map.json", {}) or {}
     latest["sectors"] = sector_heat(tickers, smap)
+    sector_alert(store, latest["sectors"], at, tickers, ledger, gate)      # 장부 기록이 저장되도록 쓰기 전에 실행
+    latest["sector_picks"] = sector_picks(latest["sectors"], tickers, gate)
     up_list = sorted(tk for tk, cx in ctxs.items() if tk not in STABLES and daily_uptrend(cx["d"]))
     latest["uptrend"] = up_list
     d_good, d_weak = scan_div4h(up_list, at, tickers, max_age_bars=2)
@@ -1497,7 +1552,6 @@ def run_scan() -> dict:
     log(f"✅ 추천 {len(picks)}건 / 감시 {len(watch)}건 / 제외 {len(excluded)}건 — {time.time() - t0:.0f}초")
     slack_scan(latest, events)
     slack_div4h(d_fresh)
-    sector_alert(store, latest["sectors"], at)
     return latest
 
 
@@ -1519,8 +1573,10 @@ def run_track():
     smap = store.read("sector_map.json", {}) or {}
     if tickers and smap:
         srows = sector_heat(tickers, smap)
-        store.write("sectors_now.json", {"checked_at": iso_kst(at), "sectors": srows}, "섹터 온도")
-        sector_alert(store, srows, at)
+        gate_now = (latest.get("market") or {}).get("gate", "UNKNOWN")
+        sector_alert(store, srows, at, tickers, ledger, gate_now)
+        spicks = sector_picks(srows, tickers, gate_now)
+        store.write("sectors_now.json", {"checked_at": iso_kst(at), "sectors": srows, "picks": spicks}, "섹터 온도")
         log(f"🔥 섹터 온도: 뜨거운 섹터 {[r['group'] for r in srows if r['hot']]}")
     if up_list and tickers:
         good, weak = scan_div4h(up_list, at, tickers, max_age_bars=1)
