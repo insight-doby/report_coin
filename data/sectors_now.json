@@ -1,36 +1,36 @@
 {
- "checked_at": "2026-10-14T17:13:32+09:00",
+ "checked_at": "2026-10-14T17:17:39+09:00",
  "sectors": [
   {
    "group": "수이",
    "n": 10,
    "median": -0.47,
-   "n10": 3,
+   "n10": 2,
    "n5": 3,
    "hot": true,
    "need": 2,
    "top": [
     {
      "tk": "WAL",
-     "chg": 20.64,
+     "chg": 21.37,
      "name": "월러스",
      "leader": true
     },
     {
      "tk": "DEEP",
-     "chg": 12.78,
+     "chg": 11.22,
      "name": "딥북",
      "leader": false
     },
     {
      "tk": "BLUE",
-     "chg": 10.27,
+     "chg": 9.92,
      "name": "블루핀",
      "leader": true
     },
     {
      "tk": "HAEDAL",
-     "chg": 0.24,
+     "chg": 1.3,
      "name": "해달프로토콜",
      "leader": false
     },
@@ -50,19 +50,19 @@
    "leaders": [
     {
      "tk": "WAL",
-     "chg": 20.64,
+     "chg": 21.37,
      "name": "월러스",
      "excess": 2.2
     },
     {
      "tk": "SUI",
-     "chg": -1.03,
+     "chg": -1.04,
      "name": "수이",
      "excess": 1.3
     },
     {
      "tk": "BLUE",
-     "chg": 10.27,
+     "chg": 9.92,
      "name": "블루핀",
      "excess": 0.1
     }
@@ -70,44 +70,83 @@
    "laggard_leaders": [
     "SUI"
    ],
-   "value": 39009755979
+   "value": 39071649944,
+   "picks": [
+    {
+     "ticker": "WAL",
+     "setup": "sector_lead",
+     "setup_label": "섹터 대장",
+     "state": "now",
+     "price": 63.21,
+     "chg24": 21.37,
+     "entry": 63.21,
+     "zone_lo": 61.95,
+     "zone_hi": 63.84,
+     "stop": 56.89,
+     "t1": 75.85,
+     "t2": 82.17,
+     "stop_pct": 10.0,
+     "t1_pct": 20.0,
+     "t2_pct": 30.0,
+     "rr1": 2.0,
+     "rr2": 3.0,
+     "score": 70,
+     "group": "수이",
+     "max_hold_h": 72,
+     "reasons": [
+      "수이 섹터 과열 (+10% 넘은 종목 2/10, 중앙값 -0.5%)",
+      "이 섹터의 대장 — 과거 섹터가 뜰 때 평균보다 +2.2%p 더 올랐던 종목",
+      "지금 24시간 +21.4%로 섹터를 이끄는 중"
+     ],
+     "risks": [
+      "이미 많이 오른 종목을 따라 사는 매매 — 하루 변동이 큼, 비중 작게",
+      "시장 신호등 '선별 매수' — 약세 구간에선 이 방법도 본전 수준이었음"
+     ],
+     "metrics": {},
+     "rs7": null,
+     "value24": 4740594681.2624855,
+     "ai": {
+      "status": "unverified",
+      "note": "",
+      "positive": null
+     },
+     "valid_hours": 0,
+     "sig_key": "WAL-sector-수이",
+     "id": "WAL-sector_lead-202610141717",
+     "issued_at": "2026-10-14T17:17:39+09:00"
+    }
+   ]
   },
   {
    "group": "스토리지",
    "n": 7,
-   "median": -0.69,
+   "median": -1.38,
    "n10": 1,
-   "n5": 1,
+   "n5": 2,
    "hot": false,
    "need": 2,
    "top": [
     {
      "tk": "WAL",
-     "chg": 20.64,
+     "chg": 21.37,
      "name": "월러스",
      "leader": false
     },
     {
      "tk": "AR",
-     "chg": 4.94,
+     "chg": 5.23,
      "name": "알위브",
      "leader": false
     },
     {
-     "tk": "BTT",
-     "chg": 0.0,
-     "name": "비트토렌트",
-     "leader": false
-    },
-    {
      "tk": "ICNT",
-     "chg": -0.69,
+     "chg": 0.7,
      "name": "임파서블클라우드네트워크",
      "leader": false
     },
     {
      "tk": "FIL",
-     "chg": -1.68,
+     "chg": -1.38,
      "name": "파일코인",
      "leader": false
     },
@@ -116,16 +155,22 @@
      "chg": -3.23,
      "name": "아이오즈네트워크",
      "leader": false
+    },
+    {
+     "tk": "SC",
+     "chg": -3.79,
+     "name": "시아코인",
+     "leader": false
     }
    ],
    "leaders": [],
    "laggard_leaders": [],
-   "value": 6906180232
+   "value": 6970872870
   },
   {
    "group": "밈",
    "n": 25,
-   "median": -0.57,
+   "median": -0.37,
    "n10": 1,
    "n5": 1,
    "hot": false,
@@ -139,7 +184,7 @@
     },
     {
      "tk": "PEPE",
-     "chg": 1.79,
+     "chg": 3.64,
      "name": "페페",
      "leader": true
     },
@@ -150,14 +195,8 @@
      "leader": false
     },
     {
-     "tk": "USELESS",
-     "chg": 1.26,
-     "name": "유즈리스",
-     "leader": false
-    },
-    {
      "tk": "AHT",
-     "chg": 0.81,
+     "chg": 1.16,
      "name": "아하토큰",
      "leader": false
     },
@@ -166,210 +205,44 @@
      "chg": 0.67,
      "name": "폰케",
      "leader": false
+    },
+    {
+     "tk": "SPX",
+     "chg": 0.41,
+     "name": "에스피엑스6900",
+     "leader": false
     }
    ],
    "leaders": [
     {
      "tk": "PENGU",
-     "chg": -1.12,
+     "chg": -1.21,
      "name": "펏지펭귄",
      "excess": 2.8
     },
     {
      "tk": "PEPE",
-     "chg": 1.79,
+     "chg": 3.64,
      "name": "페페",
      "excess": 2.5
     },
     {
      "tk": "TRUMP",
-     "chg": -0.16,
+     "chg": -0.12,
      "name": "오피셜트럼프",
      "excess": 0.7
     }
    ],
    "laggard_leaders": [
     "PENGU",
-    "PEPE",
     "TRUMP"
    ],
-   "value": 12345187458
-  },
-  {
-   "group": "AI",
-   "n": 76,
-   "median": -1.79,
-   "n10": 3,
-   "n5": 7,
-   "hot": false,
-   "need": 12,
-   "top": [
-    {
-     "tk": "Q",
-     "chg": 28.06,
-     "name": "쿼크에이아이",
-     "leader": true
-    },
-    {
-     "tk": "WAL",
-     "chg": 20.64,
-     "name": "월러스",
-     "leader": false
-    },
-    {
-     "tk": "KITE",
-     "chg": 10.4,
-     "name": "카이트",
-     "leader": false
-    },
-    {
-     "tk": "NIL",
-     "chg": 8.03,
-     "name": "닐리온",
-     "leader": true
-    },
-    {
-     "tk": "TRAC",
-     "chg": 7.51,
-     "name": "오리진트레일",
-     "leader": false
-    },
-    {
-     "tk": "HPP",
-     "chg": 6.55,
-     "name": "하우스파티프로토콜",
-     "leader": false
-    }
-   ],
-   "leaders": [
-    {
-     "tk": "Q",
-     "chg": 28.06,
-     "name": "쿼크에이아이",
-     "excess": 7.4
-    },
-    {
-     "tk": "VIRTUAL",
-     "chg": -0.94,
-     "name": "버추얼프로토콜",
-     "excess": 3.6
-    },
-    {
-     "tk": "NIL",
-     "chg": 8.03,
-     "name": "닐리온",
-     "excess": 3.4
-    },
-    {
-     "tk": "RENDER",
-     "chg": -5.38,
-     "name": "렌더토큰",
-     "excess": 2.4
-    },
-    {
-     "tk": "TAO",
-     "chg": 0.5,
-     "name": "비트텐서",
-     "excess": 2.3
-    }
-   ],
-   "laggard_leaders": [
-    "VIRTUAL",
-    "RENDER",
-    "TAO"
-   ],
-   "value": 113638693740
-  },
-  {
-   "group": "AI에이전트",
-   "n": 26,
-   "median": -1.14,
-   "n10": 1,
-   "n5": 4,
-   "hot": false,
-   "need": 4,
-   "top": [
-    {
-     "tk": "KITE",
-     "chg": 10.4,
-     "name": "카이트",
-     "leader": false
-    },
-    {
-     "tk": "TRAC",
-     "chg": 7.51,
-     "name": "오리진트레일",
-     "leader": true
-    },
-    {
-     "tk": "HPP",
-     "chg": 6.55,
-     "name": "하우스파티프로토콜",
-     "leader": false
-    },
-    {
-     "tk": "IOTX",
-     "chg": 5.98,
-     "name": "아이오텍스",
-     "leader": false
-    },
-    {
-     "tk": "AGI",
-     "chg": 3.16,
-     "name": "델리시움",
-     "leader": false
-    },
-    {
-     "tk": "PROMPT",
-     "chg": 1.82,
-     "name": "웨이파인더",
-     "leader": false
-    }
-   ],
-   "leaders": [
-    {
-     "tk": "CAP",
-     "chg": -6.4,
-     "name": "캡",
-     "excess": 6.4
-    },
-    {
-     "tk": "TRAC",
-     "chg": 7.51,
-     "name": "오리진트레일",
-     "excess": 5.3
-    },
-    {
-     "tk": "VIRTUAL",
-     "chg": -0.94,
-     "name": "버추얼프로토콜",
-     "excess": 3.8
-    },
-    {
-     "tk": "MAGIC",
-     "chg": -7.88,
-     "name": "매직",
-     "excess": 3.5
-    },
-    {
-     "tk": "FET",
-     "chg": -0.34,
-     "name": "페치",
-     "excess": 2.4
-    }
-   ],
-   "laggard_leaders": [
-    "CAP",
-    "VIRTUAL",
-    "MAGIC",
-    "FET"
-   ],
-   "value": 41800486158
+   "value": 12367326396
   },
   {
    "group": "ZK",
    "n": 26,
-   "median": -2.07,
+   "median": -2.32,
    "n10": 1,
    "n5": 2,
    "hot": false,
@@ -377,7 +250,7 @@
    "top": [
     {
      "tk": "ZRC",
-     "chg": 11.32,
+     "chg": 11.04,
      "name": "저킷",
      "leader": false
     },
@@ -389,13 +262,13 @@
     },
     {
      "tk": "G",
-     "chg": 2.23,
+     "chg": 2.71,
      "name": "그래비티",
      "leader": false
     },
     {
      "tk": "SCR",
-     "chg": 2.06,
+     "chg": 1.58,
      "name": "스크롤",
      "leader": false
     },
@@ -407,7 +280,7 @@
     },
     {
      "tk": "ZKC",
-     "chg": 0.4,
+     "chg": 0.6,
      "name": "바운드리스",
      "leader": false
     }
@@ -427,7 +300,7 @@
     },
     {
      "tk": "STRK",
-     "chg": -4.31,
+     "chg": -5.17,
      "name": "스타크넷",
      "excess": 3.5
     },
@@ -443,26 +316,197 @@
     "STRK",
     "MAGIC"
    ],
-   "value": 17766813454
+   "value": 17762085319
+  },
+  {
+   "group": "솔라나",
+   "n": 57,
+   "median": -1.0,
+   "n10": 2,
+   "n5": 3,
+   "hot": false,
+   "need": 9,
+   "top": [
+    {
+     "tk": "AVA",
+     "chg": 31.83,
+     "name": "트라발라",
+     "leader": false
+    },
+    {
+     "tk": "KMNO",
+     "chg": 10.23,
+     "name": "카미노파이낸스",
+     "leader": false
+    },
+    {
+     "tk": "SD",
+     "chg": 5.0,
+     "name": "스테이더",
+     "leader": false
+    },
+    {
+     "tk": "AGI",
+     "chg": 3.27,
+     "name": "델리시움",
+     "leader": true
+    },
+    {
+     "tk": "GHX",
+     "chg": 3.05,
+     "name": "게이머코인",
+     "leader": false
+    },
+    {
+     "tk": "ATH",
+     "chg": 2.2,
+     "name": "에이셔",
+     "leader": false
+    }
+   ],
+   "leaders": [
+    {
+     "tk": "VIRTUAL",
+     "chg": -1.15,
+     "name": "버추얼프로토콜",
+     "excess": 4.9
+    },
+    {
+     "tk": "ZAMA",
+     "chg": -3.67,
+     "name": "자마",
+     "excess": 2.7
+    },
+    {
+     "tk": "RENDER",
+     "chg": -5.99,
+     "name": "렌더토큰",
+     "excess": 2.5
+    },
+    {
+     "tk": "AGI",
+     "chg": 3.27,
+     "name": "델리시움",
+     "excess": 2.3
+    },
+    {
+     "tk": "TRUMP",
+     "chg": -0.12,
+     "name": "오피셜트럼프",
+     "excess": 2.2
+    }
+   ],
+   "laggard_leaders": [
+    "VIRTUAL",
+    "ZAMA",
+    "RENDER",
+    "TRUMP"
+   ],
+   "value": 38629724708
+  },
+  {
+   "group": "AI",
+   "n": 76,
+   "median": -1.73,
+   "n10": 2,
+   "n5": 6,
+   "hot": false,
+   "need": 12,
+   "top": [
+    {
+     "tk": "Q",
+     "chg": 25.28,
+     "name": "쿼크에이아이",
+     "leader": true
+    },
+    {
+     "tk": "WAL",
+     "chg": 21.37,
+     "name": "월러스",
+     "leader": false
+    },
+    {
+     "tk": "KITE",
+     "chg": 9.83,
+     "name": "카이트",
+     "leader": false
+    },
+    {
+     "tk": "NIL",
+     "chg": 9.67,
+     "name": "닐리온",
+     "leader": true
+    },
+    {
+     "tk": "TRAC",
+     "chg": 9.52,
+     "name": "오리진트레일",
+     "leader": false
+    },
+    {
+     "tk": "AR",
+     "chg": 5.23,
+     "name": "알위브",
+     "leader": false
+    }
+   ],
+   "leaders": [
+    {
+     "tk": "Q",
+     "chg": 25.28,
+     "name": "쿼크에이아이",
+     "excess": 7.4
+    },
+    {
+     "tk": "VIRTUAL",
+     "chg": -1.15,
+     "name": "버추얼프로토콜",
+     "excess": 3.6
+    },
+    {
+     "tk": "NIL",
+     "chg": 9.67,
+     "name": "닐리온",
+     "excess": 3.4
+    },
+    {
+     "tk": "RENDER",
+     "chg": -5.99,
+     "name": "렌더토큰",
+     "excess": 2.4
+    },
+    {
+     "tk": "TAO",
+     "chg": 0.5,
+     "name": "비트텐서",
+     "excess": 2.3
+    }
+   ],
+   "laggard_leaders": [
+    "VIRTUAL",
+    "RENDER",
+    "TAO"
+   ],
+   "value": 113457359306
   },
   {
    "group": "레이어2",
    "n": 47,
-   "median": -0.8,
+   "median": -0.94,
    "n10": 1,
-   "n5": 3,
+   "n5": 4,
    "hot": false,
    "need": 8,
    "top": [
     {
      "tk": "ZRC",
-     "chg": 11.32,
+     "chg": 11.04,
      "name": "저킷",
      "leader": false
     },
     {
      "tk": "OP",
-     "chg": 9.09,
+     "chg": 9.14,
      "name": "옵티미즘",
      "leader": false
     },
@@ -474,33 +518,33 @@
     },
     {
      "tk": "A8",
-     "chg": 4.89,
+     "chg": 5.52,
      "name": "에인션트8",
      "leader": false
     },
     {
-     "tk": "TOWNS",
-     "chg": 3.9,
-     "name": "타운즈",
+     "tk": "PUFFER",
+     "chg": 4.21,
+     "name": "퍼퍼",
      "leader": false
     },
     {
-     "tk": "DRV",
-     "chg": 3.85,
-     "name": "디라이브",
-     "leader": true
+     "tk": "TOWNS",
+     "chg": 4.16,
+     "name": "타운즈",
+     "leader": false
     }
    ],
    "leaders": [
     {
      "tk": "DRV",
-     "chg": 3.85,
+     "chg": 4.04,
      "name": "디라이브",
      "excess": 7.4
     },
     {
      "tk": "STRK",
-     "chg": -4.31,
+     "chg": -5.17,
      "name": "스타크넷",
      "excess": 4.3
     },
@@ -518,7 +562,7 @@
     },
     {
      "tk": "LSK",
-     "chg": 0.0,
+     "chg": -0.69,
      "name": "리스크",
      "excess": 2.5
     }
@@ -528,82 +572,82 @@
     "MAGIC",
     "LSK"
    ],
-   "value": 31454731518
+   "value": 31415394868
   },
   {
    "group": "디파이",
    "n": 107,
-   "median": -0.78,
+   "median": -0.97,
    "n10": 2,
-   "n5": 6,
+   "n5": 5,
    "hot": false,
    "need": 17,
    "top": [
     {
      "tk": "DEEP",
-     "chg": 12.78,
+     "chg": 11.22,
      "name": "딥북",
      "leader": false
     },
     {
-     "tk": "BLUE",
-     "chg": 10.27,
-     "name": "블루핀",
-     "leader": false
-    },
-    {
      "tk": "KMNO",
-     "chg": 8.21,
+     "chg": 10.23,
      "name": "카미노파이낸스",
      "leader": false
     },
     {
-     "tk": "BERA",
-     "chg": 8.14,
-     "name": "베라체인",
+     "tk": "BLUE",
+     "chg": 9.92,
+     "name": "블루핀",
      "leader": false
     },
     {
      "tk": "FLUID",
-     "chg": 8.06,
+     "chg": 7.87,
      "name": "플루이드",
      "leader": false
     },
     {
-     "tk": "AMP",
-     "chg": 5.51,
-     "name": "앰프",
+     "tk": "BERA",
+     "chg": 7.43,
+     "name": "베라체인",
+     "leader": false
+    },
+    {
+     "tk": "EDGE",
+     "chg": 4.26,
+     "name": "디피니티브",
      "leader": false
     }
    ],
    "leaders": [
     {
      "tk": "DRV",
-     "chg": 3.85,
+     "chg": 4.04,
      "name": "디라이브",
      "excess": 7.1
     },
     {
      "tk": "CHIP",
-     "chg": -3.71,
+     "chg": -3.62,
      "name": "유에스디에이아이",
      "excess": 3.3
     },
     {
      "tk": "ENA",
-     "chg": -2.71,
+     "chg": -2.05,
      "name": "에테나",
      "excess": 3.3
     },
     {
      "tk": "GWEI",
-     "chg": 3.22,
+     "chg": 3.37,
      "name": "이더가스",
      "excess": 2.6
     },
     {
      "tk": "SLX",
-     "chg": -2.68,
+     "chg": -2.2,
      "name": "솔스티스",
      "excess": 2.5
     }
@@ -613,124 +657,587 @@
     "ENA",
     "SLX"
    ],
-   "value": 166913167142
+   "value": 166605550846
   },
   {
-   "group": "솔라나",
-   "n": 57,
-   "median": -1.26,
-   "n10": 1,
-   "n5": 2,
+   "group": "BNB체인",
+   "n": 117,
+   "median": -1.24,
+   "n10": 2,
+   "n5": 3,
    "hot": false,
-   "need": 9,
+   "need": 18,
    "top": [
     {
-     "tk": "AVA",
-     "chg": 31.53,
-     "name": "트라발라",
+     "tk": "Q",
+     "chg": 25.28,
+     "name": "쿼크에이아이",
      "leader": false
     },
     {
-     "tk": "KMNO",
-     "chg": 8.21,
-     "name": "카미노파이낸스",
+     "tk": "GPS",
+     "chg": 12.13,
+     "name": "고플러스",
      "leader": false
     },
     {
      "tk": "SD",
-     "chg": 4.4,
+     "chg": 5.0,
      "name": "스테이더",
      "leader": false
     },
     {
-     "tk": "AGI",
-     "chg": 3.16,
-     "name": "델리시움",
-     "leader": true
-    },
-    {
-     "tk": "GHX",
-     "chg": 2.99,
-     "name": "게이머코인",
+     "tk": "PUFFER",
+     "chg": 4.21,
+     "name": "퍼퍼",
      "leader": false
     },
     {
-     "tk": "ATH",
-     "chg": 2.08,
-     "name": "에이셔",
+     "tk": "XCN",
+     "chg": 3.94,
+     "name": "오닉스코인",
+     "leader": true
+    },
+    {
+     "tk": "GWEI",
+     "chg": 3.37,
+     "name": "이더가스",
      "leader": false
     }
    ],
    "leaders": [
     {
-     "tk": "VIRTUAL",
-     "chg": -0.94,
-     "name": "버추얼프로토콜",
-     "excess": 4.9
+     "tk": "BTR",
+     "chg": -7.11,
+     "name": "비트레이어",
+     "excess": 4.4
     },
     {
-     "tk": "ZAMA",
-     "chg": -3.67,
-     "name": "자마",
-     "excess": 2.7
+     "tk": "CAP",
+     "chg": -5.6,
+     "name": "캡",
+     "excess": 3.5
     },
     {
-     "tk": "RENDER",
-     "chg": -5.38,
-     "name": "렌더토큰",
-     "excess": 2.5
+     "tk": "XCN",
+     "chg": 3.94,
+     "name": "오닉스코인",
+     "excess": 3.1
     },
     {
-     "tk": "AGI",
-     "chg": 3.16,
-     "name": "델리시움",
+     "tk": "ACE",
+     "chg": 2.76,
+     "name": "퓨저니스트",
+     "excess": 2.8
+    },
+    {
+     "tk": "NEAR",
+     "chg": -2.28,
+     "name": "니어프로토콜",
      "excess": 2.3
-    },
-    {
-     "tk": "TRUMP",
-     "chg": -0.16,
-     "name": "오피셜트럼프",
-     "excess": 2.2
     }
    ],
    "laggard_leaders": [
-    "VIRTUAL",
-    "ZAMA",
-    "RENDER",
-    "TRUMP"
+    "BTR",
+    "CAP",
+    "ACE",
+    "NEAR"
    ],
-   "value": 38552444018
+   "value": 216265249907
+  },
+  {
+   "group": "베이스",
+   "n": 71,
+   "median": -1.15,
+   "n10": 1,
+   "n5": 2,
+   "hot": false,
+   "need": 11,
+   "top": [
+    {
+     "tk": "GPS",
+     "chg": 12.13,
+     "name": "고플러스",
+     "leader": false
+    },
+    {
+     "tk": "TRAC",
+     "chg": 9.52,
+     "name": "오리진트레일",
+     "leader": false
+    },
+    {
+     "tk": "IOTX",
+     "chg": 4.69,
+     "name": "아이오텍스",
+     "leader": false
+    },
+    {
+     "tk": "EDGE",
+     "chg": 4.26,
+     "name": "디피니티브",
+     "leader": false
+    },
+    {
+     "tk": "TOWNS",
+     "chg": 4.16,
+     "name": "타운즈",
+     "leader": false
+    },
+    {
+     "tk": "XCN",
+     "chg": 3.94,
+     "name": "오닉스코인",
+     "leader": true
+    }
+   ],
+   "leaders": [
+    {
+     "tk": "XCN",
+     "chg": 3.94,
+     "name": "오닉스코인",
+     "excess": 6.3
+    },
+    {
+     "tk": "LSK",
+     "chg": -0.69,
+     "name": "리스크",
+     "excess": 3.1
+    },
+    {
+     "tk": "MAGIC",
+     "chg": -7.88,
+     "name": "매직",
+     "excess": 3.1
+    },
+    {
+     "tk": "VIRTUAL",
+     "chg": -1.15,
+     "name": "버추얼프로토콜",
+     "excess": 2.9
+    },
+    {
+     "tk": "VERONA",
+     "chg": 0.66,
+     "name": "베로나",
+     "excess": 2.8
+    }
+   ],
+   "laggard_leaders": [
+    "LSK",
+    "MAGIC",
+    "VIRTUAL",
+    "VERONA"
+   ],
+   "value": 141337919602
+  },
+  {
+   "group": "인터체인",
+   "n": 5,
+   "median": -1.05,
+   "n10": 0,
+   "n5": 1,
+   "hot": false,
+   "need": 2,
+   "top": [
+    {
+     "tk": "TRAC",
+     "chg": 9.52,
+     "name": "오리진트레일",
+     "leader": false
+    },
+    {
+     "tk": "HYPER",
+     "chg": -0.04,
+     "name": "하이퍼레인",
+     "leader": false
+    },
+    {
+     "tk": "PHA",
+     "chg": -1.05,
+     "name": "팔라네트워크",
+     "leader": false
+    },
+    {
+     "tk": "CKB",
+     "chg": -6.24,
+     "name": "너보스",
+     "leader": false
+    },
+    {
+     "tk": "W",
+     "chg": -15.13,
+     "name": "웜홀",
+     "leader": true
+    }
+   ],
+   "leaders": [
+    {
+     "tk": "W",
+     "chg": -15.13,
+     "name": "웜홀",
+     "excess": 0.9
+    }
+   ],
+   "laggard_leaders": [
+    "W"
+   ],
+   "value": 4268111688
+  },
+  {
+   "group": "옵티미즘",
+   "n": 6,
+   "median": -0.14,
+   "n10": 0,
+   "n5": 1,
+   "hot": false,
+   "need": 2,
+   "top": [
+    {
+     "tk": "OP",
+     "chg": 9.14,
+     "name": "옵티미즘",
+     "leader": true
+    },
+    {
+     "tk": "ACX",
+     "chg": 2.51,
+     "name": "어크로스프로토콜",
+     "leader": false
+    },
+    {
+     "tk": "LDO",
+     "chg": 0.0,
+     "name": "리도다오",
+     "leader": false
+    },
+    {
+     "tk": "WLD",
+     "chg": -0.29,
+     "name": "월드코인",
+     "leader": true
+    },
+    {
+     "tk": "TRB",
+     "chg": -0.7,
+     "name": "텔러",
+     "leader": false
+    },
+    {
+     "tk": "CYBER",
+     "chg": -4.52,
+     "name": "사이버",
+     "leader": false
+    }
+   ],
+   "leaders": [
+    {
+     "tk": "WLD",
+     "chg": -0.29,
+     "name": "월드코인",
+     "excess": 1.9
+    },
+    {
+     "tk": "OP",
+     "chg": 9.14,
+     "name": "옵티미즘",
+     "excess": 0.3
+    }
+   ],
+   "laggard_leaders": [
+    "WLD"
+   ],
+   "value": 25160732136
+  },
+  {
+   "group": "AI에이전트",
+   "n": 26,
+   "median": -1.08,
+   "n10": 0,
+   "n5": 2,
+   "hot": false,
+   "need": 4,
+   "top": [
+    {
+     "tk": "KITE",
+     "chg": 9.83,
+     "name": "카이트",
+     "leader": false
+    },
+    {
+     "tk": "TRAC",
+     "chg": 9.52,
+     "name": "오리진트레일",
+     "leader": true
+    },
+    {
+     "tk": "IOTX",
+     "chg": 4.69,
+     "name": "아이오텍스",
+     "leader": false
+    },
+    {
+     "tk": "HPP",
+     "chg": 4.68,
+     "name": "하우스파티프로토콜",
+     "leader": false
+    },
+    {
+     "tk": "AGI",
+     "chg": 3.27,
+     "name": "델리시움",
+     "leader": false
+    },
+    {
+     "tk": "PROMPT",
+     "chg": 1.82,
+     "name": "웨이파인더",
+     "leader": false
+    }
+   ],
+   "leaders": [
+    {
+     "tk": "CAP",
+     "chg": -5.6,
+     "name": "캡",
+     "excess": 6.4
+    },
+    {
+     "tk": "TRAC",
+     "chg": 9.52,
+     "name": "오리진트레일",
+     "excess": 5.3
+    },
+    {
+     "tk": "VIRTUAL",
+     "chg": -1.15,
+     "name": "버추얼프로토콜",
+     "excess": 3.8
+    },
+    {
+     "tk": "MAGIC",
+     "chg": -7.88,
+     "name": "매직",
+     "excess": 3.5
+    },
+    {
+     "tk": "FET",
+     "chg": 1.02,
+     "name": "페치",
+     "excess": 2.4
+    }
+   ],
+   "laggard_leaders": [
+    "CAP",
+    "VIRTUAL",
+    "MAGIC",
+    "FET"
+   ],
+   "value": 41751479368
+  },
+  {
+   "group": "디핀",
+   "n": 34,
+   "median": -1.21,
+   "n10": 0,
+   "n5": 2,
+   "hot": false,
+   "need": 6,
+   "top": [
+    {
+     "tk": "TRAC",
+     "chg": 9.52,
+     "name": "오리진트레일",
+     "leader": true
+    },
+    {
+     "tk": "AR",
+     "chg": 5.23,
+     "name": "알위브",
+     "leader": false
+    },
+    {
+     "tk": "IOTX",
+     "chg": 4.69,
+     "name": "아이오텍스",
+     "leader": false
+    },
+    {
+     "tk": "GHX",
+     "chg": 3.05,
+     "name": "게이머코인",
+     "leader": false
+    },
+    {
+     "tk": "ATH",
+     "chg": 2.2,
+     "name": "에이셔",
+     "leader": false
+    },
+    {
+     "tk": "SPACE",
+     "chg": 2.13,
+     "name": "스페이스코인",
+     "leader": false
+    }
+   ],
+   "leaders": [
+    {
+     "tk": "TRAC",
+     "chg": 9.52,
+     "name": "오리진트레일",
+     "excess": 2.7
+    },
+    {
+     "tk": "TAO",
+     "chg": 0.5,
+     "name": "비트텐서",
+     "excess": 2.2
+    },
+    {
+     "tk": "RENDER",
+     "chg": -5.99,
+     "name": "렌더토큰",
+     "excess": 1.8
+    },
+    {
+     "tk": "FIL",
+     "chg": -1.38,
+     "name": "파일코인",
+     "excess": 1.7
+    },
+    {
+     "tk": "RLC",
+     "chg": -1.44,
+     "name": "아이젝",
+     "excess": 0.3
+    }
+   ],
+   "laggard_leaders": [
+    "TAO",
+    "RENDER",
+    "FIL",
+    "RLC"
+   ],
+   "value": 9866499161
+  },
+  {
+   "group": "RWA",
+   "n": 23,
+   "median": -0.74,
+   "n10": 0,
+   "n5": 1,
+   "hot": false,
+   "need": 4,
+   "top": [
+    {
+     "tk": "TRAC",
+     "chg": 9.52,
+     "name": "오리진트레일",
+     "leader": false
+    },
+    {
+     "tk": "CFG",
+     "chg": 4.4,
+     "name": "센트리퓨즈",
+     "leader": false
+    },
+    {
+     "tk": "CSPR",
+     "chg": 3.07,
+     "name": "캐스퍼",
+     "leader": false
+    },
+    {
+     "tk": "INJ",
+     "chg": 2.04,
+     "name": "인젝티브",
+     "leader": false
+    },
+    {
+     "tk": "META",
+     "chg": 1.54,
+     "name": "메타디움",
+     "leader": false
+    },
+    {
+     "tk": "PLUME",
+     "chg": 1.06,
+     "name": "플룸",
+     "leader": false
+    }
+   ],
+   "leaders": [
+    {
+     "tk": "MANTRA",
+     "chg": -3.16,
+     "name": "만트라",
+     "excess": 8.1
+    },
+    {
+     "tk": "EDEN",
+     "chg": -2.36,
+     "name": "오픈에덴",
+     "excess": 2.2
+    },
+    {
+     "tk": "RSR",
+     "chg": -0.11,
+     "name": "리저브라이트",
+     "excess": 1.7
+    },
+    {
+     "tk": "ALGO",
+     "chg": 0.62,
+     "name": "알고랜드",
+     "excess": 1.4
+    },
+    {
+     "tk": "ONDO",
+     "chg": -2.32,
+     "name": "온도파이낸스",
+     "excess": 1.2
+    }
+   ],
+   "laggard_leaders": [
+    "MANTRA",
+    "EDEN",
+    "RSR",
+    "ALGO",
+    "ONDO"
+   ],
+   "value": 21220593402
   },
   {
    "group": "레이어1",
    "n": 86,
    "median": -0.8,
-   "n10": 1,
-   "n5": 2,
+   "n10": 0,
+   "n5": 3,
    "hot": false,
    "need": 13,
    "top": [
     {
      "tk": "KITE",
-     "chg": 10.4,
+     "chg": 9.83,
      "name": "카이트",
      "leader": false
     },
     {
      "tk": "BERA",
-     "chg": 8.14,
+     "chg": 7.43,
      "name": "베라체인",
      "leader": false
     },
     {
      "tk": "AR",
-     "chg": 4.94,
+     "chg": 5.23,
      "name": "알위브",
      "leader": false
     },
     {
      "tk": "XCN",
-     "chg": 3.73,
+     "chg": 3.94,
      "name": "오닉스코인",
      "leader": true
     },
@@ -750,7 +1257,7 @@
    "leaders": [
     {
      "tk": "XCN",
-     "chg": 3.73,
+     "chg": 3.94,
      "name": "오닉스코인",
      "excess": 3.9
     },
@@ -762,19 +1269,19 @@
     },
     {
      "tk": "DATA",
-     "chg": -3.55,
+     "chg": -3.18,
      "name": "데이터네트워크",
      "excess": 2.9
     },
     {
      "tk": "S",
-     "chg": -1.57,
+     "chg": -1.6,
      "name": "소닉",
      "excess": 2.8
     },
     {
      "tk": "TIA",
-     "chg": -8.0,
+     "chg": -7.95,
      "name": "셀레스티아",
      "excess": 2.3
     }
@@ -785,524 +1292,131 @@
     "S",
     "TIA"
    ],
-   "value": 88519864855
+   "value": 88719369943
   },
   {
-   "group": "BNB체인",
-   "n": 117,
-   "median": -1.4,
-   "n10": 1,
-   "n5": 2,
-   "hot": false,
-   "need": 18,
-   "top": [
-    {
-     "tk": "Q",
-     "chg": 28.06,
-     "name": "쿼크에이아이",
-     "leader": false
-    },
-    {
-     "tk": "GPS",
-     "chg": 9.21,
-     "name": "고플러스",
-     "leader": false
-    },
-    {
-     "tk": "SD",
-     "chg": 4.4,
-     "name": "스테이더",
-     "leader": false
-    },
-    {
-     "tk": "PUFFER",
-     "chg": 3.82,
-     "name": "퍼퍼",
-     "leader": false
-    },
-    {
-     "tk": "XCN",
-     "chg": 3.73,
-     "name": "오닉스코인",
-     "leader": true
-    },
-    {
-     "tk": "BSB",
-     "chg": 3.31,
-     "name": "블록스트리트",
-     "leader": false
-    }
-   ],
-   "leaders": [
-    {
-     "tk": "BTR",
-     "chg": -7.96,
-     "name": "비트레이어",
-     "excess": 4.4
-    },
-    {
-     "tk": "CAP",
-     "chg": -6.4,
-     "name": "캡",
-     "excess": 3.5
-    },
-    {
-     "tk": "XCN",
-     "chg": 3.73,
-     "name": "오닉스코인",
-     "excess": 3.1
-    },
-    {
-     "tk": "ACE",
-     "chg": 2.35,
-     "name": "퓨저니스트",
-     "excess": 2.8
-    },
-    {
-     "tk": "NEAR",
-     "chg": -2.62,
-     "name": "니어프로토콜",
-     "excess": 2.3
-    }
-   ],
-   "laggard_leaders": [
-    "BTR",
-    "CAP",
-    "ACE",
-    "NEAR"
-   ],
-   "value": 216310204252
-  },
-  {
-   "group": "니어",
-   "n": 4,
-   "median": -1.33,
+   "group": "게임",
+   "n": 38,
+   "median": -1.28,
    "n10": 0,
    "n5": 1,
-   "hot": false,
-   "need": 2,
-   "top": [
-    {
-     "tk": "AMP",
-     "chg": 5.51,
-     "name": "앰프",
-     "leader": false
-    },
-    {
-     "tk": "XRP",
-     "chg": -0.05,
-     "name": "엑스알피[리플]",
-     "leader": true
-    },
-    {
-     "tk": "NEAR",
-     "chg": -2.62,
-     "name": "니어프로토콜",
-     "leader": true
-    },
-    {
-     "tk": "GTC",
-     "chg": -15.05,
-     "name": "깃코인",
-     "leader": false
-    }
-   ],
-   "leaders": [
-    {
-     "tk": "NEAR",
-     "chg": -2.62,
-     "name": "니어프로토콜",
-     "excess": 1.7
-    },
-    {
-     "tk": "XRP",
-     "chg": -0.05,
-     "name": "엑스알피[리플]",
-     "excess": 1.4
-    }
-   ],
-   "laggard_leaders": [
-    "NEAR",
-    "XRP"
-   ],
-   "value": 48528749036
-  },
-  {
-   "group": "인터체인",
-   "n": 5,
-   "median": -1.17,
-   "n10": 0,
-   "n5": 1,
-   "hot": false,
-   "need": 2,
-   "top": [
-    {
-     "tk": "TRAC",
-     "chg": 7.51,
-     "name": "오리진트레일",
-     "leader": false
-    },
-    {
-     "tk": "HYPER",
-     "chg": -0.1,
-     "name": "하이퍼레인",
-     "leader": false
-    },
-    {
-     "tk": "PHA",
-     "chg": -1.17,
-     "name": "팔라네트워크",
-     "leader": false
-    },
-    {
-     "tk": "CKB",
-     "chg": -6.05,
-     "name": "너보스",
-     "leader": false
-    },
-    {
-     "tk": "W",
-     "chg": -15.64,
-     "name": "웜홀",
-     "leader": true
-    }
-   ],
-   "leaders": [
-    {
-     "tk": "W",
-     "chg": -15.64,
-     "name": "웜홀",
-     "excess": 0.9
-    }
-   ],
-   "laggard_leaders": [
-    "W"
-   ],
-   "value": 4272530157
-  },
-  {
-   "group": "옵티미즘",
-   "n": 6,
-   "median": -0.35,
-   "n10": 0,
-   "n5": 1,
-   "hot": false,
-   "need": 2,
-   "top": [
-    {
-     "tk": "OP",
-     "chg": 9.09,
-     "name": "옵티미즘",
-     "leader": true
-    },
-    {
-     "tk": "ACX",
-     "chg": 2.87,
-     "name": "어크로스프로토콜",
-     "leader": false
-    },
-    {
-     "tk": "LDO",
-     "chg": 0.0,
-     "name": "리도다오",
-     "leader": false
-    },
-    {
-     "tk": "TRB",
-     "chg": -0.7,
-     "name": "텔러",
-     "leader": false
-    },
-    {
-     "tk": "WLD",
-     "chg": -0.71,
-     "name": "월드코인",
-     "leader": true
-    },
-    {
-     "tk": "CYBER",
-     "chg": -4.52,
-     "name": "사이버",
-     "leader": false
-    }
-   ],
-   "leaders": [
-    {
-     "tk": "WLD",
-     "chg": -0.71,
-     "name": "월드코인",
-     "excess": 1.9
-    },
-    {
-     "tk": "OP",
-     "chg": 9.09,
-     "name": "옵티미즘",
-     "excess": 0.3
-    }
-   ],
-   "laggard_leaders": [
-    "WLD"
-   ],
-   "value": 25180062219
-  },
-  {
-   "group": "디핀",
-   "n": 34,
-   "median": -1.3,
-   "n10": 0,
-   "n5": 2,
    "hot": false,
    "need": 6,
    "top": [
     {
-     "tk": "TRAC",
-     "chg": 7.51,
-     "name": "오리진트레일",
+     "tk": "A8",
+     "chg": 5.52,
+     "name": "에인션트8",
+     "leader": false
+    },
+    {
+     "tk": "BEAM",
+     "chg": 2.99,
+     "name": "빔",
      "leader": true
     },
     {
-     "tk": "IOTX",
-     "chg": 5.98,
-     "name": "아이오텍스",
+     "tk": "ACE",
+     "chg": 2.76,
+     "name": "퓨저니스트",
+     "leader": true
+    },
+    {
+     "tk": "LWP",
+     "chg": 2.25,
+     "name": "루미웨이브프로토콜",
      "leader": false
     },
     {
-     "tk": "AR",
-     "chg": 4.94,
-     "name": "알위브",
+     "tk": "WNCG",
+     "chg": 2.07,
+     "name": "랩트나인크로니클골드",
      "leader": false
     },
     {
-     "tk": "GHX",
-     "chg": 2.99,
-     "name": "게이머코인",
-     "leader": false
-    },
-    {
-     "tk": "ATH",
-     "chg": 2.08,
-     "name": "에이셔",
-     "leader": false
-    },
-    {
-     "tk": "SPACE",
-     "chg": 1.84,
-     "name": "스페이스코인",
+     "tk": "MANA",
+     "chg": 1.61,
+     "name": "디센트럴랜드",
      "leader": false
     }
    ],
    "leaders": [
     {
-     "tk": "TRAC",
-     "chg": 7.51,
-     "name": "오리진트레일",
-     "excess": 2.7
+     "tk": "SAND",
+     "chg": -4.34,
+     "name": "샌드박스",
+     "excess": 1.3
     },
     {
-     "tk": "TAO",
-     "chg": 0.5,
-     "name": "비트텐서",
-     "excess": 2.2
+     "tk": "BEAM",
+     "chg": 2.99,
+     "name": "빔",
+     "excess": 1.0
     },
     {
-     "tk": "RENDER",
-     "chg": -5.38,
-     "name": "렌더토큰",
-     "excess": 1.8
+     "tk": "ACE",
+     "chg": 2.76,
+     "name": "퓨저니스트",
+     "excess": 1.0
     },
     {
-     "tk": "FIL",
-     "chg": -1.68,
-     "name": "파일코인",
-     "excess": 1.7
-    },
-    {
-     "tk": "RLC",
-     "chg": -1.68,
-     "name": "아이젝",
+     "tk": "PYR",
+     "chg": 1.11,
+     "name": "불칸포지드",
      "excess": 0.3
     }
    ],
    "laggard_leaders": [
-    "TAO",
-    "RENDER",
-    "FIL",
-    "RLC"
+    "SAND",
+    "BEAM",
+    "ACE",
+    "PYR"
    ],
-   "value": 9817010653
+   "value": 6746449752
   },
   {
-   "group": "RWA",
-   "n": 23,
-   "median": -1.17,
+   "group": "트론",
+   "n": 5,
+   "median": 0.18,
    "n10": 0,
-   "n5": 1,
+   "n5": 0,
    "hot": false,
-   "need": 4,
+   "need": 2,
    "top": [
     {
-     "tk": "TRAC",
-     "chg": 7.51,
-     "name": "오리진트레일",
+     "tk": "JST",
+     "chg": 1.62,
+     "name": "저스트",
      "leader": false
     },
     {
-     "tk": "CFG",
-     "chg": 3.85,
-     "name": "센트리퓨즈",
+     "tk": "TRX",
+     "chg": 0.45,
+     "name": "트론",
      "leader": false
     },
     {
-     "tk": "CSPR",
-     "chg": 3.07,
-     "name": "캐스퍼",
+     "tk": "SUN",
+     "chg": 0.18,
+     "name": "썬",
      "leader": false
     },
     {
-     "tk": "INJ",
-     "chg": 2.41,
-     "name": "인젝티브",
-     "leader": false
-    },
-    {
-     "tk": "ALGO",
-     "chg": 1.85,
-     "name": "알고랜드",
-     "leader": true
-    },
-    {
-     "tk": "META",
-     "chg": 1.63,
-     "name": "메타디움",
-     "leader": false
-    }
-   ],
-   "leaders": [
-    {
-     "tk": "MANTRA",
-     "chg": -2.51,
-     "name": "만트라",
-     "excess": 8.1
-    },
-    {
-     "tk": "EDEN",
-     "chg": -1.8,
-     "name": "오픈에덴",
-     "excess": 2.2
-    },
-    {
-     "tk": "RSR",
-     "chg": -1.17,
-     "name": "리저브라이트",
-     "excess": 1.7
-    },
-    {
-     "tk": "ALGO",
-     "chg": 1.85,
-     "name": "알고랜드",
-     "excess": 1.4
-    },
-    {
-     "tk": "ONDO",
-     "chg": -2.31,
-     "name": "온도파이낸스",
-     "excess": 1.2
-    }
-   ],
-   "laggard_leaders": [
-    "MANTRA",
-    "EDEN",
-    "RSR",
-    "ALGO",
-    "ONDO"
-   ],
-   "value": 21282468180
-  },
-  {
-   "group": "베이스",
-   "n": 71,
-   "median": -1.17,
-   "n10": 0,
-   "n5": 3,
-   "hot": false,
-   "need": 11,
-   "top": [
-    {
-     "tk": "GPS",
-     "chg": 9.21,
-     "name": "고플러스",
-     "leader": false
-    },
-    {
-     "tk": "TRAC",
-     "chg": 7.51,
-     "name": "오리진트레일",
-     "leader": false
-    },
-    {
-     "tk": "IOTX",
-     "chg": 5.98,
-     "name": "아이오텍스",
-     "leader": false
-    },
-    {
-     "tk": "TOWNS",
-     "chg": 3.9,
-     "name": "타운즈",
-     "leader": false
-    },
-    {
-     "tk": "XCN",
-     "chg": 3.73,
-     "name": "오닉스코인",
-     "leader": true
-    },
-    {
-     "tk": "EDGE",
-     "chg": 3.55,
-     "name": "디피니티브",
-     "leader": false
-    }
-   ],
-   "leaders": [
-    {
-     "tk": "XCN",
-     "chg": 3.73,
-     "name": "오닉스코인",
-     "excess": 6.3
-    },
-    {
-     "tk": "LSK",
+     "tk": "NFT",
      "chg": 0.0,
-     "name": "리스크",
-     "excess": 3.1
+     "name": "에이아이앤에프티",
+     "leader": false
     },
     {
-     "tk": "MAGIC",
-     "chg": -7.88,
-     "name": "매직",
-     "excess": 3.1
-    },
-    {
-     "tk": "VIRTUAL",
-     "chg": -0.94,
-     "name": "버추얼프로토콜",
-     "excess": 2.9
-    },
-    {
-     "tk": "VERONA",
-     "chg": 1.33,
-     "name": "베로나",
-     "excess": 2.8
+     "tk": "BTT",
+     "chg": -20.0,
+     "name": "비트토렌트",
+     "leader": false
     }
    ],
-   "laggard_leaders": [
-    "LSK",
-    "MAGIC",
-    "VIRTUAL",
-    "VERONA"
-   ],
-   "value": 141416549818
+   "leaders": [],
+   "laggard_leaders": [],
+   "value": 1022608617
   },
   {
    "group": "아발란체",
@@ -1315,7 +1429,7 @@
    "top": [
     {
      "tk": "GMX",
-     "chg": 1.13,
+     "chg": 1.22,
      "name": "지엠엑스",
      "leader": false
     },
@@ -1352,61 +1466,23 @@
    ],
    "leaders": [],
    "laggard_leaders": [],
-   "value": 5512387992
-  },
-  {
-   "group": "트론",
-   "n": 5,
-   "median": 0.0,
-   "n10": 0,
-   "n5": 0,
-   "hot": false,
-   "need": 2,
-   "top": [
-    {
-     "tk": "JST",
-     "chg": 0.54,
-     "name": "저스트",
-     "leader": false
-    },
-    {
-     "tk": "SUN",
-     "chg": 0.22,
-     "name": "썬",
-     "leader": false
-    },
-    {
-     "tk": "BTT",
-     "chg": 0.0,
-     "name": "비트토렌트",
-     "leader": false
-    },
-    {
-     "tk": "NFT",
-     "chg": 0.0,
-     "name": "에이아이앤에프티",
-     "leader": false
-    },
-    {
-     "tk": "TRX",
-     "chg": 0.0,
-     "name": "트론",
-     "leader": false
-    }
-   ],
-   "leaders": [],
-   "laggard_leaders": [],
-   "value": 1016322987
+   "value": 5508663919
   },
   {
    "group": "아비트럼",
    "n": 26,
-   "median": -0.57,
+   "median": -0.46,
    "n10": 0,
    "n5": 0,
    "hot": false,
    "need": 4,
    "top": [
+    {
+     "tk": "ESP",
+     "chg": 4.93,
+     "name": "에스프레소",
+     "leader": false
+    },
     {
      "tk": "CELR",
      "chg": 4.46,
@@ -1414,21 +1490,21 @@
      "leader": false
     },
     {
-     "tk": "ESP",
-     "chg": 4.23,
-     "name": "에스프레소",
-     "leader": false
-    },
-    {
      "tk": "ACX",
-     "chg": 2.87,
+     "chg": 2.51,
      "name": "어크로스프로토콜",
      "leader": false
     },
     {
      "tk": "ATH",
-     "chg": 2.08,
+     "chg": 2.2,
      "name": "에이셔",
+     "leader": false
+    },
+    {
+     "tk": "BICO",
+     "chg": 1.43,
+     "name": "바이코노미",
      "leader": false
     },
     {
@@ -1436,12 +1512,6 @@
      "chg": 1.23,
      "name": "노시스",
      "leader": false
-    },
-    {
-     "tk": "ARB",
-     "chg": 1.18,
-     "name": "아비트럼",
-     "leader": true
     }
    ],
    "leaders": [
@@ -1453,19 +1523,19 @@
     },
     {
      "tk": "ARB",
-     "chg": 1.18,
+     "chg": 0.79,
      "name": "아비트럼",
      "excess": 1.3
     },
     {
      "tk": "RSR",
-     "chg": -1.17,
+     "chg": -0.11,
      "name": "리저브라이트",
      "excess": 1.2
     },
     {
      "tk": "RLC",
-     "chg": -1.68,
+     "chg": -1.44,
      "name": "아이젝",
      "excess": 0.8
     }
@@ -1476,91 +1546,66 @@
     "RSR",
     "RLC"
    ],
-   "value": 7828646170
+   "value": 7735284051
   },
   {
-   "group": "게임",
-   "n": 38,
+   "group": "니어",
+   "n": 4,
    "median": -1.19,
    "n10": 0,
    "n5": 0,
    "hot": false,
-   "need": 6,
+   "need": 2,
    "top": [
     {
-     "tk": "A8",
-     "chg": 4.89,
-     "name": "에인션트8",
+     "tk": "AMP",
+     "chg": 2.22,
+     "name": "앰프",
      "leader": false
     },
     {
-     "tk": "BEAM",
-     "chg": 3.7,
-     "name": "빔",
+     "tk": "XRP",
+     "chg": -0.11,
+     "name": "엑스알피[리플]",
      "leader": true
     },
     {
-     "tk": "PYR",
-     "chg": 2.43,
-     "name": "불칸포지드",
+     "tk": "NEAR",
+     "chg": -2.28,
+     "name": "니어프로토콜",
      "leader": true
     },
     {
-     "tk": "ACE",
-     "chg": 2.35,
-     "name": "퓨저니스트",
-     "leader": true
-    },
-    {
-     "tk": "LWP",
-     "chg": 2.25,
-     "name": "루미웨이브프로토콜",
-     "leader": false
-    },
-    {
-     "tk": "WNCG",
-     "chg": 2.07,
-     "name": "랩트나인크로니클골드",
+     "tk": "GTC",
+     "chg": -15.05,
+     "name": "깃코인",
      "leader": false
     }
    ],
    "leaders": [
     {
-     "tk": "SAND",
-     "chg": -4.33,
-     "name": "샌드박스",
-     "excess": 1.3
+     "tk": "NEAR",
+     "chg": -2.28,
+     "name": "니어프로토콜",
+     "excess": 1.7
     },
     {
-     "tk": "BEAM",
-     "chg": 3.7,
-     "name": "빔",
-     "excess": 1.0
-    },
-    {
-     "tk": "ACE",
-     "chg": 2.35,
-     "name": "퓨저니스트",
-     "excess": 1.0
-    },
-    {
-     "tk": "PYR",
-     "chg": 2.43,
-     "name": "불칸포지드",
-     "excess": 0.3
+     "tk": "XRP",
+     "chg": -0.11,
+     "name": "엑스알피[리플]",
+     "excess": 1.4
     }
    ],
    "laggard_leaders": [
-    "SAND",
-    "ACE",
-    "PYR"
+    "NEAR",
+    "XRP"
    ],
-   "value": 6754982755
+   "value": 48638329961
   },
   {
    "group": "오라클",
    "n": 10,
-   "median": -1.42,
+   "median": -1.25,
    "n10": 0,
    "n5": 0,
    "hot": false,
@@ -1573,8 +1618,14 @@
      "leader": false
     },
     {
+     "tk": "RED",
+     "chg": 0.0,
+     "name": "레드스톤",
+     "leader": false
+    },
+    {
      "tk": "LINK",
-     "chg": -0.45,
+     "chg": -0.62,
      "name": "체인링크",
      "leader": false
     },
@@ -1586,20 +1637,14 @@
     },
     {
      "tk": "PHA",
-     "chg": -1.17,
+     "chg": -1.05,
      "name": "팔라네트워크",
      "leader": false
     },
     {
-     "tk": "RED",
-     "chg": -1.4,
-     "name": "레드스톤",
-     "leader": false
-    },
-    {
-     "tk": "XYO",
-     "chg": -1.45,
-     "name": "엑스와이오",
+     "tk": "RLC",
+     "chg": -1.44,
+     "name": "아이젝",
      "leader": false
     }
    ],
@@ -1614,12 +1659,12 @@
    "laggard_leaders": [
     "PYTH"
    ],
-   "value": 5355287197
+   "value": 5357930935
   },
   {
    "group": "하이퍼리퀴드",
    "n": 4,
-   "median": -1.77,
+   "median": -1.89,
    "n10": 0,
    "n5": 0,
    "hot": false,
@@ -1627,7 +1672,7 @@
    "top": [
     {
      "tk": "MOVE",
-     "chg": -0.6,
+     "chg": -0.77,
      "name": "무브먼트",
      "leader": false
     },
@@ -1639,25 +1684,25 @@
     },
     {
      "tk": "AZTEC",
-     "chg": -2.53,
+     "chg": -2.77,
      "name": "아즈텍",
      "leader": false
     },
     {
      "tk": "BASED",
-     "chg": -12.21,
+     "chg": -11.44,
      "name": "베이스드",
      "leader": false
     }
    ],
    "leaders": [],
    "laggard_leaders": [],
-   "value": 1086984918
+   "value": 1086610706
   },
   {
    "group": "코스모스",
    "n": 4,
-   "median": -4.7,
+   "median": -4.67,
    "n10": 0,
    "n5": 0,
    "hot": false,
@@ -1677,20 +1722,63 @@
     },
     {
      "tk": "TIA",
-     "chg": -8.0,
+     "chg": -7.95,
      "name": "셀레스티아",
      "leader": false
     },
     {
      "tk": "OSMO",
-     "chg": -18.15,
+     "chg": -18.98,
      "name": "오스모시스",
      "leader": false
     }
    ],
    "leaders": [],
    "laggard_leaders": [],
-   "value": 3754740618
+   "value": 3698017058
+  }
+ ],
+ "picks": [
+  {
+   "ticker": "WAL",
+   "setup": "sector_lead",
+   "setup_label": "섹터 대장",
+   "state": "now",
+   "price": 63.21,
+   "chg24": 21.37,
+   "entry": 63.21,
+   "zone_lo": 61.95,
+   "zone_hi": 63.84,
+   "stop": 56.89,
+   "t1": 75.85,
+   "t2": 82.17,
+   "stop_pct": 10.0,
+   "t1_pct": 20.0,
+   "t2_pct": 30.0,
+   "rr1": 2.0,
+   "rr2": 3.0,
+   "score": 70,
+   "group": "수이",
+   "max_hold_h": 72,
+   "reasons": [
+    "수이 섹터 과열 (+10% 넘은 종목 2/10, 중앙값 -0.5%)",
+    "이 섹터의 대장 — 과거 섹터가 뜰 때 평균보다 +2.2%p 더 올랐던 종목",
+    "지금 24시간 +21.4%로 섹터를 이끄는 중"
+   ],
+   "risks": [
+    "이미 많이 오른 종목을 따라 사는 매매 — 하루 변동이 큼, 비중 작게",
+    "시장 신호등 '선별 매수' — 약세 구간에선 이 방법도 본전 수준이었음"
+   ],
+   "metrics": {},
+   "rs7": null,
+   "value24": 4740594681.2624855,
+   "ai": {
+    "status": "unverified",
+    "note": "",
+    "positive": null
+   },
+   "valid_hours": 0,
+   "sig_key": "WAL-sector-수이"
   }
  ]
 }
