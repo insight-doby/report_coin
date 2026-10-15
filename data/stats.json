@@ -1,21 +1,21 @@
 {
- "generated_at": "2026-10-15T10:30:41+09:00",
+ "generated_at": "2026-10-15T16:28:29+09:00",
  "fee_pct_per_side": 0.04,
  "overall": {
   "n_signals": 28,
   "n_filled": 28,
   "n_unfilled": 0,
-  "n_open": 12,
+  "n_open": 1,
   "n_pending": 0,
   "fill_rate": 100.0,
-  "n_closed": 16,
-  "win_rate": 6.2,
-  "avg_r": -0.789,
-  "median_r": -1.014,
+  "n_closed": 27,
+  "win_rate": 11.1,
+  "avg_r": -0.75,
+  "median_r": -1.013,
   "profit_factor": 0.16,
-  "avg_mfe_r": 0.42,
-  "avg_mae_r": -1.14,
-  "reliable": false
+  "avg_mfe_r": 0.55,
+  "avg_mae_r": -1.19,
+  "reliable": true
  },
  "by_setup": {
   "breakout_retest": {
@@ -38,48 +38,48 @@
    "n_signals": 1,
    "n_filled": 1,
    "n_unfilled": 0,
-   "n_open": 1,
+   "n_open": 0,
    "n_pending": 0,
    "fill_rate": 100.0,
-   "n_closed": 0,
-   "win_rate": null,
-   "avg_r": null,
-   "median_r": null,
-   "profit_factor": null,
-   "avg_mfe_r": null,
-   "avg_mae_r": null,
+   "n_closed": 1,
+   "win_rate": 0.0,
+   "avg_r": -1.019,
+   "median_r": -1.019,
+   "profit_factor": 0.0,
+   "avg_mfe_r": 0.05,
+   "avg_mae_r": -1.71,
    "reliable": false
   },
   "pullback": {
    "n_signals": 24,
    "n_filled": 24,
    "n_unfilled": 0,
-   "n_open": 10,
+   "n_open": 1,
    "n_pending": 0,
    "fill_rate": 100.0,
-   "n_closed": 14,
-   "win_rate": 0.0,
-   "avg_r": -1.008,
-   "median_r": -1.014,
-   "profit_factor": 0.0,
-   "avg_mfe_r": 0.21,
+   "n_closed": 23,
+   "win_rate": 8.7,
+   "avg_r": -0.856,
+   "median_r": -1.013,
+   "profit_factor": 0.07,
+   "avg_mfe_r": 0.44,
    "avg_mae_r": -1.22,
-   "reliable": false
+   "reliable": true
   },
   "sector_lead": {
    "n_signals": 2,
    "n_filled": 2,
    "n_unfilled": 0,
-   "n_open": 1,
+   "n_open": 0,
    "n_pending": 0,
    "fill_rate": 100.0,
-   "n_closed": 1,
-   "win_rate": 100.0,
-   "avg_r": 2.492,
-   "median_r": 2.492,
-   "profit_factor": null,
-   "avg_mfe_r": 3.46,
-   "avg_mae_r": 0.0,
+   "n_closed": 2,
+   "win_rate": 50.0,
+   "avg_r": 0.742,
+   "median_r": 0.742,
+   "profit_factor": 2.47,
+   "avg_mfe_r": 2.13,
+   "avg_mae_r": -0.71,
    "reliable": false
   }
  },
@@ -104,17 +104,17 @@
    "n_signals": 21,
    "n_filled": 21,
    "n_unfilled": 0,
-   "n_open": 12,
+   "n_open": 1,
    "n_pending": 0,
    "fill_rate": 100.0,
-   "n_closed": 9,
-   "win_rate": 11.1,
-   "avg_r": -0.613,
-   "median_r": -1.013,
-   "profit_factor": 0.31,
-   "avg_mfe_r": 0.58,
-   "avg_mae_r": -0.97,
-   "reliable": false
+   "n_closed": 20,
+   "win_rate": 15.0,
+   "avg_r": -0.657,
+   "median_r": -1.012,
+   "profit_factor": 0.23,
+   "avg_mfe_r": 0.67,
+   "avg_mae_r": -1.14,
+   "reliable": true
   }
  },
  "curve": [
@@ -197,10 +197,66 @@
    "ts": 1792000800000,
    "r": -12.63,
    "ticker": "WAL"
+  },
+  {
+   "ts": 1792033200000,
+   "r": -13.642,
+   "ticker": "ATOM"
+  },
+  {
+   "ts": 1792033200000,
+   "r": -14.658,
+   "ticker": "DOT"
+  },
+  {
+   "ts": 1792033200000,
+   "r": -13.92,
+   "ticker": "MANTA"
+  },
+  {
+   "ts": 1792033200000,
+   "r": -14.932,
+   "ticker": "AVAX"
+  },
+  {
+   "ts": 1792033200000,
+   "r": -15.942,
+   "ticker": "ALGO"
+  },
+  {
+   "ts": 1792033200000,
+   "r": -16.956,
+   "ticker": "PEPE"
+  },
+  {
+   "ts": 1792033200000,
+   "r": -17.975,
+   "ticker": "ETH"
+  },
+  {
+   "ts": 1792033200000,
+   "r": -18.986,
+   "ticker": "WLD"
+  },
+  {
+   "ts": 1792033200000,
+   "r": -19.999,
+   "ticker": "ARB"
+  },
+  {
+   "ts": 1792040400000,
+   "r": -19.237,
+   "ticker": "MAPO"
+  },
+  {
+   "ts": 1792044000000,
+   "r": -20.245,
+   "ticker": "WAL"
   }
  ],
  "exit_reasons": {
-  "stop": 15,
+  "be_stop": 2,
+  "stop": 24,
   "t2": 1
  }
 }
