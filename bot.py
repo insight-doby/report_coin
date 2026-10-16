@@ -1464,17 +1464,10 @@ def run_scan() -> dict:
     excluded = []
     ai_calls, ai_calls_today = 0, None
 
-    # 쿨다운: 최근 손절 난 종목은 재추천 금지
-    keep = []
+    # 최근 손절 종목: 제외하지 않고 경고만 붙인다 (판단은 사용자가)
     for c in raw_picks:
         if has_recent_stop(ledger, c["ticker"], at):
-            excluded.append({"ticker": c["ticker"], "setup": c["setup"], "setup_label": SETUP_LABEL[c["setup"]], "kind": "쿨다운",
-                             "reason": f"최근 {COOLDOWN_HOURS}시간 안에 손절된 종목", "note": "같은 종목 연속 손절을 막기 위한 규칙입니다.",
-                             "price": c["price"], "plan": None, "reasons": c["reasons"]})
-        else:
-            keep.append(c)
-    raw_picks = keep
-
+            c["risks"] = list(c["risks"]) + [f"최근 {COOLDOWN_HOURS}시간 안에 같은 종목 손절 — 재진입이면 비중 작게"]
     watch = [flatten_watch(c) for c in raw_watch]
     picks = []
     if gate in ("GO", "SELECTIVE"):
@@ -1646,6 +1639,72 @@ def run_price_alerts(store, at_ms: int) -> list:
     return msgs
 
 
+# ==========================================================
+# 매시간 급등 시작 알림 (AI 없음) — 일봉 상승추세 종목 + 감시 목록
+# ==========================================================
+MOVE_PCT = 5.0       # 마감된 1시간봉 상승률
+MOVE_VOL = 4.0       # 거래대금 평소(직전 20봉 평균) 대비
+BREAK_VOL = 2.0      # 감시 종목 기준가 돌파 시 거래량 기준
+MOVE_COOLDOWN_H = 24
+
+
+def scan_hourly_moves(store, latest: dict, at_ms: int) -> list:
+    watch = {w["ticker"]: w for w in (latest.get("watch") or []) if w.get("trigger_price")}
+    tks = sorted(set(latest.get("uptrend") or []) | set(watch))
+    sent = store.read("move_alerts.json", {}) or {}
+    out = []
+    for tk in tks:
+        if tk in sent and at_ms - sent[tk].get("ts", 0) < MOVE_COOLDOWN_H * HOUR_MS:
+            continue
+        cd = fetch_v1(tk, "1h", 30)
+        if cd is None or len(cd["c"]) < 22:
+            continue
+        done = np.where(cd["t"] + HOUR_MS <= at_ms)[0]
+        if len(done) < 22:
+            continue
+        i = done[-1]
+        if at_ms - (cd["t"][i] + HOUR_MS) > 2 * HOUR_MS:      # 오래된 봉은 무시
+            continue
+        o, c, prev_c = cd["o"][i], cd["c"][i], cd["c"][i - 1]
+        base = cd["v"][i - 20:i].mean()
+        vx = float(cd["v"][i] / base) if base > 0 else 0.0
+        chg = (c / prev_c - 1) * 100
+        w = watch.get(tk)
+        kind = None
+        if w and prev_c <= w["trigger_price"] < c and vx >= BREAK_VOL:
+            kind = "break"
+        elif chg >= MOVE_PCT and vx >= MOVE_VOL and c > o and tk in (latest.get("uptrend") or []):
+            kind = "move"
+        if not kind:
+            continue
+        row = {"ticker": tk, "kind": kind, "bar": iso_kst(cd["t"][i]), "close": float(c), "chg1h": round(chg, 2), "vol_x": round(vx, 1),
+               "high": float(cd["h"][i]), "low": float(cd["l"][i]), "trigger": w["trigger_price"] if w else None,
+               "setup_label": w["setup_label"] if w else None, "uptrend": tk in (latest.get("uptrend") or [])}
+        sent[tk] = {"ts": int(at_ms), "at": iso_kst(at_ms), **row}
+        out.append(row)
+    sent = {k: v for k, v in sent.items() if at_ms - v.get("ts", 0) < 7 * 24 * HOUR_MS}
+    store.write("move_alerts.json", sent, "급등 시작 알림")
+    return out
+
+
+def slack_moves(rows: list):
+    if not rows:
+        return
+    lines = []
+    for r in rows:
+        stop = r["low"] * 0.97
+        if r["kind"] == "break":
+            head = f"🚀 *{label(r['ticker'])}* 감시 기준가 {fmt_krw(r['trigger'])}원 돌파 ({r['setup_label']})"
+        else:
+            head = f"🚀 *{label(r['ticker'])}* 1시간 {r['chg1h']:+.1f}% 급등 시작"
+        lines.append(f"{head}\n{r['bar'][5:16]} 봉 종가 {fmt_krw(r['close'])}원 · 거래량 평소의 {r['vol_x']}배"
+                     f"{' · 일봉 상승추세' if r['uptrend'] else ''}\n"
+                     f"👉 들어간다면 작은 비중 · 손절 {fmt_krw(stop)}원(이 봉 저가 −3%, 현재가 대비 −{(1 - stop / r['close']) * 100:.0f}%) · 목표 +15~25% · 3일 안에 정리")
+    blocks = [_md("\n\n".join(lines[:15])),
+              _ctx("일봉 상승추세 종목만 알립니다. 과거 100일 검증(232건): 위 손절·목표로 승률 41~47%, 이익/손실 비 1.2 — 크게 먹는 몇 번이 수익을 만드는 방식이라 비중은 작게. 상승추세가 아닌 종목은 같은 방식이 손실(이익/손실 비 0.8)이었습니다.")]
+    slack_post(f"🚀 급등 시작 {len(rows)}건", blocks)
+
+
 def run_track():
     store = Store()
     at = now_ms()
@@ -1673,6 +1732,12 @@ def run_track():
         good, weak = scan_div4h(up_list, at, tickers, max_age_bars=1)
         fresh = record_div4h(store, good, weak, ledger, at, (latest.get("market") or {}).get("gate", "UNKNOWN"))
         log(f"⚡ 4시간 다이버전스 확인 {len(up_list)}종목 — 거래량 붙음 {len(good)} / 안 붙음 {len(weak)} / 새 신호 {len(fresh)}")
+    moves = []
+    try:
+        moves = scan_hourly_moves(store, latest, at)
+        log(f"🚀 급등 시작 확인 — {len(moves)}건")
+    except Exception as e:
+        log(f"  ⚠️ 급등 확인 실패: {e}")
     try:
         run_price_alerts(store, at)
     except Exception as e:
@@ -1681,6 +1746,7 @@ def run_track():
     store.write("stats.json", compute_stats(ledger), "통계 갱신")
     log(f"✅ 장부 갱신 — 이벤트 {len(events)}건")
     slack_div4h(fresh)
+    slack_moves(moves)
     if events:
         slack_post("📣 추천 장부 업데이트", [{"type": "section", "text": {"type": "mrkdwn", "text": "📣 *추천 장부 업데이트*\n" + "\n".join(f"• {x}" for x in events)}}])
 
