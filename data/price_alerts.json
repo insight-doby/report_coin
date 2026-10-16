@@ -1,0 +1,54 @@
+{
+ "note": "가격 알림 목록. status가 active인 것만 매시간 :20에 확인합니다. 한 번 울리면 fired로 바뀝니다. 7일 지나면 expired.",
+ "alerts": [
+  {
+   "id": "ADA-4h-314-up",
+   "ticker": "ADA",
+   "tf": "4h",
+   "cond": "close_above",
+   "price": 314,
+   "action": "반등 확인 — 매수 고려 자리. 손절은 305원 아래, 다음 저항 332원(4시간 60선)·335원(일봉 20일선).",
+   "status": "active",
+   "created_ts": 1792112153673,
+   "created_at": "2026-10-16T09:55:53+09:00",
+   "expires_ts": 1792716953673,
+   "vol_x": 1.5
+  },
+  {
+   "id": "ADA-1h-308-touch",
+   "ticker": "ADA",
+   "tf": "1h",
+   "cond": "low_below",
+   "price": 308,
+   "action": "지정가 308원 구간 도달 — 계획 2(싸게 걸어두기) 자리. 손절 294원 아래.",
+   "status": "active",
+   "created_ts": 1792112153673,
+   "created_at": "2026-10-16T09:55:53+09:00",
+   "expires_ts": 1792716953673
+  },
+  {
+   "id": "ADA-1d-308-down",
+   "ticker": "ADA",
+   "tf": "1d",
+   "cond": "close_below",
+   "price": 308,
+   "action": "일봉 60일선 이탈 — 신규 매수 보류. 다음 지지는 어제 저점 294원.",
+   "status": "active",
+   "created_ts": 1792112153673,
+   "created_at": "2026-10-16T09:55:53+09:00",
+   "expires_ts": 1792716953673
+  },
+  {
+   "id": "ADA-1h-294-down",
+   "ticker": "ADA",
+   "tf": "1h",
+   "cond": "close_below",
+   "price": 294,
+   "action": "어제 저점 이탈 — 지지 붕괴. 보유 중이면 손절 검토 (엔진 손절선 292.7원).",
+   "status": "active",
+   "created_ts": 1792112153673,
+   "created_at": "2026-10-16T09:55:53+09:00",
+   "expires_ts": 1792716953673
+  }
+ ]
+}

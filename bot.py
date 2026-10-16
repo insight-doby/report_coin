@@ -1555,6 +1555,97 @@ def run_scan() -> dict:
     return latest
 
 
+# ==========================================================
+# 가격 알림 (data/price_alerts.json — 사람이 정한 가격 조건, 매시간 확인, AI 없음)
+# ==========================================================
+TF_PATH = {"1h": ("minutes/60", HOUR_MS), "4h": ("minutes/240", 4 * HOUR_MS), "1d": ("days", 24 * HOUR_MS)}
+TF_LABEL = {"1h": "1시간봉", "4h": "4시간봉", "1d": "일봉"}
+
+
+def fetch_v1(ticker: str, tf: str, count: int = 60) -> Optional[dict]:
+    path, _ = TF_PATH[tf]
+    j = http_json(f"https://api.bithumb.com/v1/candles/{path}", params={"market": f"KRW-{ticker}", "count": count}, retries=2)
+    if not isinstance(j, list) or not j:
+        return None
+    rows = []
+    for r in reversed(j):
+        try:
+            t = datetime.fromisoformat(r["candle_date_time_kst"]).replace(tzinfo=KST).timestamp() * 1000
+            rows.append((t, float(r["opening_price"]), float(r["high_price"]), float(r["low_price"]),
+                         float(r["trade_price"]), float(r.get("candle_acc_trade_price") or 0)))
+        except Exception:
+            continue
+    a = np.array(rows, float)
+    return {"t": a[:, 0], "o": a[:, 1], "h": a[:, 2], "l": a[:, 3], "c": a[:, 4], "v": a[:, 5]}
+
+
+def check_alert(al: dict, cd: dict, at_ms: float) -> list:
+    """마감된 봉 중 아직 확인 안 한 봉에서 조건을 본다. 돌려주는 값: [(kind, 봉 정보)]  kind = hit / weak"""
+    _, bar = TF_PATH[al["tf"]]
+    since = max(al.get("created_ts", 0), al.get("checked_ts", 0))
+    out = []
+    for i in range(len(cd["t"])):
+        end = cd["t"][i] + bar
+        if end > at_ms or end <= since:
+            continue
+        c, h, l, v = cd["c"][i], cd["h"][i], cd["l"][i], cd["v"][i]
+        prev = cd["v"][max(0, i - 20):i]
+        vx = float(v / prev.mean()) if len(prev) >= 5 and prev.mean() > 0 else None
+        cond, p = al["cond"], al["price"]
+        ok = (cond == "close_above" and c > p) or (cond == "close_below" and c < p) or \
+             (cond == "high_above" and h >= p) or (cond == "low_below" and l <= p)
+        if not ok:
+            continue
+        info = {"bar_start": iso_kst(cd["t"][i]), "close": float(c), "high": float(h), "low": float(l), "vol_x": vx}
+        need = al.get("vol_x")
+        if need and (vx is None or vx < need):
+            out.append(("weak", info))
+            continue
+        out.append(("hit", info))
+        break
+    return out
+
+
+COND_TEXT = {"close_above": "위에서 마감", "close_below": "아래에서 마감", "high_above": "도달(고가)", "low_below": "도달(저가)"}
+
+
+def run_price_alerts(store, at_ms: int) -> list:
+    cfg = store.read("price_alerts.json", {"alerts": []}) or {"alerts": []}
+    msgs, cache = [], {}
+    for al in cfg.get("alerts", []):
+        if al.get("status") != "active":
+            continue
+        if al.get("expires_ts") and at_ms > al["expires_ts"]:
+            al["status"] = "expired"
+            continue
+        key = (al["ticker"], al["tf"])
+        if key not in cache:
+            cache[key] = fetch_v1(al["ticker"], al["tf"], 60)
+        cd = cache[key]
+        if cd is None:
+            continue
+        res = check_alert(al, cd, at_ms)
+        al["checked_ts"] = int(at_ms)
+        al["checked_at"] = iso_kst(at_ms)
+        al["last_price"] = float(cd["c"][-1])
+        head = f"{label(al['ticker'])} {TF_LABEL[al['tf']]} {fmt_krw(al['price'])}원 {COND_TEXT[al['cond']]}"
+        for kind, b in res:
+            vx = f" · 거래량 평소의 {b['vol_x']:.1f}배" if b["vol_x"] is not None else ""
+            if kind == "hit":
+                al.update(status="fired", fired_at=iso_kst(at_ms), fired_bar=b)
+                msgs.append(f"🔔 *{head}*\n{b['bar_start'][5:16]} 봉 종가 {fmt_krw(b['close'])}원{vx}\n👉 {al.get('action', '')}")
+            elif not al.get("weak_sent"):
+                al["weak_sent"] = iso_kst(at_ms)
+                msgs.append(f"⚠️ *{head} — 거래량 부족*\n{b['bar_start'][5:16]} 봉 종가 {fmt_krw(b['close'])}원{vx} (기준 {al['vol_x']}배)\n"
+                            f"👉 아직 약한 돌파입니다. 거래량이 붙은 봉이 나오면 다시 알려드립니다.")
+    cfg["checked_at"] = iso_kst(at_ms)
+    store.write("price_alerts.json", cfg, "가격 알림 확인")
+    if msgs:
+        slack_post("🔔 가격 알림", [_md(m) for m in msgs])
+    log(f"🔔 가격 알림 {sum(a.get('status') == 'active' for a in cfg.get('alerts', []))}개 감시 중 — 이번 알림 {len(msgs)}건")
+    return msgs
+
+
 def run_track():
     store = Store()
     at = now_ms()
@@ -1582,6 +1673,10 @@ def run_track():
         good, weak = scan_div4h(up_list, at, tickers, max_age_bars=1)
         fresh = record_div4h(store, good, weak, ledger, at, (latest.get("market") or {}).get("gate", "UNKNOWN"))
         log(f"⚡ 4시간 다이버전스 확인 {len(up_list)}종목 — 거래량 붙음 {len(good)} / 안 붙음 {len(weak)} / 새 신호 {len(fresh)}")
+    try:
+        run_price_alerts(store, at)
+    except Exception as e:
+        log(f"  ⚠️ 가격 알림 실패: {e}")
     store.write("ledger.json", ledger, f"장부 갱신 {iso_kst(at)}")
     store.write("stats.json", compute_stats(ledger), "통계 갱신")
     log(f"✅ 장부 갱신 — 이벤트 {len(events)}건")
