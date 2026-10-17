@@ -102,13 +102,14 @@
    "cond": "close_below",
    "price": 855,
    "action": "쌍바닥(859원) 이탈 — 반등 시나리오 무효. 보유 중이면 손절.",
-   "status": "active",
+   "status": "cancelled",
    "created_ts": 1792112433556,
    "created_at": "2026-10-16T10:00:33+09:00",
    "expires_ts": 1792717233556,
    "checked_ts": 1792246406955,
    "checked_at": "2026-10-17T23:13:26+09:00",
-   "last_price": 893.0
+   "last_price": 893.0,
+   "note": "장기 모으기로 전환 (10/18)"
   },
   {
    "id": "LINK-4h-17100-up",
@@ -195,13 +196,14 @@
    "cond": "close_below",
    "price": 889,
    "action": "900원선 지지 실패 — 859원 쌍바닥 재시험 가능성. 신규 매수 보류.",
-   "status": "active",
+   "status": "cancelled",
    "created_ts": 1792200325736,
    "created_at": "2026-10-17T10:25:25+09:00",
    "expires_ts": 1792805125736,
    "checked_ts": 1792246406955,
    "checked_at": "2026-10-17T23:13:26+09:00",
-   "last_price": 893.0
+   "last_price": 893.0,
+   "note": "장기 모으기로 전환 (10/18)"
   },
   {
    "id": "LINK-acc1-15400",
@@ -298,6 +300,54 @@
    "created_ts": 1792253823977,
    "created_at": "2026-10-18T01:17:03+09:00",
    "expires_ts": 1797437823977
+  },
+  {
+   "id": "VIRTUAL-acc1-860",
+   "ticker": "VIRTUAL",
+   "tf": "1h",
+   "cond": "low_below",
+   "price": 860,
+   "action": "모으기 1구간 도달 (10/15 쌍바닥·9월 저점 840~860원). 지정가 체결 확인.",
+   "status": "active",
+   "created_ts": 1792253975324,
+   "created_at": "2026-10-18T01:19:35+09:00",
+   "expires_ts": 1797437975324
+  },
+  {
+   "id": "VIRTUAL-acc2-790",
+   "ticker": "VIRTUAL",
+   "tf": "1h",
+   "cond": "low_below",
+   "price": 790,
+   "action": "모으기 2구간 도달 (6~9월 반복 바닥 770~790원). 지정가 체결 확인.",
+   "status": "active",
+   "created_ts": 1792253975324,
+   "created_at": "2026-10-18T01:19:35+09:00",
+   "expires_ts": 1797437975324
+  },
+  {
+   "id": "VIRTUAL-acc3-730",
+   "ticker": "VIRTUAL",
+   "tf": "1h",
+   "cond": "low_below",
+   "price": 730,
+   "action": "모으기 3구간 도달 (8월·2월 저점 680~730원). 지정가 체결 확인.",
+   "status": "active",
+   "created_ts": 1792253975324,
+   "created_at": "2026-10-18T01:19:35+09:00",
+   "expires_ts": 1797437975324
+  },
+  {
+   "id": "VIRTUAL-thesis-670",
+   "ticker": "VIRTUAL",
+   "tf": "1d",
+   "cond": "close_below",
+   "price": 670,
+   "action": "장기 근거 이탈 — 올해 바닥(681원) 아래 일봉 마감. 추가 매수 중단, 비중 재검토.",
+   "status": "active",
+   "created_ts": 1792253975324,
+   "created_at": "2026-10-18T01:19:35+09:00",
+   "expires_ts": 1797437975324
   }
  ],
  "checked_at": "2026-10-17T23:13:26+09:00"
