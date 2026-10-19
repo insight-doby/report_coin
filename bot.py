@@ -1756,23 +1756,80 @@ def run_track():
 # ==========================================================
 # 10. 슬랙
 # ==========================================================
+def _tg_inline(t: str) -> str:
+    """슬랙 mrkdwn 한 덩어리 → 텔레그램 HTML."""
+    links = []
+    def keep(m):
+        links.append((m.group(1), m.group(2)))
+        return f"\x00{len(links) - 1}\x00"
+    t = re.sub(r"<(https?://[^|>]+)\|([^>]+)>", keep, t)
+    t = re.sub(r"<(https?://[^>]+)>", lambda m: keep(type("M", (), {"group": lambda s, i: m.group(1)})()), t)
+    t = t.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    t = re.sub(r"```\n?(.+?)```", r"<pre>\1</pre>", t, flags=re.S)
+    t = re.sub(r"`([^`\n]+)`", r"<code>\1</code>", t)
+    t = re.sub(r"(?<![\w*])\*([^*\n]+)\*(?![\w*])", r"<b>\1</b>", t)
+    t = re.sub(r"(?<![\w_])_([^_\n]+)_(?![\w_])", r"<i>\1</i>", t)
+    def link(m):
+        url, label = links[int(m.group(1))]
+        label = label.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        return f'<a href="{url.replace(chr(34), "%22")}">{label}</a>'
+    return re.sub(r"\x00(\d+)\x00", link, t)
+
+
+def _tg_drop_thread(t: str) -> str:
+    """텔레그램엔 슬랙 스레드가 안 가므로 '스레드' 안내는 뺀다."""
+    t = re.sub(r"\s*_?\(자세히는 스레드\)_?", "", t)
+    return " · ".join(x for x in t.split(" · ") if "스레드" not in x)
+
+
 def _blocks_text(text: str, blocks: list) -> str:
-    out = []
+    """슬랙 블록 → 보기 좋게 줄 나눈 텔레그램 HTML."""
+    out = []                                  # 문단 목록 (빈 줄로 구분)
     for b in blocks or []:
-        if b.get("type") == "section":
+        typ = b.get("type")
+        if typ == "header":
+            out.append("<b>" + _tg_inline((b.get("text") or {}).get("text", "")) + "</b>")
+        elif typ == "section":
+            parts = []
             t = (b.get("text") or {}).get("text")
             if t:
-                out.append(t)
+                parts.append(_tg_inline(_tg_drop_thread(t)))
             for f in b.get("fields") or []:
-                if f.get("text"):
-                    out.append(f["text"])
-        elif b.get("type") == "context":
-            out += [e.get("text", "") for e in b.get("elements", []) if e.get("text")]
-        elif b.get("type") == "header":
-            out.append((b.get("text") or {}).get("text", ""))
-    t = "\n".join(x for x in out if x) or text
-    t = re.sub(r"<(https?://[^|>]+)\|([^>]+)>", r"\2 (\1)", t)      # 슬랙 링크 → 일반 텍스트
-    return t.replace("*", "")
+                ft = (f.get("text") or "").strip()
+                if ft:
+                    head, _, val = ft.partition("\n")
+                    parts.append(f"▪️ {_tg_inline(head)}: {_tg_inline(val.strip())}" if val else "▪️ " + _tg_inline(head))
+            if parts:
+                # 필드만 있는 블록은 앞 문단에 붙인다
+                if not t and out:
+                    out[-1] += "\n" + "\n".join(parts)
+                else:
+                    out.append("\n".join(parts))
+        elif typ == "context":
+            for e in b.get("elements", []):
+                et = _tg_drop_thread(e.get("text") or "")
+                if not et:
+                    continue
+                pieces = [x.strip() for x in et.split(" · ") if x.strip()]
+                if len(pieces) >= 4:          # 날짜 · 기간 · 비중 · 설명 → 앞 세 개 한 줄, 나머지는 줄마다
+                    lines = [" · ".join(pieces[:3])] + pieces[3:]
+                else:
+                    lines = pieces
+                out.append("\n".join("<i>" + _tg_inline(x) + "</i>" if not x.startswith("<http") else _tg_inline(x) for x in lines))
+        elif typ == "divider":
+            out.append("──────────")
+    if not out:
+        return _tg_inline(text)
+    res, prev_div = [], False
+    for p in out:                              # 구분선 중복·끝 구분선 정리
+        is_div = p == "──────────"
+        if is_div and (prev_div or not res):
+            continue
+        res.append(p)
+        prev_div = is_div
+    while res and res[-1] == "──────────":
+        res.pop()
+    return "\n\n".join(res)
 
 
 def telegram_chat_id() -> str:
@@ -1799,14 +1856,28 @@ def telegram_chat_id() -> str:
     return TELEGRAM_CHAT_ID
 
 
-def telegram_send(text: str) -> bool:
+def telegram_send(text: str, html: bool = False) -> bool:
     if not TELEGRAM_BOT_TOKEN or not telegram_chat_id():
         return False
+    chunks, cur = [], ""
+    for para in text.split("\n\n"):                    # 텔레그램 한 메시지 4096자 제한 → 문단 단위로 나눔
+        if cur and len(cur) + len(para) + 2 > 3900:
+            chunks.append(cur)
+            cur = ""
+        cur = (cur + "\n\n" + para) if cur else para
+    if cur:
+        chunks.append(cur)
     ok = True
-    for i in range(0, len(text), 3900):                  # 텔레그램 한 메시지 4096자 제한
+    for c in chunks:
+        body = {"chat_id": TELEGRAM_CHAT_ID, "text": c[:4000], "disable_web_page_preview": True}
+        if html:
+            body["parse_mode"] = "HTML"
         try:
-            r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
-                              json={"chat_id": TELEGRAM_CHAT_ID, "text": text[i:i + 3900], "disable_web_page_preview": True}, timeout=15)
+            r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage", json=body, timeout=15)
+            if not r.json().get("ok") and html:      # 서식 오류면 태그 빼고 다시
+                body.pop("parse_mode")
+                body["text"] = re.sub(r"<[^>]+>", "", c).replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&")[:4000]
+                r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage", json=body, timeout=15)
             if not r.json().get("ok"):
                 log(f"  ⚠️ 텔레그램 오류: {r.text[:120]}")
                 ok = False
@@ -1820,7 +1891,7 @@ def slack_post(text: str, blocks: list, thread_ts: Optional[str] = None) -> Opti
     """메시지를 보내고 ts(스레드 댓글용)를 돌려준다. 실패하면 None.
     텔레그램이 설정돼 있으면 본문(스레드 댓글 제외)을 텔레그램으로도 보낸다."""
     if not thread_ts:
-        telegram_send(_blocks_text(text, blocks))
+        telegram_send(_blocks_text(text, blocks), html=True)
     if not (SLACK_BOT_TOKEN and SLACK_CHANNEL_ID):
         return None
     body = {"channel": SLACK_CHANNEL_ID, "text": text, "blocks": blocks[:50], "unfurl_links": False}
@@ -2282,10 +2353,14 @@ def main(argv=None):
     elif cmd == "snapshot":
         run_snapshot(argv[1:])
     elif cmd == "ping":
-        ok = telegram_send("✅ 코인 알림 봇 연결 완료\n앞으로 가격 알림·급등 시작·섹터 과열·스캔 요약이 여기로도 옵니다.")
+        ok = telegram_send("✅ <b>텔레그램 알림 서식 개선</b>\n\n줄바꿈·굵은 글씨·링크가 적용됩니다. 아래는 오늘 스캔 요약을 새 서식으로 다시 보낸 것입니다.", html=True)
         log("텔레그램 테스트:", "성공" if ok else ("채팅방을 못 찾음 — 봇에게 /start 를 보내주세요" if TELEGRAM_BOT_TOKEN else "토큰 없음"))
         if not ok:
             raise SystemExit(1)
+        if "preview" in argv[1:]:                    # 마지막 스캔 요약을 텔레그램으로만 다시 보내 서식 확인
+            latest = Store().read("latest.json", {}) or {}
+            if latest.get("market"):
+                slack_scan(latest, [])
     else:
         raise SystemExit("사용법: python bot.py [scan|track|backtest 티커...]")
 
