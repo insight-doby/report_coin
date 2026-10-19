@@ -2281,6 +2281,11 @@ def main(argv=None):
         run_pumpdip(argv[1:])
     elif cmd == "snapshot":
         run_snapshot(argv[1:])
+    elif cmd == "ping":
+        ok = telegram_send("✅ 코인 알림 봇 연결 완료\n앞으로 가격 알림·급등 시작·섹터 과열·스캔 요약이 여기로도 옵니다.")
+        log("텔레그램 테스트:", "성공" if ok else ("채팅방을 못 찾음 — 봇에게 /start 를 보내주세요" if TELEGRAM_BOT_TOKEN else "토큰 없음"))
+        if not ok:
+            raise SystemExit(1)
     else:
         raise SystemExit("사용법: python bot.py [scan|track|backtest 티커...]")
 

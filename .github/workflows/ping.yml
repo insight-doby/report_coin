@@ -1,0 +1,24 @@
+name: ping
+on: { workflow_dispatch: }
+permissions: { contents: write }
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - run: pip install requests numpy
+      - name: 텔레그램 테스트
+        env:
+          LOCAL_DATA_DIR: data
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python -u bot.py ping
+      - name: 채팅방 기억 커밋
+        if: always()
+        run: |
+          git config user.name "bot"; git config user.email "bot@users.noreply.github.com"
+          git add data && (git diff --cached --quiet || git commit -m "텔레그램 채팅방")
+          git pull --rebase origin ${{ github.ref_name }} && git push
