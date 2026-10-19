@@ -10,7 +10,7 @@ cd = {"t": t, "o": o, "h": c + 3, "l": np.minimum(o, c) - 2, "c": c, "v": v}
 flat = {"t": t, "o": np.full(n, 10.0), "h": np.full(n, 10.1), "l": np.full(n, 9.9), "c": np.full(n, 10.0), "v": np.full(n, 100.0)}
 bot.fetch_v1 = lambda tk, tf, k=30: cd if tk == "WLD" else flat
 sent = []
-bot.slack_post = lambda text, blocks, thread_ts=None: sent.append(text) or "1"
+bot.slack_post = lambda text, blocks, thread_ts=None, tg=True: sent.append(text) or "1"
 with tempfile.TemporaryDirectory() as td:
     bot.LOCAL_DATA_DIR = td
     s = bot.Store()

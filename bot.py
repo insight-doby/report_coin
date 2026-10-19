@@ -1892,10 +1892,10 @@ def telegram_send(text: str, html: bool = False) -> bool:
     return ok
 
 
-def slack_post(text: str, blocks: list, thread_ts: Optional[str] = None) -> Optional[str]:
+def slack_post(text: str, blocks: list, thread_ts: Optional[str] = None, tg: bool = True) -> Optional[str]:
     """메시지를 보내고 ts(스레드 댓글용)를 돌려준다. 실패하면 None.
     텔레그램이 설정돼 있으면 본문(스레드 댓글 제외)을 텔레그램으로도 보낸다."""
-    if not thread_ts:
+    if tg and not thread_ts:
         telegram_send(_blocks_text(text, blocks), html=True)
     if not (SLACK_BOT_TOKEN and SLACK_CHANNEL_ID):
         return None
@@ -1957,6 +1957,81 @@ def _pick_blocks(p: dict) -> list:
     return blocks
 
 
+def telegram_scan_text(latest: dict, events: list) -> str:
+    """텔레그램 전용 스캔 요약: 핵심은 위에, 상세는 접힘 박스로."""
+    e = lambda x: str(x).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    m = latest["market"]
+    icon = {"GO": "🟢", "SELECTIVE": "🟡", "STOP": "🔴"}.get(m["gate"], "⚪")
+    when = latest["generated_at"][5:16].replace("T", " ").replace("-", "/")
+    picks = latest.get("picks") or []
+    out = [f"{icon} <b>{e(m['label'])}</b>  ·  추천 {len(picks)}개\n"
+           f"<i>{when} · 2~5일 스윙 · 권장 비중 ×{m['size_mult']:g}</i>"]
+    if m.get("headline"):
+        out.append(f"<blockquote>{e(m['headline'])}</blockquote>")
+    if not picks:
+        out.append("오늘은 조건을 충족한 종목이 없습니다.\n억지로 사지 않는 것도 전략입니다.")
+    for head, group in (("✅ <b>지금 매수 구간</b>", [p for p in picks if p["state"] == "now"]),
+                        ("⏳ <b>지정가 대기</b>", [p for p in picks if p["state"] != "now"])):
+        if not group:
+            continue
+        out.append(f"{head} ({len(group)})")
+        for p in group:
+            ai = p.get("ai") or {}
+            flag = {"block": " ⛔ 심각한 악재", "caution": " ⚠️ 악재 주의"}.get(ai.get("status"), "")
+            if p["state"] == "now":
+                act = f"현재 <b>{fmt_krw(p['price'])}</b> → 지금 매수 가능"
+            else:
+                gap = (p["price"] / p["zone_hi"] - 1) * 100
+                act = f"현재 {fmt_krw(p['price'])} → <b>{fmt_krw(p['zone_hi'])} 이하에서 매수</b> (-{gap:.1f}%)"
+            why = p["reasons"][1] if len(p["reasons"]) > 1 else p["reasons"][0]
+            card = (f"<b>{e(label(p['ticker']))}</b> · {e(p['setup_label'])}{flag}\n{act}\n"
+                    f"<code>매수  {fmt_krw(p['zone_lo'])} ~ {fmt_krw(p['zone_hi'])}</code>\n"
+                    f"<code>손절  {fmt_krw(p['stop'])}  -{p['stop_pct']:.1f}%</code>\n"
+                    f"<code>1차   {fmt_krw(p['t1'])}  +{p['t1_pct']:.1f}%  절반 매도</code>\n"
+                    f"<code>2차   {fmt_krw(p['t2'])}  +{p['t2_pct']:.1f}%</code>\n"
+                    f"📈 {e(why)}")
+            if flag and ai.get("note"):
+                card += f"\n{flag.strip()}: {e(_short(ai['note'], 80))}"
+            out.append(card)
+
+    # ── 상세 (접힘) ──
+    checks = m.get("checks") or []
+    if checks:
+        okn = sum(1 for k in checks if k["ok"])
+        out.append(f"🚦 <b>시장 체크</b>  {okn}/{len(checks)} 통과\n<blockquote expandable>"
+                   + "\n".join(("✅ " if k["ok"] else "⚠️ ") + e(k["text"]) for k in checks) + "</blockquote>")
+    watch = (latest.get("watch") or [])[:8]
+    if watch:
+        rows = []
+        for w in watch:
+            d = f" ({w['dist_pct']:+.1f}%)" if w.get("dist_pct") is not None else ""
+            rows.append(f"• <b>{e(label(w['ticker']))}</b> · {e(w['setup_label'])} · 기준가 {fmt_krw(w['trigger_price'])}{d}")
+        out.append(f"👀 <b>감시 후보</b>  {len(watch)}개 · 조건 맞으면 추천으로\n<blockquote expandable>" + "\n".join(rows) + "</blockquote>")
+    ai_rows = []
+    for p in picks:
+        ai = p.get("ai") or {}
+        if ai.get("status") in ("block", "caution") and ai.get("note"):
+            ai_rows.append(f"<b>{e(label(p['ticker']))}</b> — {e(ai['note'])}")
+        if ai.get("positive"):
+            ai_rows.append(f"<b>{e(label(p['ticker']))}</b> 💡 {e(ai['positive'])}")
+    if ai_rows:
+        out.append("🤖 <b>AI 뉴스 확인</b>  원문 확인 필요\n<blockquote expandable>" + "\n\n".join(ai_rows) + "</blockquote>")
+    pumps = (latest.get("pumps") or [])[:6]
+    if pumps:
+        out.append("🚀 <b>최근 7일 급등</b>  관찰용 · 매수 신호 아님\n<blockquote expandable>" + "\n".join(
+            f"• <b>{e(label(x['ticker']))}</b> +{x['pump_pct']:.0f}% → 고점 대비 {x['from_peak_pct']:+.0f}%" for x in pumps) + "</blockquote>")
+    if events:
+        out.append("📣 <b>지난 추천 진행</b>\n<blockquote expandable>" + "\n".join("• " + e(x) for x in events[:10]) + "</blockquote>")
+    f = latest.get("funnel")
+    tail = []
+    if f:
+        tail.append(f"🔎 스캔 {f['scanned']} → 상승추세 {f['uptrend']} → 눌림 {f['uptrend_pulled_back']} → 매수 조건 {f['picks']}")
+    tail.append(f'📊 <a href="{DASHBOARD_URL}">대시보드에서 실시간 가격 보기</a>')
+    tail.append("<i>투자 판단과 책임은 본인에게 있습니다</i>")
+    out.append("\n".join(tail))
+    return "\n\n".join(out)
+
+
 def slack_scan(latest: dict, events: list):
     m = latest["market"]
     icon = {"GO": "🟢", "SELECTIVE": "🟡", "STOP": "🔴"}.get(m["gate"], "⚪")
@@ -1981,7 +2056,8 @@ def slack_scan(latest: dict, events: list):
             blocks += _pick_blocks(p)
     blocks.append({"type": "divider"})
     blocks.append(_ctx(f"<{DASHBOARD_URL}|대시보드에서 실시간 가격 보기> · 감시 후보·AI 설명은 스레드에 · 투자 판단과 책임은 본인에게 있습니다"))
-    ts = slack_post(f"{icon} {m['label']} — 추천 {len(picks)}개", blocks)
+    telegram_send(telegram_scan_text(latest, events), html=True)
+    ts = slack_post(f"{icon} {m['label']} — 추천 {len(picks)}개", blocks, tg=False)
 
     # ── 스레드: 자세한 내용 ──
     th = []
@@ -2023,8 +2099,6 @@ def slack_scan(latest: dict, events: list):
         tail.append(f"🤖 AI 호출 오늘 {latest['ai_calls_today']}회")
     if tail:
         th.append(_ctx("\n".join(tail)))
-    if th:                                           # 텔레그램엔 스레드가 없으니 두 번째 메시지로
-        telegram_send(_blocks_text("상세", [_md("📋 *상세 — 감시 후보·AI 확인*")] + th), html=True)
     if not ts:
         return
     for i in range(0, len(th), 45):

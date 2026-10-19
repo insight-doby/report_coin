@@ -10,7 +10,7 @@ c[27] = 316; v[27] = 300       # 거래량 3배 돌파
 cd = {"t": t, "o": c, "h": c + 1, "l": c - 1, "c": c, "v": v}
 bot.fetch_v1 = lambda tk, tf, n=60: cd
 sent = []
-bot.slack_post = lambda text, blocks, thread_ts=None: sent.append(blocks) or "1"
+bot.slack_post = lambda text, blocks, thread_ts=None, tg=True: sent.append(blocks) or "1"
 with tempfile.TemporaryDirectory() as td:
     bot.LOCAL_DATA_DIR = td
     al = {"id": "x", "ticker": "ADA", "tf": "4h", "cond": "close_above", "price": 314, "vol_x": 1.5, "status": "active",
