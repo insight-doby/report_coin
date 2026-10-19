@@ -32,6 +32,8 @@ jobs:
           SLACK_BOT_TOKEN:  ${{ secrets.SLACK_BOT_TOKEN }}
           GEMINI_API_KEY:   ${{ secrets.GEMINI_API_KEY }}
           SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           WATCHLIST:        ${{ github.event.inputs.watchlist || vars.WATCHLIST }}
         run: python -u bot.py scan
       - name: 데이터 커밋

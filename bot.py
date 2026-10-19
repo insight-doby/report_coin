@@ -42,6 +42,8 @@ ENV = os.environ.get
 
 SLACK_BOT_TOKEN = ENV("SLACK_BOT_TOKEN", "")
 SLACK_CHANNEL_ID = ENV("SLACK_CHANNEL_ID", "")
+TELEGRAM_BOT_TOKEN = ENV("TELEGRAM_BOT_TOKEN", "")
+TELEGRAM_CHAT_ID = ENV("TELEGRAM_CHAT_ID", "")
 GEMINI_API_KEY = ENV("GEMINI_API_KEY", "").strip()
 GEMINI_MODEL = ENV("GEMINI_MODEL", "gemini-2.5-flash")
 GITHUB_TOKEN = ENV("GITHUB_TOKEN_BOT", "").strip()
@@ -1754,8 +1756,71 @@ def run_track():
 # ==========================================================
 # 10. 슬랙
 # ==========================================================
+def _blocks_text(text: str, blocks: list) -> str:
+    out = []
+    for b in blocks or []:
+        if b.get("type") == "section":
+            t = (b.get("text") or {}).get("text")
+            if t:
+                out.append(t)
+            for f in b.get("fields") or []:
+                if f.get("text"):
+                    out.append(f["text"])
+        elif b.get("type") == "context":
+            out += [e.get("text", "") for e in b.get("elements", []) if e.get("text")]
+        elif b.get("type") == "header":
+            out.append((b.get("text") or {}).get("text", ""))
+    t = "\n".join(x for x in out if x) or text
+    t = re.sub(r"<(https?://[^|>]+)\|([^>]+)>", r"\2 (\1)", t)      # 슬랙 링크 → 일반 텍스트
+    return t.replace("*", "")
+
+
+def telegram_chat_id() -> str:
+    """시크릿이 없으면 봇에게 마지막으로 말을 건 사람의 채팅방을 찾아 data/telegram.json 에 기억한다."""
+    global TELEGRAM_CHAT_ID
+    if TELEGRAM_CHAT_ID or not TELEGRAM_BOT_TOKEN:
+        return TELEGRAM_CHAT_ID
+    store = Store()
+    saved = (store.read("telegram.json", {}) or {}).get("chat_id")
+    if saved:
+        TELEGRAM_CHAT_ID = str(saved)
+        return TELEGRAM_CHAT_ID
+    try:
+        j = requests.get(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates", timeout=15).json()
+        for u in reversed(j.get("result", [])):
+            m = u.get("message") or u.get("channel_post") or {}
+            if m.get("chat", {}).get("id"):
+                TELEGRAM_CHAT_ID = str(m["chat"]["id"])
+                store.write("telegram.json", {"chat_id": TELEGRAM_CHAT_ID, "found_at": iso_kst(now_ms())}, "텔레그램 채팅방")
+                log(f"  📨 텔레그램 채팅방 등록")
+                break
+    except Exception as e:
+        log(f"  ⚠️ 텔레그램 채팅방 확인 실패: {e}")
+    return TELEGRAM_CHAT_ID
+
+
+def telegram_send(text: str) -> bool:
+    if not TELEGRAM_BOT_TOKEN or not telegram_chat_id():
+        return False
+    ok = True
+    for i in range(0, len(text), 3900):                  # 텔레그램 한 메시지 4096자 제한
+        try:
+            r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
+                              json={"chat_id": TELEGRAM_CHAT_ID, "text": text[i:i + 3900], "disable_web_page_preview": True}, timeout=15)
+            if not r.json().get("ok"):
+                log(f"  ⚠️ 텔레그램 오류: {r.text[:120]}")
+                ok = False
+        except Exception as e:
+            log(f"  ⚠️ 텔레그램 전송 실패: {e}")
+            ok = False
+    return ok
+
+
 def slack_post(text: str, blocks: list, thread_ts: Optional[str] = None) -> Optional[str]:
-    """메시지를 보내고 ts(스레드 댓글용)를 돌려준다. 실패하면 None."""
+    """메시지를 보내고 ts(스레드 댓글용)를 돌려준다. 실패하면 None.
+    텔레그램이 설정돼 있으면 본문(스레드 댓글 제외)을 텔레그램으로도 보낸다."""
+    if not thread_ts:
+        telegram_send(_blocks_text(text, blocks))
     if not (SLACK_BOT_TOKEN and SLACK_CHANNEL_ID):
         return None
     body = {"channel": SLACK_CHANNEL_ID, "text": text, "blocks": blocks[:50], "unfurl_links": False}
