@@ -1810,11 +1810,16 @@ def _blocks_text(text: str, blocks: list) -> str:
                 et = _tg_drop_thread(e.get("text") or "")
                 if not et:
                     continue
-                pieces = [x.strip() for x in et.split(" · ") if x.strip()]
-                if len(pieces) >= 4:          # 날짜 · 기간 · 비중 · 설명 → 앞 세 개 한 줄, 나머지는 줄마다
-                    lines = [" · ".join(pieces[:3])] + pieces[3:]
-                else:
-                    lines = pieces
+                lines = []
+                for ln in et.split("\n"):
+                    pieces = [x.strip() for x in ln.split(" · ") if x.strip()]
+                    if ln.startswith("🚦"):          # 신호등 체크는 항목마다 한 줄
+                        lines.append("🚦 시장 체크")
+                        lines += ["  " + x.replace("🚦 ", "") for x in pieces]
+                    elif len(pieces) >= 4:          # 날짜 · 기간 · 비중 · 설명 → 앞 세 개 한 줄, 나머지는 줄마다
+                        lines += [" · ".join(pieces[:3])] + pieces[3:]
+                    else:
+                        lines += pieces
                 out.append("\n".join("<i>" + _tg_inline(x) + "</i>" if not x.startswith("<http") else _tg_inline(x) for x in lines))
         elif typ == "divider":
             out.append("──────────")
@@ -1977,8 +1982,6 @@ def slack_scan(latest: dict, events: list):
     blocks.append({"type": "divider"})
     blocks.append(_ctx(f"<{DASHBOARD_URL}|대시보드에서 실시간 가격 보기> · 감시 후보·AI 설명은 스레드에 · 투자 판단과 책임은 본인에게 있습니다"))
     ts = slack_post(f"{icon} {m['label']} — 추천 {len(picks)}개", blocks)
-    if not ts:
-        return
 
     # ── 스레드: 자세한 내용 ──
     th = []
@@ -2020,6 +2023,10 @@ def slack_scan(latest: dict, events: list):
         tail.append(f"🤖 AI 호출 오늘 {latest['ai_calls_today']}회")
     if tail:
         th.append(_ctx("\n".join(tail)))
+    if th:                                           # 텔레그램엔 스레드가 없으니 두 번째 메시지로
+        telegram_send(_blocks_text("상세", [_md("📋 *상세 — 감시 후보·AI 확인*")] + th), html=True)
+    if not ts:
+        return
     for i in range(0, len(th), 45):
         slack_post("상세", th[i:i + 45], thread_ts=ts)
 
