@@ -1,10 +1,10 @@
 {
- "checked_at": "2026-10-20T10:53:07+09:00",
+ "checked_at": "2026-10-20T10:54:04+09:00",
  "items": [
   {
    "ticker": "BTC",
    "name": "비트코인",
-   "price": 109645000.0,
+   "price": 109700000.0,
    "role": "core",
    "source": "manual",
    "zones": [
@@ -15,7 +15,7 @@
       "10/15 저점"
      ],
      "weight": 25,
-     "hi_pct": -1.3
+     "hi_pct": -1.4
     },
     {
      "lo": 104600000,
@@ -24,7 +24,7 @@
       "주봉 기준선·9월 저점"
      ],
      "weight": 35,
-     "hi_pct": -4.2
+     "hi_pct": -4.3
     },
     {
      "lo": 101300000,
@@ -33,7 +33,7 @@
       "주봉 20선"
      ],
      "weight": 40,
-     "hi_pct": -7.4
+     "hi_pct": -7.5
     }
    ],
    "inval": 94000000,
@@ -185,24 +185,76 @@
     "ath_pct": -81,
     "cloud": "안",
     "wma50_up": false,
-    "rs26": 55.1
+    "rs26": 55.0
    },
    "note": "장기 보유 · 1구간 체결"
   }
  ],
  "candidates": [
   {
+   "ticker": "GTC",
+   "name": "깃코인",
+   "price": 444.0,
+   "structure": {
+    "weeks": 142,
+    "ath_pct": -90,
+    "cloud": "위",
+    "wma50_up": false,
+    "rs26": 242.9
+   },
+   "value24": 20686623651.75418
+  },
+  {
    "ticker": "NEAR",
    "name": "니어프로토콜",
-   "price": 6530.0,
+   "price": 6540.0,
    "structure": {
     "weeks": 129,
-    "ath_pct": -62,
+    "ath_pct": -61,
     "cloud": "위",
     "wma50_up": true,
-    "rs26": 234.2
+    "rs26": 235.1
    },
-   "value24": 4820159938.509115
+   "value24": 4819041986.808931
+  },
+  {
+   "ticker": "WLD",
+   "name": "월드코인",
+   "price": 721.0,
+   "structure": {
+    "weeks": 170,
+    "ath_pct": -96,
+    "cloud": "안",
+    "wma50_up": false,
+    "rs26": 97.4
+   },
+   "value24": 40830286336.28339
+  },
+  {
+   "ticker": "STX",
+   "name": "스택스",
+   "price": 477.0,
+   "structure": {
+    "weeks": 179,
+    "ath_pct": -91,
+    "cloud": "안",
+    "wma50_up": false,
+    "rs26": 47.1
+   },
+   "value24": 1565711797.0476239
+  },
+  {
+   "ticker": "ARB",
+   "name": "아비트럼",
+   "price": 268.0,
+   "structure": {
+    "weeks": 188,
+    "ath_pct": -92,
+    "cloud": "안",
+    "wma50_up": false,
+    "rs26": 46.2
+   },
+   "value24": 1958553521.325771
   }
  ],
  "rules": {
@@ -235,6 +287,6 @@
     50
    ]
   },
-  "cand": "2년 이상 거래, 거래대금 10억↑, 주봉 구름 안/위, 주봉 50선 상승"
+  "cand": "2년 이상 거래, 거래대금 10억↑, 주봉 구름 안/위, 주봉 50선 상승 또는 26주간 BTC보다 강함"
  }
 }
