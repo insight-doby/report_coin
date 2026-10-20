@@ -289,7 +289,7 @@ function viewAcc(){
       <div class="sub" style="margin-top:6px">포기선 ${inv?won(inv):"-"}${invd!=null?` (${pct(invd)})`:""} — 이 아래 일봉 마감이면 추가 매수 중단</div></div>`;
   });
   if(a.candidates&&a.candidates.length){
-    h+=`<div class="card"><b>구조가 좋은 후보</b><div class="sub" style="margin-top:4px">2년 이상 거래 · 거래대금 10억↑ · 주봉 구름 안/위 · 주봉 50선 상승 또는 26주간 BTC보다 강함. '사라'가 아니라 '볼 만한 구조'라는 뜻입니다. 모으기 목록에 넣고 싶으면 말씀해 주세요.</div>
+    h+=`<div class="card"><b>구조가 좋은 후보</b><div class="sub" style="margin-top:4px">2년 이상 거래 · 거래대금 10억↑ · 주봉 구름 안/위 · 주봉 50선 상승 또는 26주간 BTC보다 강함 · 고점 대비 −85% 이내. '사라'가 아니라 '볼 만한 구조'라는 뜻입니다. 모으기 목록에 넣고 싶으면 말씀해 주세요.</div>
       <table style="margin-top:8px"><tr><th>종목</th><th>현재가</th><th>주봉 구름</th><th>26주 BTC 대비</th><th>고점 대비</th></tr>`+
       a.candidates.map(c=>`<tr><td>${tkCell(c.ticker)}</td><td>${won(priceOf(c.ticker,c.price))}</td><td>${esc(c.structure.cloud)}</td><td>${pct(c.structure.rs26)}</td><td>${c.structure.ath_pct}%</td></tr>`).join("")+`</table></div>`;
   }

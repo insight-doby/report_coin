@@ -1830,12 +1830,12 @@ def run_accumulate():
                 plan, src = acc_zones(w, d, price, role), "auto"
             items.append({"ticker": tk, "name": kname(tk), "price": price, "role": role, "source": src, **plan, "structure": st,
                           "note": (cfg.get("notes") or {}).get(tk, "")})
-        elif st["weeks"] >= ACC_MIN_WEEKS and st["cloud"] in ("위", "안") and (st["wma50_up"] or (st["rs26"] or 0) > 0):
+        elif st["weeks"] >= ACC_MIN_WEEKS and st["cloud"] in ("위", "안") and (st["wma50_up"] or (st["rs26"] or 0) > 0) and st["ath_pct"] > -85:
             cands.append({"ticker": tk, "name": kname(tk), "price": price, "structure": st,
                           "value24": float((tickers.get(tk) or {}).get("value") or 0)})
     cands.sort(key=lambda c: (c["structure"]["cloud"] != "위", -(c["structure"]["rs26"] or -999)))
     out = {"checked_at": iso_kst(at), "items": items, "candidates": cands[:10],
-           "rules": {"bands": ACC_BANDS, "weights": ACC_WEIGHTS, "cand": "2년 이상 거래, 거래대금 10억↑, 주봉 구름 안/위, 주봉 50선 상승 또는 26주간 BTC보다 강함"}}
+           "rules": {"bands": ACC_BANDS, "weights": ACC_WEIGHTS, "cand": "2년 이상 거래, 거래대금 10억↑, 주봉 구름 안/위, 주봉 50선 상승 또는 26주간 BTC보다 강함, 역대 고점 대비 -85% 이내"}}
     store.write("accumulate.json", out, "모으기 구간")
     acc_sync_alerts(store, items, at)
     slack_accumulate(out)
