@@ -1623,15 +1623,15 @@ def run_price_alerts(store, at_ms: int) -> list:
         al["checked_ts"] = int(at_ms)
         al["checked_at"] = iso_kst(at_ms)
         al["last_price"] = float(cd["c"][-1])
-        head = f"{label(al['ticker'])} {TF_LABEL[al['tf']]} {fmt_krw(al['price'])}원 {COND_TEXT[al['cond']]}"
+        head = f"{label(al['ticker'])} {TF_LABEL[al['tf']]} {fmt_krw(al['price'])} {COND_TEXT[al['cond']]}"
         for kind, b in res:
             vx = f" · 거래량 평소의 {b['vol_x']:.1f}배" if b["vol_x"] is not None else ""
             if kind == "hit":
                 al.update(status="fired", fired_at=iso_kst(at_ms), fired_bar=b)
-                msgs.append(f"🔔 *{head}*\n{b['bar_start'][5:16]} 봉 종가 {fmt_krw(b['close'])}원{vx}\n👉 {al.get('action', '')}")
+                msgs.append(f"🔔 *{head}*\n{b['bar_start'][5:16]} 봉 종가 {fmt_krw(b['close'])}{vx}\n👉 {al.get('action', '')}")
             elif not al.get("weak_sent"):
                 al["weak_sent"] = iso_kst(at_ms)
-                msgs.append(f"⚠️ *{head} — 거래량 부족*\n{b['bar_start'][5:16]} 봉 종가 {fmt_krw(b['close'])}원{vx} (기준 {al['vol_x']}배)\n"
+                msgs.append(f"⚠️ *{head} — 거래량 부족*\n{b['bar_start'][5:16]} 봉 종가 {fmt_krw(b['close'])}{vx} (기준 {al['vol_x']}배)\n"
                             f"👉 아직 약한 돌파입니다. 거래량이 붙은 봉이 나오면 다시 알려드립니다.")
     cfg["checked_at"] = iso_kst(at_ms)
     store.write("price_alerts.json", cfg, "가격 알림 확인")
@@ -1696,12 +1696,12 @@ def slack_moves(rows: list):
     for r in rows:
         stop = r["low"] * 0.97
         if r["kind"] == "break":
-            head = f"🚀 *{label(r['ticker'])}* 감시 기준가 {fmt_krw(r['trigger'])}원 돌파 ({r['setup_label']})"
+            head = f"🚀 *{label(r['ticker'])}* 감시 기준가 {fmt_krw(r['trigger'])} 돌파 ({r['setup_label']})"
         else:
             head = f"🚀 *{label(r['ticker'])}* 1시간 {r['chg1h']:+.1f}% 급등 시작"
-        lines.append(f"{head}\n{r['bar'][5:16]} 봉 종가 {fmt_krw(r['close'])}원 · 거래량 평소의 {r['vol_x']}배"
+        lines.append(f"{head}\n{r['bar'][5:16]} 봉 종가 {fmt_krw(r['close'])} · 거래량 평소의 {r['vol_x']}배"
                      f"{' · 일봉 상승추세' if r['uptrend'] else ''}\n"
-                     f"👉 들어간다면 작은 비중 · 손절 {fmt_krw(stop)}원(이 봉 저가 −3%, 현재가 대비 −{(1 - stop / r['close']) * 100:.0f}%) · 목표 +15~25% · 3일 안에 정리")
+                     f"👉 들어간다면 작은 비중 · 손절 {fmt_krw(stop)}(이 봉 저가 −3%, 현재가 대비 −{(1 - stop / r['close']) * 100:.0f}%) · 목표 +15~25% · 3일 안에 정리")
     blocks = [_md("\n\n".join(lines[:15])),
               _ctx("일봉 상승추세 종목만 알립니다. 과거 100일 검증(232건): 위 손절·목표로 승률 41~47%, 이익/손실 비 1.2 — 크게 먹는 몇 번이 수익을 만드는 방식이라 비중은 작게. 상승추세가 아닌 종목은 같은 방식이 손실(이익/손실 비 0.8)이었습니다.")]
     slack_post(f"🚀 급등 시작 {len(rows)}건", blocks)
@@ -1854,13 +1854,52 @@ def acc_sync_alerts(store, items: list, at_ms: int):
             continue
         for i, z in enumerate(it["zones"], 1):
             keep.append({"id": f"ACC-{it['ticker']}-{i}", "ticker": it["ticker"], "tf": "1h", "cond": "low_below", "price": z["hi"],
-                         "action": f"모으기 {i}구간 도달 ({fmt_krw(z['lo'])}~{fmt_krw(z['hi'])}원 · {', '.join(z['why'][:3])}). 이 구간 비중 {z['weight']}%.",
+                         "action": f"모으기 {i}구간 도달 ({fmt_krw(z['lo'])}~{fmt_krw(z['hi'])} · {', '.join(z['why'][:3])}). 이 구간 비중 {z['weight']}%.",
                          "status": "active", "created_ts": int(at_ms), "created_at": iso_kst(at_ms), "expires_ts": exp})
         keep.append({"id": f"ACC-{it['ticker']}-inval", "ticker": it["ticker"], "tf": "1d", "cond": "close_below", "price": it["inval"],
-                     "action": f"모으기 포기선 이탈 ({fmt_krw(it['inval'])}원 아래 일봉 마감). 추가 매수 중단, 비중 재검토.",
+                     "action": f"모으기 포기선 이탈 ({fmt_krw(it['inval'])} 아래 일봉 마감). 추가 매수 중단, 비중 재검토.",
                      "status": "active", "created_ts": int(at_ms), "created_at": iso_kst(at_ms), "expires_ts": exp})
     cfg["alerts"] = keep
     store.write("price_alerts.json", cfg, "모으기 알림 갱신")
+
+
+def krw_short(v) -> str:
+    """1억 820만 → '1억820만', 3,144,000 → '314만', 15,400 → '15,400'"""
+    if v is None:
+        return "-"
+    v = float(v)
+    if v >= 1e8:
+        eok, man = int(v // 1e8), int(round((v % 1e8) / 1e4))
+        return f"{eok}억{man:,}만" if man else f"{eok}억"
+    if v >= 1e6:
+        return f"{v / 1e4:,.0f}만"
+    return fmt_krw(v)[:-1]          # 표 안에서는 '원' 생략
+
+
+def _hesc(t: str) -> str:
+    return str(t).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def tg_accumulate(out: dict) -> list:
+    msgs = ["🧺 <b>주간 모으기 구간</b>\n<i>주봉 마감 기준 · 구간에 닿으면 알림</i>"]
+    for it in out["items"]:
+        st = it["structure"]
+        cloud = {"위": "🟢구름 위", "안": "🟡구름 안", "아래": "🔴구름 아래"}.get(st.get("cloud"), "")
+        rows = [f"{'':2}{'구간':<17}{'거리':>5} {'비중':>4}"]
+        for i, z in enumerate(it["zones"], 1):
+            rng = f"{krw_short(z['lo'])}~{krw_short(z['hi'])}"
+            rows.append(f"{i:<2}{rng:<17}{z['hi_pct']:>+5.0f}% {(str(z['weight']) + '%') if z.get('weight') is not None else '-':>4}")
+        if it.get("inval"):
+            rows.append(f"✋ 포기 {krw_short(it['inval']):<12}{(it.get('inval_pct') or 0):>+5.0f}%")
+        head = f"<b>{_hesc(kname(it['ticker']) or it['ticker'])}</b> {krw_short(it['price'])}원 · {cloud}"
+        if it.get("note"):
+            head += f"\n<i>{_hesc(it['note'])}</i>"
+        msgs.append(head + "\n<pre>" + _hesc("\n".join(rows)) + "</pre>")
+    c = [x for x in out["candidates"][:6] if x["structure"].get("rs26") is not None]
+    if c:
+        rows = [f"{'종목':<8}{'구름':<4}{'26주 BTC대비':>10}"] + [f"{(kname(x['ticker']) or x['ticker'])[:6]:<8}{x['structure']['cloud']:<4}{x['structure']['rs26']:>+9.0f}%" for x in c]
+        msgs.append("🔎 <b>구조 좋은 후보</b> (볼 만한 구조, 매수 신호 아님)\n<pre>" + _hesc("\n".join(rows)) + "</pre>")
+    return ["\n\n".join(msgs)] if sum(len(m) for m in msgs) < 3800 else msgs
 
 
 def slack_accumulate(out: dict):
@@ -1869,15 +1908,15 @@ def slack_accumulate(out: dict):
         st = it["structure"]
         zs = " / ".join(f"{fmt_krw(z['lo'])}~{fmt_krw(z['hi'])}({z['hi_pct']:+.0f}%)" for z in it["zones"])
         tag = "직접" if it["source"] == "manual" else "자동"
-        lines.append(f"*{label(it['ticker'])}* {fmt_krw(it['price'])}원 · 주봉 구름 {st.get('cloud') or '-'} [{tag}]\n"
-                     f"  구간 {zs}\n  포기선 {fmt_krw(it['inval'])}원" + (f" ({it['inval_pct']:+.0f}%)" if it.get('inval_pct') is not None else ""))
+        lines.append(f"*{label(it['ticker'])}* {fmt_krw(it['price'])} · 주봉 구름 {st.get('cloud') or '-'} [{tag}]\n"
+                     f"  구간 {zs}\n  포기선 {fmt_krw(it['inval'])}" + (f" ({it['inval_pct']:+.0f}%)" if it.get('inval_pct') is not None else ""))
     cand = ", ".join(f"{label(c['ticker'])}(구름 {c['structure']['cloud']}, BTC 대비 26주 {c['structure']['rs26']:+.0f}%)"
                      for c in out["candidates"][:6] if c["structure"].get("rs26") is not None)
     blocks = [_md("🧺 *주간 모으기 구간* (주봉 마감 기준으로 다시 계산)\n" + "\n".join(lines))]
     if cand:
         blocks.append(_md("*구조가 좋은 후보* (2년 이상 거래, 주봉 구름 안/위, 50주선 상승 또는 BTC보다 강함)\n" + cand))
     blocks.append(_ctx("구간에 닿으면 알림이 갑니다. 지정가는 직접 걸어 두세요. 후보는 '사라'가 아니라 '볼 만한 구조'라는 뜻입니다."))
-    slack_post("🧺 주간 모으기 구간", blocks)
+    slack_post("🧺 주간 모으기 구간", blocks, tg=tg_accumulate(out))
 
 
 def run_track():

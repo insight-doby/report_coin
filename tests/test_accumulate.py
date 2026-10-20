@@ -11,7 +11,7 @@ for tk in D: D[tk]["c"][-1] = W[tk]["c"][-1]
 bot.fetch_v1 = lambda tk, tf, n=60: (W if tf == "1w" else D).get(tk)
 bot.fetch_tickers_all = lambda: {tk: {"price": float(W[tk]["c"][-1]), "chg": 0, "value": 5e9} for tk in W}
 sent = []
-bot.slack_post = lambda text, blocks, thread_ts=None: sent.append(text) or "1"
+bot.slack_post = lambda text, blocks, thread_ts=None, **kw: sent.append(text) or "1"
 with tempfile.TemporaryDirectory() as td:
     bot.LOCAL_DATA_DIR = td
     json.dump({"watch": ["BTC", "ETH"], "manual": {"ETH": {"zones": [[1, 2, "x", 50]], "inval": 0.5}}}, open(os.path.join(td, "accumulate_cfg.json"), "w"))
