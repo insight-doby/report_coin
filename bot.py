@@ -1830,12 +1830,12 @@ def run_accumulate():
                 plan, src = acc_zones(w, d, price, role), "auto"
             items.append({"ticker": tk, "name": kname(tk), "price": price, "role": role, "source": src, **plan, "structure": st,
                           "note": (cfg.get("notes") or {}).get(tk, "")})
-        elif st["weeks"] >= ACC_MIN_WEEKS and st["cloud"] in ("위", "안") and st["wma50_up"]:
+        elif st["weeks"] >= ACC_MIN_WEEKS and st["cloud"] in ("위", "안") and (st["wma50_up"] or (st["rs26"] or 0) > 0):
             cands.append({"ticker": tk, "name": kname(tk), "price": price, "structure": st,
                           "value24": float((tickers.get(tk) or {}).get("value") or 0)})
     cands.sort(key=lambda c: (c["structure"]["cloud"] != "위", -(c["structure"]["rs26"] or -999)))
     out = {"checked_at": iso_kst(at), "items": items, "candidates": cands[:10],
-           "rules": {"bands": ACC_BANDS, "weights": ACC_WEIGHTS, "cand": "2년 이상 거래, 거래대금 10억↑, 주봉 구름 안/위, 주봉 50선 상승"}}
+           "rules": {"bands": ACC_BANDS, "weights": ACC_WEIGHTS, "cand": "2년 이상 거래, 거래대금 10억↑, 주봉 구름 안/위, 주봉 50선 상승 또는 26주간 BTC보다 강함"}}
     store.write("accumulate.json", out, "모으기 구간")
     acc_sync_alerts(store, items, at)
     slack_accumulate(out)
@@ -1875,7 +1875,7 @@ def slack_accumulate(out: dict):
                      for c in out["candidates"][:6] if c["structure"].get("rs26") is not None)
     blocks = [_md("🧺 *주간 모으기 구간* (주봉 마감 기준으로 다시 계산)\n" + "\n".join(lines))]
     if cand:
-        blocks.append(_md("*구조가 좋은 후보* (2년 이상 거래, 주봉 구름 안/위, 50주선 상승)\n" + cand))
+        blocks.append(_md("*구조가 좋은 후보* (2년 이상 거래, 주봉 구름 안/위, 50주선 상승 또는 BTC보다 강함)\n" + cand))
     blocks.append(_ctx("구간에 닿으면 알림이 갑니다. 지정가는 직접 걸어 두세요. 후보는 '사라'가 아니라 '볼 만한 구조'라는 뜻입니다."))
     slack_post("🧺 주간 모으기 구간", blocks)
 
