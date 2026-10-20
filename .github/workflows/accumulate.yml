@@ -1,0 +1,29 @@
+name: accumulate
+on:
+  schedule:
+    - cron: "35 15 * * 0"   # 매주 월요일 00:35 KST (주봉 마감 직후)
+  workflow_dispatch:
+concurrency: { group: bot-data, cancel-in-progress: false }
+permissions: { contents: write }
+jobs:
+  accumulate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - run: pip install requests numpy
+      - name: 모으기 구간 계산
+        env:
+          LOCAL_DATA_DIR: data
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python -u bot.py accumulate
+      - name: Commit data
+        run: |
+          git config user.name "bot"; git config user.email "bot@users.noreply.github.com"
+          git add data && (git diff --cached --quiet || git commit -m "accumulate $(date -u +%FT%TZ)")
+          git pull --rebase origin ${{ github.ref_name }} && git push

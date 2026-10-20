@@ -1553,7 +1553,7 @@ def run_scan() -> dict:
 # ==========================================================
 # 가격 알림 (data/price_alerts.json — 사람이 정한 가격 조건, 매시간 확인, AI 없음)
 # ==========================================================
-TF_PATH = {"1h": ("minutes/60", HOUR_MS), "4h": ("minutes/240", 4 * HOUR_MS), "1d": ("days", 24 * HOUR_MS)}
+TF_PATH = {"1h": ("minutes/60", HOUR_MS), "4h": ("minutes/240", 4 * HOUR_MS), "1d": ("days", 24 * HOUR_MS), "1w": ("weeks", 7 * 24 * HOUR_MS)}
 TF_LABEL = {"1h": "1시간봉", "4h": "4시간봉", "1d": "일봉"}
 
 
@@ -1705,6 +1705,179 @@ def slack_moves(rows: list):
     blocks = [_md("\n\n".join(lines[:15])),
               _ctx("일봉 상승추세 종목만 알립니다. 과거 100일 검증(232건): 위 손절·목표로 승률 41~47%, 이익/손실 비 1.2 — 크게 먹는 몇 번이 수익을 만드는 방식이라 비중은 작게. 상승추세가 아닌 종목은 같은 방식이 손실(이익/손실 비 0.8)이었습니다.")]
     slack_post(f"🚀 급등 시작 {len(rows)}건", blocks)
+
+
+# ==========================================================
+# 모으기 (장기 분할 매수) — 주 1회: 종목별 지지 구간 3개 + 포기선 계산, 구간 도달 알림 자동 등록
+# ==========================================================
+ACC_BANDS = [(0.02, 0.10, 0.06), (0.07, 0.18, 0.13), (0.14, 0.30, 0.22)]   # (가까운 끝, 먼 끝, 지지 없을 때 기본) — 현재가 대비 하락폭
+ACC_WEIGHTS = {"core": [25, 35, 40], "alt": [20, 30, 50]}
+ACC_MIN_VALUE = 1e9          # 후보 선별: 24시간 거래대금 10억 이상
+ACC_MIN_WEEKS = 104          # 후보 선별: 2년 이상 거래된 종목
+
+
+def _pivots(l, k):
+    return [i for i in range(k, len(l) - k) if l[i] == min(l[i - k:i + k + 1])]
+
+
+def acc_supports(w: dict, d: dict, price: float) -> list:
+    S = []
+    wc, wh, wl = w["c"], w["h"], w["l"]
+    n = len(wc)
+    mid = lambda i, k: (wh[max(0, i - k + 1):i + 1].max() + wl[max(0, i - k + 1):i + 1].min()) / 2
+    if n >= 26:
+        S.append((mid(n - 1, 26), "주봉 기준선"))
+    if n >= 78:
+        j = n - 26
+        sa, sb = (mid(j, 9) + mid(j, 26)) / 2, mid(j, 52)
+        S += [(min(sa, sb), "주봉 구름 하단"), (max(sa, sb), "주봉 구름 상단")]
+    for k in (20, 50, 100, 200):
+        if n >= k:
+            S.append((float(wc[-k:].mean()), f"주봉 {k}선"))
+    for i in _pivots(wl[-60:], 2):
+        S.append((float(wl[-60:][i]), "주봉 저점"))
+    dc, dl = d["c"], d["l"]
+    for k in (60, 120, 200):
+        if len(dc) >= k:
+            S.append((float(dc[-k:].mean()), f"일봉 {k}선"))
+    for i in _pivots(dl[-45:], 3):
+        S.append((float(dl[-45:][i]), "최근 일봉 저점"))
+    return [(v, lab) for v, lab in S if 0 < v < price * 0.985]
+
+
+def acc_cluster(S: list, tol: float = 0.025) -> list:
+    out = []
+    for v, lab in sorted(S, key=lambda x: -x[0]):
+        if out and out[-1]["lo"] / v - 1 <= tol and out[-1]["hi"] / v - 1 <= tol * 1.6:
+            out[-1]["lo"] = min(out[-1]["lo"], v)
+            out[-1]["items"].append((v, lab))
+        else:
+            out.append({"hi": v, "lo": v, "items": [(v, lab)]})
+    for c in out:
+        c["n"] = len({lab for _, lab in c["items"]})
+    return out
+
+
+def acc_zones(w: dict, d: dict, price: float, role: str = "alt") -> dict:
+    C = acc_cluster(acc_supports(w, d, price))
+    Z, floor = [], None
+    for (near, far, fb), wt in zip(ACC_BANDS, ACC_WEIGHTS.get(role, ACC_WEIGHTS["alt"])):
+        cand = [c for c in C if price * (1 - far) <= c["hi"] <= price * (1 - near) and (floor is None or c["hi"] <= floor * 0.96)]
+        if cand:
+            c = max(cand, key=lambda c: (c["n"], c["hi"]))
+            hi, lo = c["hi"], c["lo"]
+            why = list(dict.fromkeys(lab for _, lab in sorted(c["items"], key=lambda x: -x[0])))
+        else:
+            hi = price * (1 - fb) if floor is None else min(price * (1 - fb), floor * 0.95)
+            lo, why = hi, ["가격 기준 (뚜렷한 지지 없음)"]
+        if hi / lo - 1 < 0.01:
+            hi, lo = hi * 1.006, lo * 0.994
+        Z.append({"lo": rp(lo), "hi": rp(hi), "why": why, "weight": wt,
+                  "hi_pct": round((hi / price - 1) * 100, 1)})
+        floor = lo
+    below = [c for c in C if c["hi"] < Z[-1]["lo"]]
+    inval = below[0]["lo"] * 0.98 if below and below[0]["hi"] >= Z[-1]["lo"] * 0.9 else Z[-1]["lo"] * 0.95
+    return {"zones": Z, "inval": rp(inval), "inval_pct": round((inval / price - 1) * 100, 1)}
+
+
+def acc_structure(w: dict, btc_w: Optional[dict]) -> dict:
+    wc, wh, wl = w["c"], w["h"], w["l"]
+    n = len(wc)
+    out = {"weeks": n, "ath_pct": round((wc[-1] / wh.max() - 1) * 100), "cloud": None, "wma50_up": None, "rs26": None}
+    if n >= 78:
+        mid = lambda i, k: (wh[i - k + 1:i + 1].max() + wl[i - k + 1:i + 1].min()) / 2
+        j = n - 26
+        sa, sb = (mid(j, 9) + mid(j, 26)) / 2, mid(j, 52)
+        out["cloud"] = "위" if wc[-1] > max(sa, sb) else ("안" if wc[-1] >= min(sa, sb) else "아래")
+    if n >= 55:
+        out["wma50_up"] = bool(wc[-50:].mean() > wc[-55:-5].mean())
+    if n >= 27 and btc_w is not None and len(btc_w["c"]) >= 27:
+        out["rs26"] = round(((wc[-1] / wc[-27]) / (btc_w["c"][-1] / btc_w["c"][-27]) - 1) * 100, 1)
+    return out
+
+
+def run_accumulate():
+    store = Store()
+    at = now_ms()
+    KR_NAMES.update(store.read("names.json", {}) or {})
+    cfg = store.read("accumulate_cfg.json", {}) or {}
+    watch = cfg.get("watch") or ["BTC", "ETH"]
+    core = set(cfg.get("core") or ["BTC", "ETH"])
+    manual = cfg.get("manual") or {}
+    tickers = fetch_tickers_all() or {}
+    btc_w = fetch_v1("BTC", "1w", 200)
+    # 후보 선별 대상: 거래대금 10억 이상 전 종목
+    uni = [tk for tk, v in tickers.items() if float(v.get("value") or 0) >= ACC_MIN_VALUE and tk not in STABLES]
+    items, cands = [], []
+    for tk in sorted(set(watch) | set(uni)):
+        w = btc_w if tk == "BTC" else fetch_v1(tk, "1w", 200)
+        if w is None or len(w["c"]) < 30:
+            continue
+        st = acc_structure(w, btc_w)
+        price = float((tickers.get(tk) or {}).get("price") or w["c"][-1])
+        if tk in watch:
+            d = fetch_v1(tk, "1d", 200)
+            if d is None:
+                continue
+            role = "core" if tk in core else "alt"
+            if tk in manual:
+                m = manual[tk]
+                plan = {"zones": [{"lo": z[0], "hi": z[1], "why": [z[2]] if len(z) > 2 else ["직접 정한 구간"], "weight": z[3] if len(z) > 3 else None,
+                                   "hi_pct": round((z[1] / price - 1) * 100, 1)} for z in m["zones"]],
+                        "inval": m.get("inval"), "inval_pct": round((m["inval"] / price - 1) * 100, 1) if m.get("inval") else None}
+                src = "manual"
+            else:
+                plan, src = acc_zones(w, d, price, role), "auto"
+            items.append({"ticker": tk, "name": kname(tk), "price": price, "role": role, "source": src, **plan, "structure": st,
+                          "note": (cfg.get("notes") or {}).get(tk, "")})
+        elif st["weeks"] >= ACC_MIN_WEEKS and st["cloud"] in ("위", "안") and st["wma50_up"]:
+            cands.append({"ticker": tk, "name": kname(tk), "price": price, "structure": st,
+                          "value24": float((tickers.get(tk) or {}).get("value") or 0)})
+    cands.sort(key=lambda c: (c["structure"]["cloud"] != "위", -(c["structure"]["rs26"] or -999)))
+    out = {"checked_at": iso_kst(at), "items": items, "candidates": cands[:10],
+           "rules": {"bands": ACC_BANDS, "weights": ACC_WEIGHTS, "cand": "2년 이상 거래, 거래대금 10억↑, 주봉 구름 안/위, 주봉 50선 상승"}}
+    store.write("accumulate.json", out, "모으기 구간")
+    acc_sync_alerts(store, items, at)
+    slack_accumulate(out)
+    log(f"🧺 모으기: {len(items)}종목 구간 계산, 후보 {len(cands)}개")
+    return out
+
+
+def acc_sync_alerts(store, items: list, at_ms: int):
+    """자동 구간 종목은 매주 'ACC-' 알림을 새 구간으로 교체. 직접 정한 종목은 기존 알림을 그대로 둔다."""
+    cfg = store.read("price_alerts.json", {"alerts": []}) or {"alerts": []}
+    auto = {it["ticker"] for it in items if it["source"] == "auto"}
+    keep = [a for a in cfg["alerts"] if not (a["id"].startswith("ACC-") and a.get("status") == "active" and a["ticker"] in auto)]
+    exp = at_ms + 8 * 24 * HOUR_MS
+    for it in items:
+        if it["source"] != "auto":
+            continue
+        for i, z in enumerate(it["zones"], 1):
+            keep.append({"id": f"ACC-{it['ticker']}-{i}", "ticker": it["ticker"], "tf": "1h", "cond": "low_below", "price": z["hi"],
+                         "action": f"모으기 {i}구간 도달 ({fmt_krw(z['lo'])}~{fmt_krw(z['hi'])}원 · {', '.join(z['why'][:3])}). 이 구간 비중 {z['weight']}%.",
+                         "status": "active", "created_ts": int(at_ms), "created_at": iso_kst(at_ms), "expires_ts": exp})
+        keep.append({"id": f"ACC-{it['ticker']}-inval", "ticker": it["ticker"], "tf": "1d", "cond": "close_below", "price": it["inval"],
+                     "action": f"모으기 포기선 이탈 ({fmt_krw(it['inval'])}원 아래 일봉 마감). 추가 매수 중단, 비중 재검토.",
+                     "status": "active", "created_ts": int(at_ms), "created_at": iso_kst(at_ms), "expires_ts": exp})
+    cfg["alerts"] = keep
+    store.write("price_alerts.json", cfg, "모으기 알림 갱신")
+
+
+def slack_accumulate(out: dict):
+    lines = []
+    for it in out["items"]:
+        st = it["structure"]
+        zs = " / ".join(f"{fmt_krw(z['lo'])}~{fmt_krw(z['hi'])}({z['hi_pct']:+.0f}%)" for z in it["zones"])
+        tag = "직접" if it["source"] == "manual" else "자동"
+        lines.append(f"*{label(it['ticker'])}* {fmt_krw(it['price'])}원 · 주봉 구름 {st.get('cloud') or '-'} [{tag}]\n"
+                     f"  구간 {zs}\n  포기선 {fmt_krw(it['inval'])}원" + (f" ({it['inval_pct']:+.0f}%)" if it.get('inval_pct') is not None else ""))
+    cand = ", ".join(f"{label(c['ticker'])}(구름 {c['structure']['cloud']}, BTC 대비 26주 {c['structure']['rs26']:+.0f}%)"
+                     for c in out["candidates"][:6] if c["structure"].get("rs26") is not None)
+    blocks = [_md("🧺 *주간 모으기 구간* (주봉 마감 기준으로 다시 계산)\n" + "\n".join(lines))]
+    if cand:
+        blocks.append(_md("*구조가 좋은 후보* (2년 이상 거래, 주봉 구름 안/위, 50주선 상승)\n" + cand))
+    blocks.append(_ctx("구간에 닿으면 알림이 갑니다. 지정가는 직접 걸어 두세요. 후보는 '사라'가 아니라 '볼 만한 구조'라는 뜻입니다."))
+    slack_post("🧺 주간 모으기 구간", blocks)
 
 
 def run_track():
@@ -2433,6 +2606,8 @@ def main(argv=None):
         run_pumpdip(argv[1:])
     elif cmd == "snapshot":
         run_snapshot(argv[1:])
+    elif cmd == "accumulate":
+        run_accumulate()
     elif cmd == "ping":
         ok = telegram_send("✅ <b>텔레그램 알림 서식 개선</b>\n\n줄바꿈·굵은 글씨·링크가 적용됩니다. 아래는 오늘 스캔 요약을 새 서식으로 다시 보낸 것입니다.", html=True)
         log("텔레그램 테스트:", "성공" if ok else ("채팅방을 못 찾음 — 봇에게 /start 를 보내주세요" if TELEGRAM_BOT_TOKEN else "토큰 없음"))

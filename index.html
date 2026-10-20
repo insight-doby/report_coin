@@ -80,6 +80,7 @@ svg{width:100%;height:120px;display:block}
 <nav id="tabs">
   <button data-t="today" class="on">오늘 할 일</button>
   <button data-t="pos">내 포지션</button>
+  <button data-t="acc">모으기</button>
   <button data-t="watch">감시</button>
   <button data-t="verify">검증</button>
 </nav>
@@ -121,9 +122,9 @@ async function getJSON(name){
 }
 async function load(){
   S.err="";
-  const [l, g, st, dv, sn] = await Promise.all([getJSON("latest.json"), getJSON("ledger.json"), getJSON("stats.json"), getJSON("div4h.json"), getJSON("sectors_now.json")]);
+  const [l, g, st, dv, sn, ac] = await Promise.all([getJSON("latest.json"), getJSON("ledger.json"), getJSON("stats.json"), getJSON("div4h.json"), getJSON("sectors_now.json"), getJSON("accumulate.json")]);
   if(!l) S.err = "추천 데이터를 불러오지 못했습니다. 봇이 아직 한 번도 실행되지 않았을 수 있습니다.";
-  S.latest=l; S.ledger=Array.isArray(g)?g:[]; S.stats=st; S.div=dv; S.sec=sn;
+  S.latest=l; S.ledger=Array.isArray(g)?g:[]; S.stats=st; S.div=dv; S.sec=sn; S.acc=ac;
   loadNames();
   await loadLive();
   render();
@@ -272,6 +273,29 @@ function viewPos(){
   <div class="card">${pos.length?`<table><tr><th>종목</th><th>매수가</th><th>현재가</th><th>손익</th><th>대응</th><th></th></tr>${rows}</table>`:`<div class="empty">등록된 포지션이 없습니다.</div>`}</div>`;
 }
 
+/* ---------- 모으기 ---------- */
+function viewAcc(){
+  const a=S.acc; if(!a||!a.items) return `<div class="card empty">모으기 구간이 아직 계산되지 않았습니다. 매주 월요일 00:35에 계산됩니다.</div>`;
+  const cloudTag=c=>c==="위"?`<span class="tag now">주봉 구름 위</span>`:c==="안"?`<span class="tag wait">주봉 구름 안</span>`:c==="아래"?`<span class="tag warn">주봉 구름 아래</span>`:"";
+  let h=`<div class="card"><b>모으기 — 불장 전에 나눠 담기</b><div class="sub" style="margin-top:4px">구간마다 지정가를 걸어 두고, 닿으면 알림이 옵니다. 포기선 아래로 일봉이 마감하면 추가 매수를 멈춥니다. 마지막 계산 ${esc((a.checked_at||"").slice(5,16).replace("T"," "))}</div></div>`;
+  a.items.forEach(it=>{
+    const cur=priceOf(it.ticker,it.price), st=it.structure||{};
+    const rows=it.zones.map((z,i)=>{ const d=(z.hi/cur-1)*100, hit=cur<=z.hi;
+      return `<tr><td>${i+1}구간</td><td>${won(z.lo)} ~ ${won(z.hi)}</td><td class="${hit?"pos":""}">${hit?"<b>도달</b>":pct(d)}</td><td>${z.weight!=null?z.weight+"%":"-"}</td><td style="text-align:left;font-size:12px">${esc((z.why||[]).slice(0,3).join(", "))}</td></tr>`; }).join("");
+    const inv=it.inval, invd=inv?(inv/cur-1)*100:null;
+    h+=`<div class="card"><div>${tkTitle(it.ticker)} ${cloudTag(st.cloud)}<span class="tag">${it.role==="core"?"핵심":"알트"}</span><span class="tag">${it.source==="manual"?"직접 정한 구간":"자동 계산"}</span></div>
+      <div class="sub" style="margin-top:4px">현재 ${won(cur)}${st.ath_pct!=null?` · 역대 고점 대비 ${st.ath_pct}%`:""}${st.rs26!=null&&it.ticker!=="BTC"?` · 26주 BTC 대비 ${pct(st.rs26)}`:""}${it.note?` · ${esc(it.note)}`:""}</div>
+      <table style="margin-top:8px"><tr><th></th><th>구간</th><th>거리</th><th>비중</th><th>근거</th></tr>${rows}</table>
+      <div class="sub" style="margin-top:6px">포기선 ${inv?won(inv):"-"}${invd!=null?` (${pct(invd)})`:""} — 이 아래 일봉 마감이면 추가 매수 중단</div></div>`;
+  });
+  if(a.candidates&&a.candidates.length){
+    h+=`<div class="card"><b>구조가 좋은 후보</b><div class="sub" style="margin-top:4px">2년 이상 거래 · 거래대금 10억↑ · 주봉 구름 안/위 · 주봉 50선 상승. '사라'가 아니라 '볼 만한 구조'라는 뜻입니다. 모으기 목록에 넣고 싶으면 말씀해 주세요.</div>
+      <table style="margin-top:8px"><tr><th>종목</th><th>현재가</th><th>주봉 구름</th><th>26주 BTC 대비</th><th>고점 대비</th></tr>`+
+      a.candidates.map(c=>`<tr><td>${tkCell(c.ticker)}</td><td>${won(priceOf(c.ticker,c.price))}</td><td>${esc(c.structure.cloud)}</td><td>${pct(c.structure.rs26)}</td><td>${c.structure.ath_pct}%</td></tr>`).join("")+`</table></div>`;
+  }
+  return h;
+}
+
 /* ---------- 감시 ---------- */
 function viewWatch(){
   const l=S.latest; if(!l) return `<div class="card empty err">${esc(S.err)}</div>`;
@@ -331,7 +355,7 @@ function viewVerify(){
 
 function render(){
   $("#meta").innerHTML=metaLine();
-  const v={today:viewToday,pos:viewPos,watch:viewWatch,verify:viewVerify}[S.tab];
+  const v={today:viewToday,pos:viewPos,acc:viewAcc,watch:viewWatch,verify:viewVerify}[S.tab];
   $("#view").innerHTML=v();
   document.querySelectorAll("#tabs button").forEach(b=>b.classList.toggle("on",b.dataset.t===S.tab));
   const add=$("#padd");
