@@ -19,7 +19,6 @@ jobs:
           LOCAL_DATA_DIR: data
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          ACCOUNT_PASSWORD: ${{ secrets.ACCOUNT_PASSWORD }}
           BITHUMB_ACCESS_KEY: ${{ secrets.BITHUMB_ACCESS_KEY }}
           BITHUMB_SECRET_KEY: ${{ secrets.BITHUMB_SECRET_KEY }}
         run: python -u bot.py portfolio
