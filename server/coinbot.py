@@ -18,6 +18,7 @@ import hashlib
 import hmac
 import json
 import os
+import re
 import sqlite3
 import sys
 import threading
@@ -163,6 +164,17 @@ def wrap(text: str, width=36, indent="   ") -> str:
                 line = cand
         out.append(line)
     return ("\n" + indent).join(out)
+
+
+def bar(frac, n=10) -> str:
+    """진행 막대 ▓▓▓▓░░░░░░ (0~1)."""
+    k = max(0, min(n, round((frac or 0) * n)))
+    return "▓" * k + "░" * (n - k)
+
+
+def boxq(lines) -> str:
+    """텔레그램 인용 상자 (왼쪽 세로줄로 강조)."""
+    return "<blockquote>" + "\n".join(l for l in lines if l is not None) + "</blockquote>"
 
 
 def dot(v) -> str:
@@ -323,9 +335,20 @@ def send(text: str):
     if not (TG_TOKEN and TG_CHAT):
         print(text)
         return
-    for i in range(0, len(text), 3900):
-        tg("sendMessage", chat_id=TG_CHAT, text=text[i:i + 3900], parse_mode="HTML",
-           disable_web_page_preview=True)
+    chunks, cur = [], ""
+    for para in text.split("\n\n"):                 # 문단 단위로 나눠 HTML 태그가 잘리지 않게
+        if cur and len(cur) + len(para) + 2 > 3900:
+            chunks.append(cur)
+            cur = ""
+        cur = f"{cur}\n\n{para}" if cur else para
+    if cur:
+        chunks.append(cur)
+    for c in chunks:
+        r = tg("sendMessage", chat_id=TG_CHAT, text=c[:4000], parse_mode="HTML", disable_web_page_preview=True)
+        if r is not None and not r.get("ok"):          # 서식 오류면 태그 빼고 다시
+            log(f"텔레그램 서식 오류: {str(r.get('description', ''))[:80]}")
+            plain = re.sub(r"<[^>]+>", "", c).replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&")
+            tg("sendMessage", chat_id=TG_CHAT, text=plain[:4000], disable_web_page_preview=True)
 
 
 COMMANDS = [
@@ -852,9 +875,10 @@ class Bot:
             return "<b>올해 실질 수익</b>\n계산 준비 중이에요 (처음 한 번 몇 분 걸려요)"
         lines = [f"<b>{y['year']}년 실질 수익</b>",
                  "<i>1/1~지금 · 입출금 제외</i>",
-                 f"{dot(y['pnl'])} 수익 금액 <b>{man(y['pnl'], True)}원</b>",
-                 f"수익률 <b>{pct(y['ret'])}</b>",
-                 "",
+                 boxq([f"{dot(y['pnl'])} 수익 금액 <b>{man(y['pnl'], True)}원</b>",
+                        f"수익률 <b>{pct(y['ret'])}</b>",
+                        (f"{bar(max(y['ret'] or 0, 0) / GOAL_PCT)} 연 {GOAL_PCT:.0f}% 중 "
+                         f"{max(y['ret'] or 0, 0) / GOAL_PCT * 100:.0f}%") if y["ret"] is not None else None]),
                  f"1/1 자산(추정) {man(y['e0'])}원",
                  f"지금 자산 {man(y['now'])}원",
                  f"올해 입금 {man(y['dep'])}원",
@@ -1101,8 +1125,8 @@ class Bot:
                  f"순투입 {won(net_in)}",
                  f"지금 자산 {won(r['now'])}",
                  "",
-                 f"{dot(r['pnl'])} 평생 순수익 <b>{man(r['pnl'], True)}원</b>",
-                 (f"순투입 대비 <b>{pct(r['pnl'] / net_in * 100)}</b>" if net_in > 0 else ""),
+                 boxq([f"{dot(r['pnl'])} 평생 순수익 <b>{man(r['pnl'], True)}원</b>",
+                        (f"순투입 대비 <b>{pct(r['pnl'] / net_in * 100)}</b>" if net_in > 0 else None)]),
                  f"매매 {r['n_orders']:,}건 · 입출금 {r['n_flows']:,}건 기준"]
         if r["warn"]:
             lines.append("<i>⚠️ " + esc(" · ".join(r["warn"])) + "</i>")
@@ -1400,7 +1424,8 @@ class Bot:
     def block_checkup(self, ck):
         icon = {"good": "🟢", "warn": "🟡", "bad": "🔴", "info": "⚪"}
         order = {"bad": 0, "warn": 1, "good": 2, "info": 3}
-        lines = ["<b>계좌 점검</b>", f"종합 <b>{ck['grade']}</b> ({ck['score']}/100)"]
+        lines = ["<b>계좌 점검</b>",
+                 boxq([f"종합 <b>{ck['grade']}</b> · {ck['score']}/100", bar(ck["score"] / 100)])]
         lines += [f"{icon[k]} " + esc(wrap(t, 34, "     ")) for k, t in sorted(ck["items"], key=lambda x: order[x[0]])]
         if ck["todos"]:
             lines.append("\n<b>할 일</b>")
@@ -1413,11 +1438,12 @@ class Bot:
         if not g:
             return ""
         state = "🟢 앞서는 중" if g["gap"] >= 0 else "🔴 뒤처짐"
-        lines = [f"<b>연 {GOAL_PCT:.0f}% 목표</b> · {g['days']:.0f}일째",
-                 f"지금까지 <b>{pct(g['ret'])}</b> ({man(g['pnl'], True)}원)",
-                 f"목표 페이스 {pct(g['target'])}",
-                 f"{state} {abs(g['gap']):.1f}%p",
-                 "",
+        prog = max(g["ret"], 0) / GOAL_PCT
+        lines = [f"🎯 <b>연 {GOAL_PCT:.0f}% 목표</b> · {g['days']:.0f}일째",
+                 boxq([f"지금까지 <b>{pct(g['ret'])}</b> ({man(g['pnl'], True)}원)",
+                        f"{bar(prog)} {prog * 100:.0f}% 달성",
+                        f"목표 페이스 {pct(g['target'])}",
+                        f"{state} <b>{abs(g['gap']):.1f}%p</b>"]),
                  f"이번달 {pct(g['month'])}",
                  f"월 목표 {pct(g['month_goal'])}"]
         if g["need_m"] is not None:
