@@ -2209,8 +2209,9 @@ def _blocks_text(text: str, blocks: list) -> str:
     return "\n\n".join(res)
 
 
-def telegram_chat_id() -> str:
-    """시크릿이 없으면 봇에게 마지막으로 말을 건 사람의 채팅방을 찾아 data/telegram.json 에 기억한다."""
+def telegram_chat_id(register: bool = False) -> str:
+    """보낼 대화방: 시크릿(TELEGRAM_CHAT_ID) → 저장된 등록값 순서.
+    새 대화방 등록은 'python bot.py ping' 으로 직접 실행할 때만 한다 (평소 실행에서 남이 등록되는 일 방지)."""
     global TELEGRAM_CHAT_ID
     if TELEGRAM_CHAT_ID or not TELEGRAM_BOT_TOKEN:
         return TELEGRAM_CHAT_ID
@@ -2219,17 +2220,20 @@ def telegram_chat_id() -> str:
     if saved:
         TELEGRAM_CHAT_ID = str(saved)
         return TELEGRAM_CHAT_ID
+    if not register:
+        log("  ⚠️ 텔레그램 대화방이 등록돼 있지 않음 — ping 워크플로로 등록하세요")
+        return ""
     try:
         j = requests.get(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates", timeout=15).json()
         for u in reversed(j.get("result", [])):
-            m = u.get("message") or u.get("channel_post") or {}
-            if m.get("chat", {}).get("id"):
+            m = u.get("message") or {}
+            if m.get("chat", {}).get("type") == "private" and (m.get("text") or "").startswith("/start"):
                 TELEGRAM_CHAT_ID = str(m["chat"]["id"])
                 store.write("telegram.json", {"chat_id": TELEGRAM_CHAT_ID, "found_at": iso_kst(now_ms())}, "텔레그램 채팅방")
-                log(f"  📨 텔레그램 채팅방 등록")
+                log("  📨 텔레그램 채팅방 등록")
                 break
     except Exception as e:
-        log(f"  ⚠️ 텔레그램 채팅방 확인 실패: {e}")
+        log(f"  ⚠️ 텔레그램 채팅방 확인 실패: {type(e).__name__}")
     return TELEGRAM_CHAT_ID
 
 
@@ -2810,6 +2814,7 @@ def main(argv=None):
     elif cmd == "portfolio":
         run_portfolio()
     elif cmd == "ping":
+        telegram_chat_id(register=True)
         ok = telegram_send("✅ <b>텔레그램 알림 서식 개선</b>\n\n줄바꿈·굵은 글씨·링크가 적용됩니다. 아래는 오늘 스캔 요약을 새 서식으로 다시 보낸 것입니다.", html=True)
         log("텔레그램 테스트:", "성공" if ok else ("채팅방을 못 찾음 — 봇에게 /start 를 보내주세요" if TELEGRAM_BOT_TOKEN else "토큰 없음"))
         if not ok:
