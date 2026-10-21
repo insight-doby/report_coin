@@ -79,8 +79,12 @@ mkdir -p /opt/coinbot /var/lib/coinbot
 chown coinbot:coinbot /var/lib/coinbot && chmod 700 /var/lib/coinbot
 
 say "Downloading coinbot"
-curl -fsSL "$RAW/coinbot.py?$(date +%s)" -o /opt/coinbot/coinbot.py
-curl -fsSL "$RAW/install.sh?$(date +%s)" -o /opt/coinbot/install.sh
+# 최신 커밋을 직접 지정해서 받기 (raw 주소 캐시 때문에 옛 버전을 받는 일 방지)
+SHA=$(curl -fsSL "https://api.github.com/repos/$REPO/commits/main" | sed -n 's/^  "sha": "\([0-9a-f]\{40\}\)".*/\1/p' | head -1)
+SRC="https://raw.githubusercontent.com/$REPO/${SHA:-main}/server"
+curl -fsSL "$SRC/coinbot.py" -o /opt/coinbot/coinbot.py
+curl -fsSL "$SRC/install.sh" -o /opt/coinbot/install.sh
+echo "  version: ${SHA:0:7}"
 chmod 755 /opt/coinbot/coinbot.py /opt/coinbot/install.sh
 
 cat > /etc/systemd/system/coinbot.service <<'EOF'
@@ -114,7 +118,8 @@ case "${1:-status}" in
   report)  sudo bash -c 'set -a; . /etc/coinbot.env; set +a; sudo -E -u coinbot python3 /opt/coinbot/coinbot.py report' ;;
   check)   sudo bash -c 'set -a; . /etc/coinbot.env; set +a; python3 /opt/coinbot/coinbot.py check' ;;
   restart) sudo systemctl restart coinbot && echo "restarted" ;;
-  update)  curl -fsSL "https://raw.githubusercontent.com/insight-doby/report_coin/main/server/install.sh?$(date +%s)" | sudo bash -s update ;;
+  update)  S=$(curl -fsSL https://api.github.com/repos/insight-doby/report_coin/commits/main | sed -n 's/^  "sha": "\([0-9a-f]\{40\}\)".*/\1/p' | head -1)
+           curl -fsSL "https://raw.githubusercontent.com/insight-doby/report_coin/${S:-main}/server/install.sh" | sudo bash -s update ;;
   keys)    sudo bash /opt/coinbot/install.sh keys ;;
   *) echo "usage: coinbot [status|log|report|check|restart|update|keys]" ;;
 esac
