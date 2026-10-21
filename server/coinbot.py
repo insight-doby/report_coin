@@ -309,13 +309,13 @@ def send(text: str):
 
 
 COMMANDS = [
-    ("account", "💼 계좌 한눈에 (총자산·손익·목표)"),
-    ("holdings", "📦 보유 코인별 수익률"),
-    ("perf", "📈 매매 성적 (승률·손익비·낙폭)"),
-    ("trades", "🧾 최근 매도 기록"),
-    ("orders", "⏳ 걸어둔 주문"),
-    ("goal", "🎯 연 30% 목표 진행"),
-    ("help", "❓ 사용법"),
+    ("account", "계좌 한눈에 (총자산·손익·목표)"),
+    ("holdings", "보유 코인별 수익률"),
+    ("perf", "매매 성적 (승률·손익비·낙폭)"),
+    ("trades", "최근 매도 기록"),
+    ("orders", "걸어둔 주문"),
+    ("goal", "연 30% 목표 진행"),
+    ("help", "사용법"),
 ]
 WORDS = {
     "account": ["계좌", "자산", "잔고", "전체"], "holdings": ["보유", "코인", "종목"],
@@ -558,7 +558,7 @@ class Bot:
             log(f"{kind} 확인 1건")
             if notify:
                 what = won(krw) if coin == "KRW" else f"{coin} {qty(amt)}개 (약 {won(krw)})"
-                send(f"💰 <b>{kind} 확인</b> · {what}\n수익률 계산에서는 빼고 계산합니다.")
+                send(f"<b>{kind} 확인</b> · {what}\n수익률 계산에서는 빼고 계산합니다.")
 
     # ── 스냅샷 ──
     def snapshot(self, notify=True):
@@ -711,7 +711,7 @@ class Bot:
         t = kst(st["ts"])
         wd = "월화수목금토일"[t.weekday()]
         cash_w = st["cash"] / st["total"] * 100 if st["total"] else 0
-        return (f"💼 <b>{title}</b> · {t:%m/%d}({wd}) {t:%H:%M}\n"
+        return (f"<b>{title}</b> · {t:%m/%d}({wd}) {t:%H:%M}\n"
                 f"총자산 <b>{won(st['total'])}</b>\n현금 {man(st['cash'])}원 ({cash_w:.0f}%) · 코인 {len(st['hold'])}종목")
 
     def block_periods(self, curve, flows):
@@ -723,11 +723,11 @@ class Bot:
                 rows.append(f"{label(name)} {man(p['pnl'], True):>9} {pct(p['ret']):>7}")
         start = self.db.get("start_ts")
         note = f"\n<i>{kst(start):%m/%d} 기록 시작 · 입출금 제외</i>" if start else ""
-        return "📅 <b>기간별 손익</b>\n<pre>" + esc("\n".join(rows)) + "</pre>" + note
+        return "<b>기간별 손익</b>\n<pre>" + esc("\n".join(rows)) + "</pre>" + note
 
     def block_holdings(self, st):
         if not st["hold"]:
-            return "📦 <b>보유 코인</b>\n없음 (전부 현금)"
+            return "<b>보유 코인</b>\n없음 (전부 현금)"
         rows = []
         upnl = 0.0
         for c, h in sorted(st["hold"].items(), key=lambda x: -x[1]["value"]):
@@ -735,7 +735,7 @@ class Bot:
             rows.append(f"{dot(h['pct'])}{c:<6}{h['weight']:>4.0f}% {pct(h['pct']):>7} {man(h['pnl'], True):>8}")
         inv = sum(h["qty"] * h["avg"] for h in st["hold"].values() if h["avg"])
         up = upnl / inv * 100 if inv else None
-        return ("📦 <b>보유 코인</b>  <i>비중 · 수익률 · 평가손익</i>\n<pre>" + esc("\n".join(rows)) + "</pre>"
+        return ("<b>보유 코인</b>  <i>비중 · 수익률 · 평가손익</i>\n<pre>" + esc("\n".join(rows)) + "</pre>"
                 f"\n평가손익 합계 <b>{man(upnl, True)}원</b> ({pct(up)})")
 
     def block_holdings_detail(self, st):
@@ -750,7 +750,7 @@ class Bot:
         if not g:
             return ""
         state = "🟢 앞서는 중" if g["gap"] >= 0 else "🔴 뒤처짐"
-        lines = [f"🎯 <b>연 {GOAL_PCT:.0f}% 목표</b> ({kst(g['since']):%m/%d}부터 {g['days']:.0f}일째)",
+        lines = [f"<b>연 {GOAL_PCT:.0f}% 목표</b> ({kst(g['since']):%m/%d}부터 {g['days']:.0f}일째)",
                  f"지금까지 <b>{pct(g['ret'])}</b> ({man(g['pnl'], True)}원) · 목표 페이스 {pct(g['target'])}",
                  f"{state} {abs(g['gap']):.1f}%p",
                  f"이번달 {pct(g['month'])} / 월 목표 {pct(g['month_goal'])}"]
@@ -768,7 +768,7 @@ class Bot:
                 return f"{name}: 매도 기록 없음"
             return f"{name}: {s['n']}건 · 승률 {s['wr']:.0f}% ({s['w']}승 {s['l']}패) · {man(s['pnl'], True)}원"
 
-        out = ["📈 <b>매매 성적</b> (매도 체결 기준)", line("이번달", sm), line("누적", sa)]
+        out = ["<b>매매 성적</b> (매도 체결 기준)", line("이번달", sm), line("누적", sa)]
         if sa["n"]:
             pf = "∞" if sa["pf"] == float("inf") else (f"{sa['pf']:.2f}" if sa["pf"] is not None else "-")
             out.append(f"평균 이익 {pct(sa['avg_w'])} / 평균 손실 {pct(sa['avg_l'])}")
@@ -782,17 +782,17 @@ class Bot:
     def block_trades(self, limit=10):
         rows = self.db.q("SELECT * FROM trades ORDER BY ts DESC LIMIT ?", (limit,))
         if not rows:
-            return "🧾 <b>최근 매도</b>\n아직 기록이 없어요"
+            return "<b>최근 매도</b>\n아직 기록이 없어요"
         lines = []
         for r in rows:
             hd = f"{r['hold_h'] / 24:.1f}d" if r["hold_h"] else "  - "
             lines.append(f"{kst(r['ts']):%m/%d} {r['coin']:<6}{hd:>5} {pct(r['pct']):>7} {man(r['pnl'], True) if r['pnl'] is not None else '-':>8}")
-        return "🧾 <b>최근 매도</b>  <i>날짜 · 코인 · 보유일 · 수익률 · 손익</i>\n<pre>" + esc("\n".join(lines)) + "</pre>"
+        return "<b>최근 매도</b>  <i>날짜 · 코인 · 보유일 · 수익률 · 손익</i>\n<pre>" + esc("\n".join(lines)) + "</pre>"
 
     def block_orders(self):
         rows = self.db.get("open_orders_full", []) or []
         if not rows:
-            return "⏳ <b>걸어둔 주문</b>\n없음"
+            return "<b>걸어둔 주문</b>\n없음"
         prices = fetch_prices({r["coin"] for r in rows})
         lines = []
         for r in sorted(rows, key=lambda r: (r["coin"], r["side"])):
@@ -801,7 +801,7 @@ class Bot:
             side = "매수" if r["side"] == "bid" else "매도"
             lines.append(f"{'🟢' if r['side'] == 'bid' else '🔵'} {r['coin']} {side} {price_txt(r['price'])}원 × {qty(r['vol'])}"
                          f" ({won(r['price'] * r['vol'])})" + (f" · 현재가 대비 {pct(dist)}" if dist is not None else ""))
-        return "⏳ <b>걸어둔 주문</b>\n" + "\n".join(lines)
+        return "<b>걸어둔 주문</b>\n" + "\n".join(lines)
 
     def full_report(self, st=None, title="내 계좌"):
         st = st or self.db.get("last_state") or self.snapshot()
@@ -812,7 +812,7 @@ class Bot:
                  self.block_goal(g), perf]
         tips = self.checks(st, sa, g)
         if tips:
-            parts.append("💡 <b>체크 포인트</b>\n" + "\n".join(f"• {esc(t)}" for t in tips))
+            parts.append("<b>체크 포인트</b>\n" + "\n".join(f"• {esc(t)}" for t in tips))
         missing = self.db.get("flow_perm_missing", [])
         if missing:
             parts.append(f"<i>⚠️ {', '.join(missing)} 조회 권한이 없어 입출금이 수익으로 잡힐 수 있어요 (빗썸 API 키에 입금조회·출금조회 추가)</i>")
@@ -834,7 +834,7 @@ class Bot:
         s_rows = [r for r in self.db.q("SELECT * FROM trades WHERE ts>=? AND ts<? AND pct IS NOT NULL",
                                        (prev.timestamp(), first.timestamp()))]
         mg = ((1 + GOAL_PCT / 100) ** (1 / 12) - 1) * 100
-        lines = [f"🗓 <b>{prev:%Y년 %m월} 성적표</b>",
+        lines = [f"<b>{prev:%Y년 %m월} 성적표</b>",
                  f"수익률 <b>{pct(ret)}</b> ({man(pnl, True)}원) · 월 목표 {pct(mg)} → {'✅ 달성' if ret >= mg else '❌ 미달'}",
                  f"매도 {len(s_rows)}건"]
         if s_rows:
@@ -884,7 +884,7 @@ class Bot:
         if not cmd:
             cmd = next((c for c, ws in WORDS.items() if any(w in t for w in ws)), None)
         if cmd in (None, "help"):
-            send("🤖 <b>계좌 비서</b> — 메뉴 버튼이나 한글로 물어보세요\n"
+            send("<b>계좌 비서</b> — 메뉴 버튼이나 한글로 물어보세요\n"
                  + "\n".join(f"/{c} {d}" for c, d in COMMANDS[:-1])
                  + "\n\n예) '계좌', '보유', '승률', '주문', '목표'\n체결·입금은 자동으로 알려드려요.")
             return
@@ -1009,7 +1009,7 @@ def check():
             if name in ("accounts", "orders"):
                 ok = False
     if TG_TOKEN and TG_CHAT:
-        r = tg("sendMessage", chat_id=TG_CHAT, text="🔧 계좌 비서 설치 확인 메시지입니다.")
+        r = tg("sendMessage", chat_id=TG_CHAT, text="계좌 비서 설치 확인 메시지입니다.")
         print("OK   telegram" if r and r.get("ok") else "FAIL telegram (check token / chat id)")
     else:
         print("WARN no telegram settings")
