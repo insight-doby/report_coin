@@ -892,8 +892,12 @@ class Bot:
             try:
                 self.handle(m.get("text", ""))
             except Exception as e:
-                log(f"명령 처리 오류: {type(e).__name__}")
-                send(f"⚠️ 처리 중 오류가 났어요 ({esc(type(e).__name__)}). 잠시 후 다시 시도해 주세요.")
+                tb = traceback.extract_tb(e.__traceback__)
+                where = f"{tb[-1].name}:{tb[-1].lineno}" if tb else "?"
+                log(f"명령 처리 오류: {type(e).__name__} @ {where}")
+                traceback.print_exc()
+                send(f"⚠️ 처리 중 오류가 났어요\n<code>{esc(type(e).__name__)}: {esc(str(e)[:120])} @ {esc(where)}</code>\n"
+                     "이 메시지를 캡처해서 보내 주시면 고칠게요.")
 
     # ── 오류 알림 ──
     def on_error(self, e):
