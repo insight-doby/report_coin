@@ -1,7 +1,6 @@
 name: portfolio
 on:
-  schedule:
-    - cron: "50 23 * * *"   # 매일 08:50 KST — 계좌 요약을 텔레그램으로만
+  # 계좌 요약은 개인 서버(server/coinbot.py)가 맡습니다 — 빗썸 키가 고정 IP만 허용하기 때문
   workflow_dispatch:
 concurrency: { group: bot-data, cancel-in-progress: false }
 permissions: { contents: write }
