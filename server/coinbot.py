@@ -114,6 +114,16 @@ def price_txt(v) -> str:
     return f"{v:.4f}"
 
 
+def qty(v) -> str:
+    """수량: 22,260 / 1.5 / 0.0123 (지수 표기 없이)"""
+    v = fnum(v)
+    if v >= 1000:
+        return f"{v:,.0f}"
+    if v >= 1:
+        return f"{v:,.4f}".rstrip("0").rstrip(".")
+    return f"{v:.8f}".rstrip("0").rstrip(".") or "0"
+
+
 def rp(v: float) -> float:
     v = float(v)
     if v >= 1000:
@@ -357,7 +367,15 @@ class Bot:
         return out
 
     def _detail(self, u):
-        o = bget("/v1/order", {"uuid": u})
+        for i in range(3):
+            try:
+                time.sleep(0.15)
+                o = bget("/v1/order", {"uuid": u})
+                break
+            except BithumbError as e:
+                if e.status != 429 or i == 2:
+                    raise
+                time.sleep(2)
         trades = o.get("trades") or []
         vol = fnum(o.get("executed_volume")) or sum(fnum(t.get("volume")) for t in trades)
         funds = sum(fnum(t.get("funds")) or fnum(t.get("price")) * fnum(t.get("volume")) for t in trades)
@@ -400,8 +418,9 @@ class Bot:
             if d["volume"] > 0 and d["market"].startswith("KRW-") and d["state"] != "wait":
                 fills.append(d)
         fills.sort(key=lambda d: d["ts"])
+        fresh_after = now_ts() - 30 * 60                 # 30분 넘게 지난 체결은 조용히 기록만
         for d in fills:
-            self.apply_fill(d, notify=notify and not backfill, prefer_replay=backfill)
+            self.apply_fill(d, notify=notify and not backfill and d["ts"] >= fresh_after, prefer_replay=backfill)
         if fills:
             log(f"체결 {len(fills)}건 반영")
         return fills
@@ -430,7 +449,7 @@ class Bot:
             new_avg = p["cost"] / p["qty"]
             avg_txt = (f"평단 {price_txt(old_avg)} → <b>{price_txt(new_avg)}</b>" if old_avg
                        else f"평단 <b>{price_txt(new_avg)}</b> (새로 매수)")
-            msg = (f"🟢 <b>매수 체결 · {coin}</b>\n{price_txt(px)}원 × {vol:,.4g}개 = {won(funds)}\n{avg_txt}")
+            msg = (f"🟢 <b>매수 체결 · {coin}</b>\n{price_txt(px)}원 × {qty(vol)}개 = {won(funds)}\n{avg_txt}")
         else:
             proceeds = funds - fee
             replay_avg = p["cost"] / p["qty"] if p["qty"] >= vol * 0.98 and p["qty"] > 0 else None
@@ -447,14 +466,14 @@ class Bot:
                 p["qty"] -= take
             if p["qty"] * px < DUST_KRW:
                 p = {"qty": 0.0, "cost": 0.0, "opened": None}
-            left = "전량 매도" if p["qty"] <= 1e-12 else f"남은 {p['qty']:,.4g}개"
+            left = "전량 매도" if p["qty"] <= 1e-12 else f"남은 {qty(p['qty'])}개"
             if pnl is not None:
                 msg = (f"{'🔵' if pnl >= 0 else '🔴'} <b>매도 체결 · {coin}</b> ({left})\n"
-                       f"{price_txt(px)}원 × {vol:,.4g}개 = {won(funds)}\n"
+                       f"{price_txt(px)}원 × {qty(vol)}개 = {won(funds)}\n"
                        f"수익 <b>{pct(pc, 2)}</b> · {man(pnl, True)}원 (수수료 포함)"
                        + (f" · {hold_h / 24:.1f}일 보유" if hold_h else ""))
             else:
-                msg = f"🔵 <b>매도 체결 · {coin}</b> ({left})\n{price_txt(px)}원 × {vol:,.4g}개 = {won(funds)}"
+                msg = f"🔵 <b>매도 체결 · {coin}</b> ({left})\n{price_txt(px)}원 × {qty(vol)}개 = {won(funds)}"
         self._save_pos(coin, p)
         self.db.x("INSERT OR REPLACE INTO orders VALUES(?,?,?,?,?,?,?)",
                   (d["uuid"], int(ts), coin, d["side"], vol, funds, fee))
@@ -496,19 +515,19 @@ class Bot:
                 if start is None or ts < start or self.db.q("SELECT 1 FROM flows WHERE id=?", (fid,)):
                     continue
                 coin = str(it.get("currency", "KRW")).upper()
-                qty = fnum(it.get("amount"))
+                amt = fnum(it.get("amount"))
                 if coin == "KRW":
-                    krw = qty
+                    krw = amt
                 else:
                     p = prices.get(coin) or fetch_prices([coin]).get(coin, 0)
-                    krw = qty * p
-                self.db.x("INSERT INTO flows VALUES(?,?,?,?,?,?)", (fid, int(ts), kind, coin, qty, sign * krw))
-                new.append((kind, coin, qty, krw))
+                    krw = amt * p
+                self.db.x("INSERT INTO flows VALUES(?,?,?,?,?,?)", (fid, int(ts), kind, coin, amt, sign * krw))
+                new.append((kind, coin, amt, krw))
         self.db.put("flow_perm_missing", missing)
-        for kind, coin, qty, krw in new:
+        for kind, coin, amt, krw in new:
             log(f"{kind} 확인 1건")
             if notify:
-                what = won(krw) if coin == "KRW" else f"{coin} {qty:,.4g}개 (약 {won(krw)})"
+                what = won(krw) if coin == "KRW" else f"{coin} {qty(amt)}개 (약 {won(krw)})"
                 send(f"💰 <b>{kind} 확인</b> · {what}\n수익률 계산에서는 빼고 계산합니다.")
 
     # ── 스냅샷 ──
@@ -694,7 +713,7 @@ class Bot:
         for c, h in sorted(st["hold"].items(), key=lambda x: -x[1]["value"]):
             lines.append(f"{dot(h['pct'])} <b>{c}</b> {pct(h['pct'])} · 비중 {h['weight']:.0f}%\n"
                          f"   평단 {price_txt(h['avg'])} → 현재 {price_txt(h['price'])}\n"
-                         f"   {h['qty']:,.4g}개 · 평가 {won(h['value'])} ({man(h['pnl'], True)})")
+                         f"   {qty(h['qty'])}개 · 평가 {won(h['value'])} ({man(h['pnl'], True)})")
         return "\n".join(lines) or "보유 코인 없음"
 
     def block_goal(self, g):
@@ -750,7 +769,7 @@ class Bot:
             cur = prices.get(r["coin"])
             dist = (r["price"] / cur - 1) * 100 if cur else None
             side = "매수" if r["side"] == "bid" else "매도"
-            lines.append(f"{'🟢' if r['side'] == 'bid' else '🔵'} {r['coin']} {side} {price_txt(r['price'])}원 × {r['vol']:,.4g}"
+            lines.append(f"{'🟢' if r['side'] == 'bid' else '🔵'} {r['coin']} {side} {price_txt(r['price'])}원 × {qty(r['vol'])}"
                          f" ({won(r['price'] * r['vol'])})" + (f" · 현재가 대비 {pct(dist)}" if dist is not None else ""))
         return "⏳ <b>걸어둔 주문</b>\n" + "\n".join(lines)
 
