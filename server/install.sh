@@ -65,7 +65,7 @@ fi
 say "Installing packages"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
-apt-get install -y -qq python3 python3-requests ca-certificates curl >/dev/null
+apt-get install -y -qq python3 python3-requests python3-matplotlib fonts-nanum ca-certificates curl >/dev/null
 timedatectl set-timezone Asia/Seoul 2>/dev/null || true
 
 if ! swapon --show | grep -q .; then

@@ -40,6 +40,8 @@ DB_PATH = os.environ.get("COINBOT_DB", "/var/lib/coinbot/coinbot.db")
 GOAL_PCT = float(os.environ.get("COINBOT_GOAL_PCT", "30"))     # 연 목표 수익률(%)
 REPORT_HOUR = int(os.environ.get("COINBOT_REPORT_HOUR", "22"))  # 하루 결산 시각(KST)
 
+MAJOR_KRW = float(os.environ.get("COINBOT_MAJOR_KRW", "1000000"))   # 이 금액 이상 보유만 자세히
+
 FILL_EVERY = 120
 SNAP_EVERY = 600
 DUST_KRW = 5_000               # 평가금액 이보다 작으면 '보유'로 보지 않음
@@ -91,9 +93,9 @@ def man(v, sign=False) -> str:
     s = "+" if sign and v > 0 else ("-" if v < 0 else "")
     a = abs(v)
     if a >= 1e8:
-        body = f"{a / 1e8:.2f}억"
+        body = f"{a / 1e8:.2f}".rstrip("0").rstrip(".") + "억"
     elif a >= 1e5:
-        body = f"{a / 1e4:,.1f}만"
+        body = f"{a / 1e4:,.1f}".removesuffix(".0") + "만"
     else:
         body = f"{a:,.0f}"
     return s + body
@@ -310,6 +312,7 @@ def send(text: str):
 
 COMMANDS = [
     ("account", "계좌 한눈에 (총자산·손익·목표)"),
+    ("check", "계좌 점검 (상태 점수·할 일)"),
     ("holdings", "보유 코인별 수익률"),
     ("perf", "매매 성적 (승률·손익비·낙폭)"),
     ("trades", "최근 매도 기록"),
@@ -320,7 +323,7 @@ COMMANDS = [
 WORDS = {
     "account": ["계좌", "자산", "잔고", "전체"], "holdings": ["보유", "코인", "종목"],
     "perf": ["성적", "수익", "승률", "성과"], "trades": ["거래", "매도", "기록", "체결"],
-    "orders": ["주문", "지정가", "대기"], "goal": ["목표"], "help": ["도움", "help", "start", "메뉴"],
+    "orders": ["주문", "지정가", "대기"], "goal": ["목표"], "check": ["점검", "상태", "진단"], "help": ["도움", "help", "start", "메뉴"],
 }
 
 
@@ -694,17 +697,36 @@ class Bot:
             tips.append(f"목표보다 {abs(g['gap']):.1f}%p 뒤처짐 — 무리한 추격보다 승률 높은 자리만")
         return tips
 
-    def public_stops(self):
-        cache = self.db.get("pub_stops_cache")
+    def public_levels(self):
+        """공개 보유목록(positions.json)의 손절가·목표가."""
+        cache = self.db.get("pub_levels_cache")
         if cache and now_ts() - cache.get("t", 0) < 1800:
             return cache["v"]
         try:
             r = requests.get(f"https://raw.githubusercontent.com/{GH_REPO}/main/data/positions.json", timeout=10)
-            v = {p["ticker"]: fnum(p["stop"]) for p in r.json().get("positions", []) if p.get("stop")}
+            v = {p["ticker"]: {k: fnum(p[k]) for k in ("stop", "t1", "t2") if p.get(k)}
+                 for p in r.json().get("positions", []) if p.get("ticker")}
         except Exception:
             v = (cache or {}).get("v", {})
-        self.db.put("pub_stops_cache", {"t": now_ts(), "v": v})
+        self.db.put("pub_levels_cache", {"t": now_ts(), "v": v})
         return v
+
+    def public_stops(self):
+        return {c: lv["stop"] for c, lv in (self.public_levels() or {}).items() if lv.get("stop")}
+
+    @staticmethod
+    def split_major(st):
+        rows = sorted(st["hold"].items(), key=lambda x: -x[1]["value"])
+        major = [(c, h) for c, h in rows if h["value"] >= MAJOR_KRW]
+        minor = [(c, h) for c, h in rows if h["value"] < MAJOR_KRW]
+        return major, minor
+
+    @staticmethod
+    def group_sum(items):
+        val = sum(h["value"] for _, h in items)
+        inv = sum(h["qty"] * h["avg"] for _, h in items if h["avg"])
+        pnl = sum(h["pnl"] or 0 for _, h in items)
+        return {"n": len(items), "value": val, "pnl": pnl, "pct": pnl / inv * 100 if inv else None}
 
     # ── 메시지 ──
     def head(self, st, title):
@@ -728,23 +750,115 @@ class Bot:
     def block_holdings(self, st):
         if not st["hold"]:
             return "<b>보유 코인</b>\n없음 (전부 현금)"
-        rows = []
-        upnl = 0.0
-        for c, h in sorted(st["hold"].items(), key=lambda x: -x[1]["value"]):
-            upnl += h["pnl"] or 0
-            rows.append(f"{dot(h['pct'])}{c:<6}{h['weight']:>4.0f}% {pct(h['pct']):>7} {man(h['pnl'], True):>8}")
-        inv = sum(h["qty"] * h["avg"] for h in st["hold"].values() if h["avg"])
-        up = upnl / inv * 100 if inv else None
-        return ("<b>보유 코인</b>  <i>비중 · 수익률 · 평가손익</i>\n<pre>" + esc("\n".join(rows)) + "</pre>"
-                f"\n평가손익 합계 <b>{man(upnl, True)}원</b> ({pct(up)})")
+        major, minor = self.split_major(st)
+        out = [f"<b>보유 코인</b>  <i>{man(MAJOR_KRW)}원 이상 · 비중 · 수익률 · 평가손익</i>"]
+        if major:
+            rows = [f"{dot(h['pct'])}{c:<6}{h['weight']:>4.0f}% {pct(h['pct']):>7} {man(h['pnl'], True):>8}"
+                    for c, h in major]
+            out.append("<pre>" + esc("\n".join(rows)) + "</pre>")
+        else:
+            out.append(f"{man(MAJOR_KRW)}원 이상 보유 코인 없음")
+        if minor:
+            m = self.group_sum(minor)
+            out.append(f"기타 {m['n']}종목 · 합계 {man(m['value'])}원 · {pct(m['pct'])}")
+        allg = self.group_sum(list(st["hold"].items()))
+        out.append(f"평가손익 합계 <b>{man(allg['pnl'], True)}원</b> ({pct(allg['pct'])})")
+        return "\n".join(out)
 
     def block_holdings_detail(self, st):
+        major, _ = self.split_major(st)
+        levels = self.public_levels() or {}
         lines = []
-        for c, h in sorted(st["hold"].items(), key=lambda x: -x[1]["value"]):
-            lines.append(f"{dot(h['pct'])} <b>{c}</b> {pct(h['pct'])} · 비중 {h['weight']:.0f}%\n"
-                         f"   평단 {price_txt(h['avg'])} → 현재 {price_txt(h['price'])}\n"
-                         f"   {qty(h['qty'])}개 · 평가 {won(h['value'])} ({man(h['pnl'], True)})")
-        return "\n".join(lines) or "보유 코인 없음"
+        for c, h in major:
+            ln = (f"{dot(h['pct'])} <b>{c}</b> {pct(h['pct'])} · 비중 {h['weight']:.0f}%\n"
+                  f"   평단 {price_txt(h['avg'])} → 현재 {price_txt(h['price'])}\n"
+                  f"   {qty(h['qty'])}개 · 평가 {won(h['value'])} ({man(h['pnl'], True)})")
+            lv = levels.get(c) or {}
+            marks = []
+            for k, name in (("stop", "손절"), ("t1", "1차 목표"), ("t2", "2차 목표")):
+                if lv.get(k):
+                    marks.append(f"{name} {price_txt(lv[k])} ({pct((lv[k] / h['price'] - 1) * 100)})")
+            if marks:
+                ln += "\n   " + " · ".join(marks)
+            lines.append(ln)
+        return "\n".join(lines)
+
+    # ── 계좌 점검 (상태 점수·할 일) ──
+    def checkup(self, st, curve, flows):
+        items, todos = [], []          # items: (상태 good/warn/bad/info, 문장)
+        g = self.goal(curve, flows)
+        total = st["total"] or 1
+        if g and g["days"] >= 7:
+            gap = g["gap"]
+            s_ = "good" if gap >= 0 else ("warn" if gap >= -5 else "bad")
+            items.append((s_, f"목표 페이스 {'앞섬' if gap >= 0 else '뒤처짐'} {abs(gap):.1f}%p (지금 {pct(g['ret'])})"))
+            if s_ == "bad":
+                todos.append("목표보다 많이 뒤처짐 — 새 매수는 승률 높은 자리만, 손실 종목 정리부터")
+        elif g:
+            items.append(("info", f"목표 페이스: 기록 {g['days']:.0f}일째 (7일부터 판정)"))
+        cash_w = st["cash"] / total * 100
+        if 10 <= cash_w <= 50:
+            items.append(("good", f"현금 {cash_w:.0f}% (적정 10~50%)"))
+        elif cash_w < 5:
+            items.append(("bad", f"현금 {cash_w:.0f}% — 급락 때 살 돈이 없음"))
+            todos.append("현금을 10% 이상 확보 (가장 약한 종목 일부 정리)")
+        elif cash_w < 10:
+            items.append(("warn", f"현금 {cash_w:.0f}% — 조금 부족 (10% 이상 권장)"))
+        else:
+            items.append(("warn" if st["hold"] else "info", f"현금 {cash_w:.0f}% — 대기 중이면 OK"))
+        if st["hold"]:
+            c, h = max(st["hold"].items(), key=lambda x: x[1]["weight"])
+            w = h["weight"]
+            s_ = "good" if w <= 30 else ("warn" if w <= 40 else "bad")
+            items.append((s_, f"최대 비중 {c} {w:.0f}%" + ("" if s_ == "good" else " — 한 종목 쏠림")))
+            if s_ == "bad":
+                todos.append(f"{c} 비중 {w:.0f}% → 40% 이하로 줄일지 검토")
+        major, _ = self.split_major(st)
+        levels = self.public_levels() or {}
+        for c, h in major:
+            stop = (levels.get(c) or {}).get("stop")
+            if stop and h["price"] < stop:
+                items.append(("bad", f"{c} 손절가 {price_txt(stop)} 아래 ({pct(h['pct'])})"))
+                todos.append(f"{c} 손절가 이탈 — 정리할지 보유할지 결정")
+            elif h["pct"] is not None and h["pct"] <= -10:
+                items.append(("bad", f"{c} {pct(h['pct'])} — 큰 손실"))
+                todos.append(f"{c} 손절 기준 다시 정하기 (물타기는 계획 안에서만)")
+            elif h["pct"] is not None and h["pct"] <= -5:
+                items.append(("warn", f"{c} {pct(h['pct'])} — 손절 기준 확인"))
+            t1 = (levels.get(c) or {}).get("t1")
+            if t1 and h["price"] >= t1:
+                items.append(("good", f"{c} 1차 목표 {price_txt(t1)} 도달"))
+                todos.append(f"{c} 1차 목표 도달 — 일부 익절 검토")
+        sa = self.stats(0)
+        if sa["n"] >= 5:
+            pf = sa["pf"] if sa["pf"] != float("inf") else 9.9
+            s_ = "good" if pf >= 1.5 else ("warn" if pf >= 1 else "bad")
+            items.append((s_, f"매매 성적 승률 {sa['wr']:.0f}% · 손익비 {pf:.2f} ({sa['n']}건)"))
+            if s_ == "bad":
+                todos.append("잃는 매매가 더 큼 — 손절은 빨리, 익절은 조금 길게")
+        else:
+            items.append(("info", f"매매 성적: 매도 {sa['n']}건 (5건부터 판정)"))
+        if curve:
+            _, cdd = self.drawdown(curve)
+            s_ = "good" if cdd > -5 else ("warn" if cdd > -10 else "bad")
+            items.append((s_, f"고점 대비 {cdd:.1f}%"))
+        bad = sum(1 for k, _ in items if k == "bad")
+        warn = sum(1 for k, _ in items if k == "warn")
+        score = max(0, 100 - 15 * bad - 6 * warn)
+        grade = "양호" if score >= 80 else ("주의" if score >= 60 else "위험")
+        return {"score": score, "grade": grade, "items": items, "todos": todos[:3]}
+
+    def block_checkup(self, ck):
+        icon = {"good": "🟢", "warn": "🟡", "bad": "🔴", "info": "⚪"}
+        order = {"bad": 0, "warn": 1, "good": 2, "info": 3}
+        lines = [f"<b>계좌 점검</b> · 종합 <b>{ck['grade']}</b> ({ck['score']}/100)"]
+        lines += [f"{icon[k]} {esc(t)}" for k, t in sorted(ck["items"], key=lambda x: order[x[0]])]
+        if ck["todos"]:
+            lines.append("\n<b>할 일</b>")
+            lines += [f"{i}. {esc(t)}" for i, t in enumerate(ck["todos"], 1)]
+        else:
+            lines.append("\n지금 급하게 손볼 것은 없어요.")
+        return "\n".join(lines)
 
     def block_goal(self, g):
         if not g:
@@ -808,11 +922,8 @@ class Bot:
         curve, flows = self.curve()
         g = self.goal(curve, flows)
         perf, sa = self.block_perf(curve)
-        parts = [self.head(st, title), self.block_periods(curve, flows), self.block_holdings(st),
-                 self.block_goal(g), perf]
-        tips = self.checks(st, sa, g)
-        if tips:
-            parts.append("<b>체크 포인트</b>\n" + "\n".join(f"• {esc(t)}" for t in tips))
+        parts = [self.head(st, title), self.block_checkup(self.checkup(st, curve, flows)),
+                 self.block_periods(curve, flows), self.block_holdings(st), self.block_goal(g), perf]
         missing = self.db.get("flow_perm_missing", [])
         if missing:
             parts.append(f"<i>⚠️ {', '.join(missing)} 조회 권한이 없어 입출금이 수익으로 잡힐 수 있어요 (빗썸 API 키에 입금조회·출금조회 추가)</i>")
@@ -886,7 +997,7 @@ class Bot:
         if cmd in (None, "help"):
             send("<b>계좌 비서</b> — 메뉴 버튼이나 한글로 물어보세요\n"
                  + "\n".join(f"/{c} {d}" for c, d in COMMANDS[:-1])
-                 + "\n\n예) '계좌', '보유', '승률', '주문', '목표'\n체결·입금은 자동으로 알려드려요.")
+                 + "\n\n예) '계좌', '점검', '보유', '승률', '주문', '목표'\n체결·입금은 자동으로 알려드려요.")
             return
         if cmd == "orders":
             try:
@@ -898,8 +1009,13 @@ class Bot:
         st = self.snapshot(notify=True)
         curve, flows = self.curve()
         if cmd == "account":
+            send_photo(chart_account(self, st, curve, flows))
             send(self.full_report(st))
+        elif cmd == "check":
+            send_photo(chart_account(self, st, curve, flows))
+            send(self.head(st, "내 계좌") + "\n\n" + self.block_checkup(self.checkup(st, curve, flows)))
         elif cmd == "holdings":
+            send_photo(chart_holdings(self, st))
             send(self.head(st, "보유 코인") + "\n\n" + self.block_holdings(st) + "\n\n" + self.block_holdings_detail(st))
         elif cmd == "perf":
             send(self.block_perf(curve)[0] + "\n\n" + self.block_trades(5))
@@ -981,12 +1097,257 @@ class Bot:
         today = f"{d:%Y-%m-%d}"
         if d.hour >= REPORT_HOUR and self.db.get("last_daily") != today:
             self.db.put("last_daily", today)
-            send(self.full_report(self.db.get("last_state"), title="오늘의 결산"))
+            st = self.db.get("last_state")
+            if st:
+                curve, flows = self.curve()
+                send_photo(chart_account(self, st, curve, flows))
+            send(self.full_report(st, title="오늘의 결산"))
         if d.day == 1 and d.hour >= 9 and self.db.get("last_monthly") != f"{d:%Y-%m}":
             self.db.put("last_monthly", f"{d:%Y-%m}")
             txt = self.month_report()
             if txt:
+                send_photo(chart_monthly(self))
                 send(txt)
+
+
+# ───────────────────────── 이미지 카드 (텔레그램 사진) ─────────────────────────
+# 색: 한국 시장 관례대로 상승=빨강, 하락=파랑. 글자는 잉크색, 색은 막대/선에만.
+C_BG, C_INK, C_INK2, C_MUTED = "#fcfcfb", "#0b0b0b", "#52514e", "#898781"
+C_GRID, C_AXIS = "#e1e0d9", "#c3c2b7"
+C_UP, C_DOWN, C_LINE = "#e34948", "#2a78d6", "#0b0b0b"
+_FONT = {"ok": None}
+
+
+def _plt():
+    """matplotlib 준비 (없으면 None → 글자만 보냄)."""
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        from matplotlib import font_manager
+    except Exception:
+        return None
+    if _FONT["ok"] is None:
+        _FONT["ok"] = False
+        for path in ("/usr/share/fonts/truetype/nanum/NanumGothic.ttf",
+                     "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"):
+            if os.path.exists(path):
+                font_manager.fontManager.addfont(path)
+                bold = path.replace("NanumGothic.ttf", "NanumGothicBold.ttf").replace("Regular", "Bold")
+                if os.path.exists(bold):
+                    font_manager.fontManager.addfont(bold)
+                plt.rcParams["font.family"] = font_manager.FontProperties(fname=path).get_name()
+                _FONT["ok"] = True
+                break
+        plt.rcParams.update({"axes.unicode_minus": False, "figure.facecolor": C_BG, "axes.facecolor": C_BG,
+                             "savefig.facecolor": C_BG, "text.color": C_INK, "axes.edgecolor": C_AXIS,
+                             "xtick.color": C_MUTED, "ytick.color": C_MUTED, "axes.labelcolor": C_INK2})
+    return plt
+
+
+def _png(fig, plt):
+    import io
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=150)
+    plt.close(fig)
+    return buf.getvalue()
+
+
+def _clean_axes(ax):
+    for side in ("top", "right", "left"):
+        ax.spines[side].set_visible(False)
+    ax.spines["bottom"].set_color(C_AXIS)
+    ax.tick_params(length=0, labelsize=8.5)
+    ax.grid(axis="y", color=C_GRID, linewidth=0.6)
+    ax.set_axisbelow(True)
+
+
+def chart_account(bot, st, curve, flows):
+    """계좌 카드: 총자산 · 수익률 추이(목표선) · 큰 보유 코인 수익률."""
+    plt = _plt()
+    if plt is None or not st:
+        return None
+    try:
+        from matplotlib.ticker import FuncFormatter
+        g = bot.goal(curve, flows)
+        major, minor = bot.split_major(st)
+        nb = max(len(major), 1)
+        fig = plt.figure(figsize=(7.2, 6.4 + 0.42 * nb))
+        t = kst(st["ts"])
+        fig.text(0.06, 0.965, f"내 계좌 · {t:%m/%d} {'월화수목금토일'[t.weekday()]} {t:%H:%M}",
+                 fontsize=10, color=C_MUTED, va="top")
+        fig.text(0.06, 0.93, won(st["total"]), fontsize=24, fontweight="bold", va="top")
+        cash_w = st["cash"] / st["total"] * 100 if st["total"] else 0
+        sub = f"현금 {cash_w:.0f}% · 코인 {len(st['hold'])}종목"
+        if g:
+            sub += f"   |   기록 후 {pct(g['ret'])} · 목표 페이스 {pct(g['target'])}"
+        fig.text(0.06, 0.865, sub, fontsize=10.5, color=C_INK2, va="top")
+
+        h_line = 3.2 / (6.4 + 0.42 * nb)
+        ax = fig.add_axes([0.08, 0.83 - h_line - 0.04, 0.86, h_line])
+        start = g["since"] if g else (curve[0][0] if curve else 0)
+        pts = [r for r in curve if r[0] >= start] if curve else []
+        if len(pts) >= 2 and pts[-1][0] - pts[0][0] >= 3600 * 6:
+            step = max(1, len(pts) // 400)
+            pts = pts[::step] + ([pts[-1]] if pts[-1] is not pts[::step][-1] else [])
+            base = pts[0][2]
+            xs = [datetime.fromtimestamp(r[0], KST) for r in pts]
+            ys = [(r[2] / base - 1) * 100 for r in pts]
+            goal_y = [((1 + GOAL_PCT / 100) ** ((r[0] - pts[0][0]) / 86400 / 365) - 1) * 100 for r in pts]
+            ax.plot(xs, goal_y, color=C_MUTED, linewidth=1.4, linestyle=(0, (4, 3)))
+            ax.plot(xs, ys, color=C_LINE, linewidth=2)
+            ax.axhline(0, color=C_AXIS, linewidth=0.8)
+            ax.annotate(f"내 수익률 {pct(ys[-1])}", (xs[-1], ys[-1]), xytext=(-4, 8), textcoords="offset points",
+                        ha="right", fontsize=9, color=C_INK, fontweight="bold")
+            ax.annotate(f"연 {GOAL_PCT:.0f}% 목표선", (xs[-1], goal_y[-1]), xytext=(-4, -14),
+                        textcoords="offset points", ha="right", fontsize=8.5, color=C_MUTED)
+            ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:+.0f}%" if v else "0%"))
+            import matplotlib.dates as mdates
+            ax.xaxis.set_major_formatter(mdates.DateFormatter("%m/%d", tz=KST))
+            ax.xaxis.set_major_locator(mdates.AutoDateLocator(minticks=3, maxticks=6, tz=KST))
+            _clean_axes(ax)
+        else:
+            ax.axis("off")
+            ax.text(0.5, 0.5, "수익률 그래프는 기록이 하루쯤 쌓이면 그려져요", ha="center", va="center",
+                    fontsize=10.5, color=C_MUTED, transform=ax.transAxes)
+        ax.set_title("수익률 추이 (입출금 제외)", loc="left", fontsize=11, fontweight="bold", pad=10)
+
+        h_bar = 0.42 * nb / (6.4 + 0.42 * nb)
+        bx = fig.add_axes([0.20, 0.07, 0.62, h_bar])
+        bx.set_title(f"보유 코인 수익률 ({man(MAJOR_KRW)}원 이상)", loc="left", fontsize=11, fontweight="bold",
+                     pad=10, x=-0.2)
+        if major:
+            names = [c for c, _ in major][::-1]
+            vals = [h["pct"] or 0 for _, h in major][::-1]
+            ws = [h["weight"] for _, h in major][::-1]
+            lim = max(5, max(abs(v) for v in vals) * 1.15)
+            bx.barh(names, vals, height=0.5, color=[C_UP if v >= 0 else C_DOWN for v in vals])
+            bx.axvline(0, color=C_AXIS, linewidth=0.8)
+            bx.set_xlim(-lim, lim)
+            for y, (v, w) in enumerate(zip(vals, ws)):
+                bx.text(lim * 1.02, y, f"{pct(v)}  ·  {w:.0f}%", va="center", fontsize=9, color=C_INK)
+            for side in ("top", "right", "left", "bottom"):
+                bx.spines[side].set_visible(False)
+            bx.tick_params(length=0, labelsize=10.5, labelcolor=C_INK)
+            bx.set_xticks([])
+        else:
+            bx.axis("off")
+            bx.text(0, 0.5, f"{man(MAJOR_KRW)}원 이상 보유 코인 없음", fontsize=10, color=C_MUTED,
+                    transform=bx.transAxes, va="center")
+        if minor:
+            m = bot.group_sum(minor)
+            fig.text(0.06, 0.025, f"기타 {m['n']}종목 · 합계 {man(m['value'])}원 · {pct(m['pct'])}",
+                     fontsize=9, color=C_MUTED)
+        return _png(fig, plt)
+    except Exception as e:
+        log(f"계좌 카드 그리기 실패: {type(e).__name__}")
+        return None
+
+
+def chart_holdings(bot, st):
+    """보유 카드: 큰 보유 코인 표 (평단·현재가·수익률·손익·손절/목표 거리)."""
+    plt = _plt()
+    if plt is None or not st or not st["hold"]:
+        return None
+    try:
+        major, minor = bot.split_major(st)
+        levels = bot.public_levels() or {}
+        rows = len(major) + (1 if minor else 0)
+        fig = plt.figure(figsize=(7.2, 1.25 + 0.62 * max(rows, 1)))
+        H = fig.get_figheight()
+        y = lambda inch: 1 - inch / H
+        t = kst(st["ts"])
+        fig.text(0.05, y(0.3), f"보유 코인 · {t:%m/%d %H:%M}", fontsize=13, fontweight="bold", va="center")
+        fig.text(0.95, y(0.3), f"{man(MAJOR_KRW)}원 이상", fontsize=9, color=C_MUTED, va="center", ha="right")
+        cols = [(0.05, "코인", "left"), (0.30, "비중", "right"), (0.47, "평단", "right"), (0.64, "현재가", "right"),
+                (0.79, "수익률", "right"), (0.95, "평가손익", "right")]
+        for x, name, ha in cols:
+            fig.text(x, y(0.78), name, fontsize=9, color=C_MUTED, ha=ha, va="center")
+        fig.add_artist(plt.Line2D([0.05, 0.95], [y(0.95), y(0.95)], color=C_AXIS, linewidth=0.8))
+        yy = 1.3
+        for c, h in major:
+            col = C_UP if (h["pct"] or 0) >= 0 else C_DOWN
+            fig.add_artist(plt.Rectangle((0.035, y(yy) - 0.18 / H), 0.006, 0.36 / H, color=col, transform=fig.transFigure))
+            vals = [c, f"{h['weight']:.0f}%", price_txt(h["avg"]), price_txt(h["price"]), pct(h["pct"]),
+                    man(h["pnl"], True)]
+            for (x, _, ha), v in zip(cols, vals):
+                bold = v == c or v == pct(h["pct"])
+                fig.text(x, y(yy), v, fontsize=11 if bold else 10, fontweight="bold" if bold else "normal",
+                         ha=ha, va="center", color=C_INK)
+            lv = levels.get(c) or {}
+            marks = [f"{name} {price_txt(lv[k])} ({pct((lv[k] / h['price'] - 1) * 100)})"
+                     for k, name in (("stop", "손절"), ("t1", "1차"), ("t2", "2차")) if lv.get(k)]
+            if marks:
+                fig.text(0.30, y(yy + 0.26), "  ·  ".join(marks), fontsize=8, color=C_MUTED, va="center")
+            yy += 0.62
+        if not major:
+            fig.text(0.05, y(yy), f"{man(MAJOR_KRW)}원 이상 보유 코인 없음", fontsize=10, color=C_MUTED, va="center")
+            yy += 0.62
+        if minor:
+            m = bot.group_sum(minor)
+            fig.text(0.05, y(yy), f"기타 {m['n']}종목", fontsize=10, color=C_INK2, va="center")
+            fig.text(0.95, y(yy), f"합계 {man(m['value'])}원 · {pct(m['pct'])}", fontsize=10, color=C_INK2,
+                     va="center", ha="right")
+        return _png(fig, plt)
+    except Exception as e:
+        log(f"보유 카드 그리기 실패: {type(e).__name__}")
+        return None
+
+
+def chart_monthly(bot):
+    """월별 수익률 막대 + 월 목표선."""
+    plt = _plt()
+    curve, _ = bot.curve()
+    if plt is None or len(curve) < 2:
+        return None
+    try:
+        months, last = [], None
+        for ts, _, idx in curve:
+            key = f"{kst(ts):%Y-%m}"
+            if not months or months[-1][0] != key:
+                months.append([key, last if last else idx, idx])
+            months[-1][2] = idx
+            last = idx
+        months = months[-12:]
+        labels = [f"{int(k[5:])}월" for k, _, _ in months]
+        vals = [(e / b - 1) * 100 if b else 0 for _, b, e in months]
+        mg = ((1 + GOAL_PCT / 100) ** (1 / 12) - 1) * 100
+        fig, ax = plt.subplots(figsize=(7.2, 4.6))
+        fig.subplots_adjust(top=0.78, left=0.09, right=0.97, bottom=0.1)
+        fig.text(0.05, 0.94, "월별 수익률", fontsize=14, fontweight="bold", va="top")
+        hit = sum(1 for v in vals if v >= mg)
+        fig.text(0.05, 0.86, f"월 목표 {pct(mg)} 달성 {hit}/{len(vals)}개월 · 점선 = 월 목표", fontsize=9.5,
+                 color=C_INK2, va="top")
+        ax.bar(labels, vals, width=0.55, color=[C_UP if v >= 0 else C_DOWN for v in vals])
+        ax.axhline(mg, color=C_MUTED, linewidth=1.2, linestyle=(0, (4, 3)))
+        ax.axhline(0, color=C_AXIS, linewidth=0.8)
+        for i, v in enumerate(vals):
+            ax.text(i, v + (0.3 if v >= 0 else -0.3), pct(v), ha="center", va="bottom" if v >= 0 else "top",
+                    fontsize=9, color=C_INK)
+        _clean_axes(ax)
+        ax.set_yticks([])
+        lo, hi = min(vals + [0, mg]), max(vals + [0, mg])
+        pad = max((hi - lo) * 0.18, 1)
+        ax.set_ylim(lo - pad, hi + pad)
+        ax.set_xlim(-0.6, max(len(vals), 6) - 0.4)
+        return _png(fig, plt)
+    except Exception as e:
+        log(f"월간 카드 그리기 실패: {type(e).__name__}")
+        return None
+
+
+def send_photo(png, caption=""):
+    if not png:
+        return
+    if not (TG_TOKEN and TG_CHAT):
+        print(f"[photo] {len(png)} bytes (텔레그램 설정 없음)")
+        return
+    try:
+        requests.post(f"https://api.telegram.org/bot{TG_TOKEN}/sendPhoto",
+                      data={"chat_id": TG_CHAT, "caption": caption}, files={"photo": ("card.png", png, "image/png")},
+                      timeout=30)
+    except Exception as e:
+        log(f"텔레그램 사진 전송 오류: {type(e).__name__}")
 
 
 def check():

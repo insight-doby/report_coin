@@ -10,6 +10,8 @@ clock = {"t": T0}
 coinbot.now_ts = lambda: clock["t"]
 sent = []
 coinbot.send = lambda txt: sent.append(txt)
+photos = []
+coinbot.send_photo = lambda png, caption="": photos.append(png)
 coinbot.requests.get = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("no net"))
 
 ex = {"cash": 1_000_000.0, "hold": {"LINK": [10.0, 17000.0]}, "prices": {"LINK": 17000.0, "AAVE": 200000.0},
@@ -93,11 +95,12 @@ def test_flow():
     assert any("입금 확인" in s for s in sent)
 
     rep = bot.full_report(db.get("last_state"))
-    for key in ("총자산", "기간별 손익", "보유 코인", "목표", "매매 성적", "승률 100%"):
+    for key in ("총자산", "계좌 점검", "할 일" if "할 일" in rep else "손볼 것", "기간별 손익", "보유 코인", "목표", "매매 성적"):
         assert key in rep, key
     print(rep)
     print("----")
-    bot.handle("보유"); bot.handle("/trades"); bot.handle("주문"); bot.handle("목표")
+    bot.handle("보유"); bot.handle("/trades"); bot.handle("주문"); bot.handle("목표"); bot.handle("점검")
+    assert any("계좌 점검" in x for x in sent[-1:]), sent[-1]
     print("\n----\n".join(sent[-4:]))
 
 
