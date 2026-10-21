@@ -20,6 +20,7 @@ import json
 import os
 import sqlite3
 import sys
+import threading
 import time
 import traceback
 import uuid as uuidlib
@@ -258,7 +259,8 @@ def fetch_prices(coins) -> dict:
 class DB:
     def __init__(self, path=DB_PATH):
         os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-        self.c = sqlite3.connect(path)
+        self.path = path
+        self.c = sqlite3.connect(path, timeout=30)
         self.c.row_factory = sqlite3.Row
         self.c.executescript("""
         CREATE TABLE IF NOT EXISTS kv(k TEXT PRIMARY KEY, v TEXT);
@@ -320,11 +322,13 @@ COMMANDS = [
     ("year", "올해 실질 수익 (금액·수익률)"),
     ("goal", "연 30% 목표 진행"),
     ("history", "불러올 수 있는 가장 오래된 기록"),
+    ("lifetime", "평생 순수익 · 연도별 성적"),
     ("help", "사용법"),
 ]
 WORDS = {
     "year": ["올해", "실질", "연간"],
     "history": ["언제까지", "오래된", "과거", "히스토리"],
+    "lifetime": ["평생", "연도", "역대", "전체기간", "총수익"],
     "account": ["계좌", "자산", "잔고", "전체"], "holdings": ["보유", "코인", "종목"],
     "perf": ["성적", "수익", "승률", "성과"], "trades": ["거래", "매도", "기록", "체결"],
     "orders": ["주문", "지정가", "대기"], "goal": ["목표"], "check": ["점검", "상태", "진단"], "help": ["도움", "help", "start", "메뉴"],
@@ -835,6 +839,206 @@ class Bot:
             lines.append("<i>⚠️ " + esc(" · ".join(y["warn"])) + "</i>")
         return "\n".join(lines)
 
+
+    # ── 평생 순수익 · 연도별 성적 (전체 체결·입출금으로 매년 1/1 자산 역산) ──
+    def compute_lifetime(self, notify=False):
+        t0 = now_ts()
+        warn = set()
+        # 1) 전체 체결 (표에 없는 것만 상세 조회, 기록만)
+        known = {r[0] for r in self.db.q("SELECT uuid FROM orders")}
+        lst = self._paged("/v1/orders", {"states": ["done", "cancel"]}, 0, max_pages=400)
+        if len(lst) >= 400 * 100:
+            warn.add("체결 기록이 4만 건을 넘어 일부만 반영")
+        for o in lst:
+            u = o.get("uuid")
+            if not u or u in known or fnum(o.get("executed_volume")) <= 0:
+                continue
+            try:
+                d = self._detail(u)
+            except BithumbError:
+                warn.add("일부 체결 상세를 못 불러옴")
+                continue
+            if d["volume"] > 0 and d["market"].startswith("KRW-"):
+                self.db.x("INSERT OR IGNORE INTO orders VALUES(?,?,?,?,?,?,?)",
+                          (d["uuid"], int(d["ts"]), d["coin"], d["side"], d["volume"], d["funds"], d["fee"]))
+        orders = [dict(r) for r in self.db.q("SELECT * FROM orders ORDER BY ts")]
+        # 2) 전체 입출금
+        flows = []
+        for path, sign in (("/v1/deposits/krw", 1), ("/v1/withdraws/krw", -1), ("/v1/deposits", 1), ("/v1/withdraws", -1)):
+            try:
+                items = self._paged(path, {}, 0, ts_keys=("done_at", "created_at"), max_pages=200)
+            except BithumbError:
+                warn.add("입출금 조회 권한 없음")
+                continue
+            for it in items:
+                if str(it.get("state", "")).upper() not in DONE_STATES:
+                    continue
+                ts = parse_ts(it.get("done_at") or it.get("created_at"))
+                if ts:
+                    flows.append({"ts": ts, "coin": str(it.get("currency", "KRW")).upper(), "amt": fnum(it.get("amount")),
+                                  "fee": fnum(it.get("fee")), "sign": sign})
+        flows.sort(key=lambda f: f["ts"])
+        closes = {}
+
+        def close(coin, ts):
+            day = kst(ts).replace(hour=0, minute=0, second=0, microsecond=0).timestamp()
+            key = (coin, day)
+            if key not in closes:
+                closes[key] = self._close_on(coin, day)
+            return closes[key]
+
+        for f in flows:
+            if f["coin"] == "KRW":
+                f["krw"] = f["amt"]
+            else:
+                p = close(f["coin"], f["ts"] + 86400)
+                if not p:
+                    warn.add("가격을 못 구한 코인 입출금 있음")
+                f["krw"] = f["amt"] * (p or 0)
+        # 3) 지금 잔고에서 시간을 거꾸로 돌리며 매년 1월 1일 잔고 기록
+        cash, hold = self.accounts()
+        qty = {c: h["qty"] for c, h in hold.items()}
+        first_ts = min([o["ts"] for o in orders] + [f["ts"] for f in flows] or [now_ts()])
+        y_now = kst(now_ts()).year
+        years = list(range(kst(first_ts).year, y_now + 1))
+        bounds = {y: datetime(y, 1, 1, tzinfo=KST).timestamp() for y in years}
+        events = [("o", o["ts"], o) for o in orders] + [("f", f["ts"], f) for f in flows]
+        events.sort(key=lambda e: -e[1])
+        snaps, todo = {}, sorted(years, reverse=True)
+        for kind, ts, e in events:
+            while todo and ts < bounds[todo[0]]:
+                snaps[todo.pop(0)] = (cash, dict(qty))
+            if kind == "o":
+                if e["side"] == "bid":
+                    cash += e["funds"] + (e["fee"] or 0)
+                    qty[e["coin"]] = qty.get(e["coin"], 0) - e["volume"]
+                else:
+                    cash -= e["funds"] - (e["fee"] or 0)
+                    qty[e["coin"]] = qty.get(e["coin"], 0) + e["volume"]
+            elif e["coin"] == "KRW":
+                cash += -e["amt"] if e["sign"] > 0 else e["amt"] + e["fee"]
+            else:
+                qty[e["coin"]] = qty.get(e["coin"], 0) + (-e["amt"] if e["sign"] > 0 else e["amt"] + e["fee"])
+        for y in todo:
+            snaps[y] = (cash, dict(qty))
+        listed = krw_markets()
+        start_val, year_warn = {}, {y: set() for y in years}
+        for y in years:
+            c0, q0 = snaps[y]
+            if c0 < -10000:
+                year_warn[y].add("현금 역산 불일치")
+            v = max(c0, 0.0)
+            for coin, q in q0.items():
+                if q <= 1e-12:
+                    continue
+                p = close(coin, bounds[y])
+                if p:
+                    v += q * p
+                elif not listed or coin not in listed or q > 0:
+                    year_warn[y].add("가격 없는 코인 있음")
+            start_val[y] = v
+        st = self.state()
+        # 4) 연도별 매도 성적 (평균단가로 처음부터 다시 계산)
+        pos, per = {}, {y: {"n": 0, "w": 0, "real": 0.0, "fee": 0.0, "nb": 0} for y in years}
+        evs = [("o", o["ts"], o) for o in orders] + [("f", f["ts"], f) for f in flows if f["coin"] != "KRW"]
+        evs.sort(key=lambda e: e[1])
+        for kind, ts, e in evs:
+            y = kst(ts).year
+            if y not in per:
+                continue
+            q, cost = pos.get(e["coin"], (0.0, 0.0))
+            if kind == "f":
+                if e["sign"] > 0:
+                    pos[e["coin"]] = (q + e["amt"], cost + e["krw"])
+                elif q > 0:
+                    take = min(q, e["amt"] + e["fee"])
+                    pos[e["coin"]] = (q - take, cost * (1 - take / q))
+                continue
+            per[y]["fee"] += e["fee"] or 0
+            if e["side"] == "bid":
+                per[y]["nb"] += 1
+                pos[e["coin"]] = (q + e["volume"], cost + e["funds"] + (e["fee"] or 0))
+            else:
+                if q >= e["volume"] * 0.98 and q > 0:
+                    basis = cost / q * e["volume"]
+                    pnl = e["funds"] - (e["fee"] or 0) - basis
+                    per[y]["n"] += 1
+                    per[y]["w"] += pnl > 0
+                    per[y]["real"] += pnl
+                take = min(q, e["volume"])
+                pos[e["coin"]] = (q - take, cost * (1 - take / q) if q > 0 else 0.0)
+        # 5) 연도별 수익
+        rows = []
+        for i, y in enumerate(years):
+            a = bounds[y]
+            end_ts = bounds[years[i + 1]] if i + 1 < len(years) else st["ts"]
+            e0 = start_val[y]
+            e1 = start_val[years[i + 1]] if i + 1 < len(years) else st["total"]
+            fl = [(f["ts"], f["sign"] * f["krw"]) for f in flows if a <= f["ts"] < end_ts]
+            net = sum(k for _, k in fl)
+            span = max(end_ts - a, 1)
+            base = e0 + sum(k * (end_ts - ts) / span for ts, k in fl)
+            pnl = e1 - e0 - net
+            rows.append({"year": y, "e0": e0, "e1": e1, "pnl": pnl, "ret": pnl / base * 100 if base > 1000 else None,
+                         "dep": sum(k for _, k in fl if k > 0), "wd": -sum(k for _, k in fl if k < 0),
+                         "n": per[y]["n"], "wr": per[y]["w"] / per[y]["n"] * 100 if per[y]["n"] else None,
+                         "real": per[y]["real"], "fee": per[y]["fee"], "warn": sorted(year_warn[y])})
+        dep = sum(f["krw"] for f in flows if f["sign"] > 0)
+        wd = sum(f["krw"] for f in flows if f["sign"] < 0)
+        first_dep = min([f["ts"] for f in flows if f["sign"] > 0 and f["coin"] == "KRW"] or [0])
+        first_ord = orders[0]["ts"] if orders else 0
+        if first_ord and (not first_dep or first_dep > first_ord + 86400 * 2):
+            warn.add("입금 기록이 첫 체결보다 늦게 시작 — 초기 입금 일부가 빠졌을 수 있음")
+        res = {"computed": now_ts(), "first": first_ts, "dep": dep, "wd": wd, "now": st["total"],
+               "pnl": st["total"] - (dep - wd), "years": rows, "warn": sorted(warn), "n_orders": len(orders),
+               "n_flows": len(flows)}
+        self.db.put("lifetime", res)
+        log(f"평생 성적 계산 완료: 체결 {len(orders)}건 · 입출금 {len(flows)}건 · {now_ts() - t0:.0f}초")
+        if notify:
+            send_photo(chart_years(res))
+            send(self.block_lifetime())
+        return res
+
+    def start_lifetime(self, notify=True):
+        """오래 걸리므로 별도 스레드·별도 DB 연결에서 계산 (봇은 계속 응답)."""
+        if getattr(self, "_life_thread", None) and self._life_thread.is_alive():
+            return False
+
+        def job():
+            try:
+                Bot(DB(self.db.path)).compute_lifetime(notify=notify)
+            except Exception as e:
+                log(f"평생 성적 계산 실패: {type(e).__name__} {e}")
+                if notify:
+                    send(f"⚠️ 평생 성적 계산 중 오류 ({esc(type(e).__name__)}). 내일 다시 시도할게요.")
+        self._life_thread = threading.Thread(target=job, daemon=True)
+        self._life_thread.start()
+        return True
+
+    def block_lifetime(self):
+        r = self.db.get("lifetime")
+        if not r:
+            return "<b>평생 순수익</b>\n계산 중이에요. 처음 한 번은 기록이 많아 몇 분~십여 분 걸려요. 끝나면 바로 보내드릴게요."
+        net_in = r["dep"] - r["wd"]
+        lines = [f"<b>평생 순수익</b> <i>({kst(r['first']):%Y-%m} ~ 지금, 입출금 기준)</i>",
+                 f"총 입금 {man(r['dep'])}원 · 총 출금 {man(r['wd'])}원",
+                 f"순투입 {man(net_in)}원 → 지금 자산 {man(r['now'])}원",
+                 f"{dot(r['pnl'])} 평생 순수익 <b>{man(r['pnl'], True)}원</b>"
+                 + (f" (순투입 대비 {pct(r['pnl'] / net_in * 100)})" if net_in > 0 else "")]
+        if r["warn"]:
+            lines.append("<i>⚠️ " + esc(" · ".join(r["warn"])) + "</i>")
+        rows = []
+        for y in r["years"]:
+            mark = "*" if y["warn"] else " "
+            wr = f"{y['wr']:.0f}%" if y["wr"] is not None else "-"
+            rows.append(f"{y['year']}{mark}{pct(y['ret']):>8} {y['n']:>4} {wr:>4} {man(y['pnl'], True):>9}")
+        lines.append("\n<b>연도별 성적</b>  <i>수익률 · 매도 수 · 승률 · 수익금액</i>")
+        lines.append("<pre>" + esc("\n".join(rows)) + "</pre>")
+        if any(y["warn"] for y in r["years"]):
+            lines.append("<i>* 표시: 상장폐지 코인 가격 등을 못 구해 오차가 있을 수 있는 해</i>")
+        lines.append(f"<i>{kst(r['computed']):%m/%d %H:%M} 계산 · 매주 일요일 새로 계산</i>")
+        return "\n".join(lines)
+
     # ── 불러올 수 있는 가장 오래된 기록 (날짜만) ──
     def oldest_record(self, path, params, ts_keys):
         def ts_of(x):
@@ -1238,6 +1442,13 @@ class Bot:
             send(self.block_perf(curve)[0] + "\n\n" + self.block_trades(5))
         elif cmd == "trades":
             send(self.block_trades(15))
+        elif cmd == "lifetime":
+            if not self.db.get("lifetime"):
+                started = self.start_lifetime(notify=True)
+                send(self.block_lifetime() if started else "아직 계산 중이에요. 끝나면 바로 보내드릴게요.")
+            else:
+                send_photo(chart_years(self.db.get("lifetime")))
+                send(self.block_lifetime())
         elif cmd == "history":
             send(self.block_history())
         elif cmd == "year":
@@ -1338,6 +1549,11 @@ class Bot:
                 curve, flows = self.curve()
                 send_photo(chart_account(self, st, curve, flows))
             send(self.full_report(st, title="오늘의 결산"))
+        life = self.db.get("lifetime")
+        if (not life and not self.db.get("lifetime_started")) or \
+                (life and d.weekday() == 6 and d.hour >= 4 and now_ts() - life["computed"] > 86400 * 3):
+            self.db.put("lifetime_started", now_ts())
+            self.start_lifetime(notify=not life)
         if d.day == 1 and d.hour >= 9 and self.db.get("last_monthly") != f"{d:%Y-%m}":
             self.db.put("last_monthly", f"{d:%Y-%m}")
             txt = self.month_report()
@@ -1570,6 +1786,46 @@ def chart_monthly(bot):
         return _png(fig, plt)
     except Exception as e:
         log(f"월간 카드 그리기 실패: {type(e).__name__}")
+        return None
+
+
+def chart_years(r):
+    """연도별 수익률 막대 + 평생 순수익 헤더."""
+    plt = _plt()
+    if plt is None or not r or not r.get("years"):
+        return None
+    try:
+        ys = r["years"]
+        labels = [str(y["year"]) for y in ys]
+        vals = [y["ret"] or 0 for y in ys]
+        fig, ax = plt.subplots(figsize=(7.2, 4.9))
+        fig.subplots_adjust(top=0.72, left=0.06, right=0.97, bottom=0.1)
+        net_in = r["dep"] - r["wd"]
+        fig.text(0.05, 0.95, "평생 순수익 · 연도별 수익률", fontsize=12, color=C_MUTED, va="top")
+        fig.text(0.05, 0.89, f"{man(r['pnl'], True)}원", fontsize=24, fontweight="bold", va="top")
+        sub = f"순투입 {man(net_in)}원 → 지금 {man(r['now'])}원"
+        if net_in > 0:
+            sub += f"  ({pct(r['pnl'] / net_in * 100)})"
+        fig.text(0.05, 0.80, sub, fontsize=10.5, color=C_INK2, va="top")
+        ax.bar(labels, vals, width=0.6, color=[C_UP if v >= 0 else C_DOWN for v in vals])
+        ax.axhline(0, color=C_AXIS, linewidth=0.8)
+        ax.axhline(GOAL_PCT, color=C_MUTED, linewidth=1.1, linestyle=(0, (4, 3)))
+        ax.text(-0.45, GOAL_PCT, f"연 {GOAL_PCT:.0f}% 목표", ha="left", va="bottom", fontsize=8.5, color=C_MUTED)
+        span = (max(vals + [0, GOAL_PCT]) - min(vals + [0])) or 1
+        for i, (v, y) in enumerate(zip(vals, ys)):
+            txt = pct(v, 0) + ("*" if y["warn"] else "")
+            ax.text(i, v + (span * 0.02 if v >= 0 else -span * 0.02), txt, ha="center",
+                    va="bottom" if v >= 0 else "top", fontsize=8.5, color=C_INK)
+        _clean_axes(ax)
+        ax.set_yticks([])
+        lo, hi = min(vals + [0]), max(vals + [0, GOAL_PCT])
+        ax.set_ylim(lo - span * 0.15, hi + span * 0.15)
+        ax.set_xlim(-0.6, max(len(vals), 6) - 0.4)
+        ax.spines["bottom"].set_visible(False)
+        ax.tick_params(axis="x", labelsize=9)
+        return _png(fig, plt)
+    except Exception as e:
+        log(f"연도별 카드 그리기 실패: {type(e).__name__}")
         return None
 
 

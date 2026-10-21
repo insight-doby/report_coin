@@ -14,7 +14,7 @@ ORDERS = {  # 올해: AAVE 1개 매수, LINK 50개 매도 / 작년: LINK 100개 
     "o2": dict(market="KRW-LINK", side="ask", vol=50, px=25000, fee=500, at=iso(2026, 7, 1)),
 }
 DEP = [{"uuid": "d1", "state": "ACCEPTED", "currency": "KRW", "amount": "3000000", "done_at": iso(2026, 6, 1)},
-       {"uuid": "d0", "state": "ACCEPTED", "currency": "KRW", "amount": "9000000", "done_at": iso(2025, 6, 1)}]
+       {"uuid": "d0", "state": "ACCEPTED", "currency": "KRW", "amount": "6500600", "done_at": iso(2025, 6, 1)}]
 WD = [{"uuid": "w1", "state": "DONE", "currency": "KRW", "amount": "1000000", "fee": "1000", "done_at": iso(2026, 8, 1)}]
 
 
@@ -94,7 +94,30 @@ def test_history():
     print(txt)
 
 
+
+
+def test_lifetime():
+    bot = c.Bot(c.DB(os.path.join(tempfile.mkdtemp(), "l.db")))
+    r = bot.compute_lifetime()
+    # 평생: 지금 9,158,420 − (입금 9,500,600 − 출금 1,000,000) = +657,820
+    assert abs(r["pnl"] - 657_820) < 1, r["pnl"]
+    y25, y26 = r["years"]
+    assert y25["year"] == 2025 and y26["year"] == 2026
+    # 2026년은 올해 실질 수익 계산과 같아야 함
+    assert abs(y26["pnl"] - 158_420) < 1 and abs(y26["e0"] - 7_000_000) < 1, y26
+    # 2025: 1/1 자산 0 → 입금 9,000,000 → 연말 7,000,000 (LINK 100개 15,000에 매수 후 연말 20,000) − 수수료
+    assert abs(y25["e1"] - 7_000_000) < 1 and abs(y25["pnl"] - 499_400) < 1 and not y25["warn"], y25
+    assert y26["n"] == 1 and y26["wr"] == 100, y26        # LINK 50개 매도 = 이익
+    txt = bot.block_lifetime()
+    assert "평생 순수익" in txt and "연도별 성적" in txt, txt
+    png = c.chart_years(r)
+    assert png and len(png) > 5000
+    open(os.path.join(tempfile.gettempdir(), "years.png"), "wb").write(png)
+    print(txt)
+
+
 if __name__ == "__main__":
     test_ytd()
     test_history()
+    test_lifetime()
     print("OK")
