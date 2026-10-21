@@ -1,0 +1,25 @@
+name: vault-init
+on: { workflow_dispatch: }
+concurrency: { group: bot-data, cancel-in-progress: false }
+permissions: { contents: write }
+jobs:
+  vault:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - run: pip install requests numpy cryptography
+      - name: 계좌 금고 만들기 / 공개 파일에서 평단 옮기기
+        env:
+          LOCAL_DATA_DIR: data
+          ACCOUNT_PASSWORD: ${{ secrets.ACCOUNT_PASSWORD }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python -u bot.py vault-init
+      - name: Commit
+        run: |
+          git config user.name "bot"; git config user.email "bot@users.noreply.github.com"
+          git add -A data && (git diff --cached --quiet || git commit -m "계좌 금고")
+          git pull --rebase origin ${{ github.ref_name }} && git push

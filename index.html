@@ -79,7 +79,7 @@ svg{width:100%;height:120px;display:block}
 </header>
 <nav id="tabs">
   <button data-t="today" class="on">오늘 할 일</button>
-  <button data-t="pos">내 포지션</button>
+  <button data-t="pos">🔒 내 계좌</button>
   <button data-t="acc">모으기</button>
   <button data-t="watch">감시</button>
   <button data-t="verify">검증</button>
@@ -249,28 +249,86 @@ function viewToday(){
 }
 
 /* ---------- 내 포지션 ---------- */
+/* ---------- 내 계좌 (금고) ----------
+   data/vault/ 의 암호문을 비밀번호로 브라우저 안에서만 푼다. 비밀번호와 푼 내용은 저장하지 않고,
+   5분 동안 안 쓰거나 탭을 숨기면 다시 잠근다. 금액은 기본으로 가린다. */
+const V = {data:null, err:"", busy:false, show:false, timer:null};
+async function vaultOpen(password, keyJson, boxes){
+  const SC=crypto.subtle, u=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
+  const base=await SC.importKey("raw",new TextEncoder().encode(password),"PBKDF2",false,["deriveKey"]);
+  const kek=await SC.deriveKey({name:"PBKDF2",salt:u(keyJson.salt),iterations:keyJson.iter,hash:"SHA-256"},base,{name:"AES-GCM",length:256},false,["decrypt"]);
+  const pkcs8=await SC.decrypt({name:"AES-GCM",iv:u(keyJson.iv)},kek,u(keyJson.ct));
+  const priv=await SC.importKey("pkcs8",pkcs8,{name:"RSA-OAEP",hash:"SHA-256"},false,["decrypt"]);
+  const out=[];
+  for(const b of boxes){
+    const raw=await SC.decrypt({name:"RSA-OAEP"},priv,u(b.ek));
+    const k=await SC.importKey("raw",raw,"AES-GCM",false,["decrypt"]);
+    out.push(JSON.parse(new TextDecoder().decode(await SC.decrypt({name:"AES-GCM",iv:u(b.iv)},k,u(b.ct)))));
+  }
+  return out;
+}
+function vaultApply(snap, ev){
+  const P=Object.fromEntries((snap.positions||[]).map(p=>[p.ticker,p]));
+  if(ev.op==="set") Object.assign(snap, ev.data||{});
+  else if(ev.op==="upsert_position"){ const p=ev.position; P[p.ticker]=Object.assign({},P[p.ticker]||{},p); snap.positions=Object.values(P); }
+  else if(ev.op==="remove_position"){ snap.positions=(snap.positions||[]).filter(p=>p.ticker!==ev.ticker); }
+  else if(ev.op==="add_trade"){ (snap.trades=snap.trades||[]).push(ev.trade); }
+  return snap;
+}
+async function vaultUnlock(pw){
+  V.busy=true; V.err=""; render();
+  try{
+    const key=await getJSON("vault/key.json"), snap=await getJSON("vault/snapshot.json"), idx=await getJSON("vault/events/index.json");
+    if(!key||!snap){ V.err="아직 금고가 만들어지지 않았습니다."; return; }
+    const evs=[]; for(const f of (idx&&idx.files)||[]){ const b=await getJSON("vault/events/"+f); if(b) evs.push(b); }
+    let out; try{ out=await vaultOpen(pw,key,[snap,...evs]); }catch(e){ V.err="비밀번호가 맞지 않습니다."; return; }
+    let d=out[0]; for(const ev of out.slice(1)) d=vaultApply(d,ev);
+    V.data=d; vaultTouch();
+  } finally { V.busy=false; render(); }
+}
+function vaultLock(){ V.data=null; V.show=false; clearTimeout(V.timer); render(); }
+function vaultTouch(){ clearTimeout(V.timer); if(V.data) V.timer=setTimeout(vaultLock, 5*60*1000); }
+["pointerdown","keydown","scroll"].forEach(e=>addEventListener(e,vaultTouch,{passive:true}));
+document.addEventListener("visibilitychange",()=>{ if(document.hidden&&V.data) vaultLock(); });
+
 function viewPos(){
-  const pos=ls("positions",[]);
-  const planFor = tk => S.ledger.filter(e=>e.ticker===tk&&(e.status==="open"||e.status==="pending")).pop();
-  let rows="";
-  pos.forEach((p,i)=>{
-    const cur=priceOf(p.ticker,null), pl=cur?(cur/p.buy-1)*100:null, plan=planFor(p.ticker);
-    let advice="-";
-    if(cur){
-      const stop=p.stop||plan?.stop, t1=p.t1||plan?.t1;
-      if(stop&&cur<=stop) advice=`<b class="neg">손절선 도달 — 정리</b>`;
-      else if(t1&&cur>=t1) advice=`<b class="pos">1차 목표 — 절반 매도</b>`;
-      else if(stop) advice=`손절 ${won(stop)}${t1?` / 1차 ${won(t1)}`:""}`;
-    }
-    rows+=`<tr><td>${tkCell(p.ticker)}</td><td>${won(p.buy)}</td><td>${cur?won(cur):"-"}</td><td class="${pl>=0?"pos":"neg"}">${pl==null?"-":pct(pl)}</td><td>${advice}</td><td><button class="ib" data-del="${i}">삭제</button></td></tr>`;
+  if(!V.data){
+    return `<div class="card"><b>🔒 내 계좌</b>
+      <div class="sub" style="margin-top:6px">보유 종목·평단·수량·매매 기록은 암호화돼 저장돼 있습니다. 비밀번호를 넣으면 이 브라우저 안에서만 풀리고, 비밀번호와 내용은 어디에도 저장되지 않습니다. 5분 동안 안 쓰거나 다른 앱으로 가면 다시 잠깁니다.</div>
+      <form id="vform" style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">
+        <input id="vpw" type="password" autocomplete="off" placeholder="비밀번호" style="flex:1;min-width:160px;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--text)">
+        <button class="ib" type="submit" ${V.busy?"disabled":""}>${V.busy?"여는 중…":"열기"}</button></form>
+      ${V.err?`<div class="neg" style="margin-top:8px">${esc(V.err)}</div>`:""}</div>`;
+  }
+  const d=V.data, hide=v=>V.show?v:"•••••";
+  const rows=(d.positions||[]).map(p=>{
+    const cur=priceOf(p.ticker,(d.state||{})[p.ticker]?.last), pl=cur&&p.avg?(cur/p.avg-1)*100:null, val=p.qty&&cur?p.qty*cur:null;
+    return {p,cur,pl,val};
   });
-  return `<div class="card"><b>포지션 추가</b>
-    <div class="form" style="margin-top:8px">
-      <input id="pt" placeholder="티커 또는 한글명 (예: SUI, 수이)"><input id="pb" type="number" step="any" placeholder="매수가(원)">
-      <input id="ps" type="number" step="any" placeholder="손절가(선택)"><input id="p1" type="number" step="any" placeholder="1차목표(선택)">
-      <button class="ib" id="padd">추가</button></div>
-    <div class="sub" style="margin-top:6px">입력은 이 브라우저에만 저장됩니다. 손절·목표를 비워두면 봇 추천 계획이 있을 때 그 값을 씁니다.</div></div>
-  <div class="card">${pos.length?`<table><tr><th>종목</th><th>매수가</th><th>현재가</th><th>손익</th><th>대응</th><th></th></tr>${rows}</table>`:`<div class="empty">등록된 포지션이 없습니다.</div>`}</div>`;
+  const coin=rows.reduce((a,r)=>a+(r.val||0),0), cost=rows.reduce((a,r)=>a+(r.p.qty?r.p.qty*r.p.avg:0),0), cash=+d.cash||0, total=coin+cash;
+  const hasQty=rows.some(r=>r.val!=null);
+  let h=`<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><b>💼 내 계좌</b>
+      <span><button class="ib" id="vshow">${V.show?"금액 가리기":"금액 보기"}</button> <button class="ib" id="vlock">잠그기</button></span></div>`;
+  if(hasQty){
+    const plc=coin-cost, plp=cost?(coin/cost-1)*100:null;
+    h+=`<div class="stats" style="margin-top:10px">
+      <div><span>총자산</span><div class="big">${hide(won(total))}</div></div>
+      <div><span>코인 평가</span><div class="big">${hide(won(coin))}</div></div>
+      <div><span>코인 손익</span><div class="big ${plc>=0?"pos":"neg"}">${hide((plc>=0?"+":"−")+won(Math.abs(plc)))}<br><span class="sub">${pct(plp)}</span></div></div>
+      <div><span>현금 비중</span><div class="big">${total?pct(cash/total*100,false):"-"}</div></div></div>`;
+    if(d.base&&d.base.amount&&d.base.date){
+      const days=Math.max(1,(Date.now()-new Date(d.base.date))/864e5), ret=(total/d.base.amount-1)*100, goal=(Math.pow(1.3,days/365)-1)*100;
+      h+=`<div class="sub" style="margin-top:8px">${esc(d.base.date)}부터 누적 <b class="${ret>=0?"pos":"neg"}">${pct(ret)}</b> · 연 30% 목표 기준 지금쯤 ${pct(goal)} → ${ret>=goal?"목표보다 앞섬":"목표보다 "+pct(goal-ret,false)+" 뒤짐"}</div>`;
+    }
+  } else h+=`<div class="sub" style="margin-top:8px">수량이 아직 없어 손익률(%)만 보여 줍니다. 수량·현금·기준 원금을 알려 주시면 총자산과 목표 진행률도 나옵니다.</div>`;
+  h+=`</div><div class="card"><b>보유 종목</b><table style="margin-top:8px"><tr><th>종목</th><th>평단</th><th>현재가</th><th>손익</th><th>평가금액</th><th>계획</th></tr>`+
+    rows.map(({p,cur,pl,val})=>{ const st=(d.state||{})[p.ticker]||{}, plan=[p.stop?`손절 ${won(p.stop)}${st.stop_hit?" ✓":""}`:"",p.t1?`1차 ${won(p.t1)}${st.t1_hit?" ✓":""}`:"",p.t2?`2차 ${won(p.t2)}${st.t2_hit?" ✓":""}`:""].filter(Boolean).join("<br>");
+      return `<tr><td>${tkCell(p.ticker)}<br><span class="sub">${{swing:"단기",long:"장기",exit:"정리 중"}[p.style]||""}</span></td><td>${won(p.avg)}</td><td>${cur?won(cur):"-"}</td><td class="${pl>=0?"pos":"neg"}">${pct(pl)}</td><td>${val!=null?hide(won(val)):"-"}</td><td style="font-size:12px">${plan||"-"}</td></tr>`; }).join("")+`</table></div>`;
+  const tr=[...(d.trades||[])].reverse().slice(0,30);
+  h+=`<div class="card"><b>매매 기록</b>${tr.length?`<table style="margin-top:8px"><tr><th>날짜</th><th>종목</th><th></th><th>가격</th><th>손익</th><th>메모</th></tr>`+
+    tr.map(t=>`<tr><td class="sub">${esc((t.date||"").slice(5,16).replace("T"," "))}</td><td>${tkCell(t.ticker)}</td><td>${t.side==="sell"?"매도":"매수"}</td><td>${won(t.price)}${t.qty?`<br><span class="sub">${hide(t.qty)}개</span>`:""}</td><td class="${t.pnl_pct>=0?"pos":"neg"}">${t.pnl_pct!=null?pct(t.pnl_pct):"-"}</td><td style="text-align:left;font-size:12px">${esc(t.note||"")}</td></tr>`).join("")+`</table>`:`<div class="empty">아직 기록이 없습니다. 사고팔 때 말씀해 주시면 기록합니다.</div>`}</div>`;
+  h+=`<div class="sub" style="margin:4px 2px">마지막 갱신 ${esc((d.updated_at||"").slice(5,16).replace("T"," "))} · 현재가는 빗썸 실시간</div>`;
+  return h;
 }
 
 /* ---------- 모으기 ---------- */
@@ -358,15 +416,9 @@ function render(){
   const v={today:viewToday,pos:viewPos,acc:viewAcc,watch:viewWatch,verify:viewVerify}[S.tab];
   $("#view").innerHTML=v();
   document.querySelectorAll("#tabs button").forEach(b=>b.classList.toggle("on",b.dataset.t===S.tab));
-  const add=$("#padd");
-  if(add) add.onclick=()=>{
-    let ticker=$("#pt").value.trim().toUpperCase(); const buy=parseFloat($("#pb").value);
-    if(ticker && !/^[A-Z0-9]+$/.test(ticker)){ const hit=Object.entries(NAMES).find(([k,v])=>v===$("#pt").value.trim()) || Object.entries(NAMES).find(([k,v])=>v.includes($("#pt").value.trim())); if(hit) ticker=hit[0]; }
-    if(!ticker||!(buy>0)) return;
-    const stop=parseFloat($("#ps").value)||null, t1=parseFloat($("#p1").value)||null;
-    const pos=ls("positions",[]); pos.push({ticker,buy,stop,t1}); lsSet("positions",pos); render();
-  };
-  document.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>{ const pos=ls("positions",[]); pos.splice(+b.dataset.del,1); lsSet("positions",pos); render(); });
+  const vf=$("#vform"); if(vf) vf.onsubmit=e=>{ e.preventDefault(); const pw=$("#vpw").value; $("#vpw").value=""; if(pw) vaultUnlock(pw); };
+  const vs=$("#vshow"); if(vs) vs.onclick=()=>{ V.show=!V.show; vaultTouch(); render(); };
+  const vl=$("#vlock"); if(vl) vl.onclick=vaultLock;
 }
 $("#tabs").onclick=e=>{ const t=e.target.dataset?.t; if(t){ S.tab=t; render(); } };
 $("#refresh").onclick=()=>{ $("#meta").textContent="새로고침 중…"; load(); };

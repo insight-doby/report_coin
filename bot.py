@@ -45,6 +45,7 @@ SLACK_CHANNEL_ID = ENV("SLACK_CHANNEL_ID", "")
 TELEGRAM_BOT_TOKEN = ENV("TELEGRAM_BOT_TOKEN", "")
 BITHUMB_ACCESS_KEY = ENV("BITHUMB_ACCESS_KEY", "")   # 자산조회 전용 키만 쓸 것
 BITHUMB_SECRET_KEY = ENV("BITHUMB_SECRET_KEY", "")
+ACCOUNT_PASSWORD = ENV("ACCOUNT_PASSWORD", "")       # 계좌 금고 비밀번호 (GitHub 시크릿에만)
 TELEGRAM_CHAT_ID = ENV("TELEGRAM_CHAT_ID", "")
 GEMINI_API_KEY = ENV("GEMINI_API_KEY", "").strip()
 GEMINI_MODEL = ENV("GEMINI_MODEL", "gemini-2.5-flash")
@@ -1930,11 +1931,46 @@ POS_RULES = {"swing": {"spike": 4.0, "drop": 4.0, "trail": 4.0, "trail_min": 5.0
 POS_COOLDOWN_H = 4
 
 
-def run_position_watch(store, at_ms: int) -> list:
+def _vault_base() -> str:
+    return LOCAL_DATA_DIR or "data"
+
+
+def priv_load(store):
+    """보유 종목·평단·수량·감시 상태를 읽는다. 금고가 있으면 금고(암호문)에서만 읽는다.
+    반환: (data, merged_event_files, mode) / 금고는 있는데 비밀번호가 없으면 (None, [], 'locked')"""
+    try:
+        import vault
+        if vault.ready(_vault_base()):
+            if not ACCOUNT_PASSWORD:
+                return None, [], "locked"
+            data, files = vault.load(_vault_base(), ACCOUNT_PASSWORD)
+            data.setdefault("positions", []); data.setdefault("state", {})
+            return data, files, "vault"
+    except ImportError:
+        pass
     cfg = store.read("positions.json", {}) or {}
-    state = store.read("positions_state.json", {}) or {}
+    return {"positions": cfg.get("positions", []), "state": store.read("positions_state.json", {}) or {}, "_cfg": cfg}, [], "plain"
+
+
+def priv_save(store, data, files, mode):
+    if mode == "vault":
+        import vault
+        vault.save(_vault_base(), {k: v for k, v in data.items() if not k.startswith("_")}, files)
+    elif mode == "plain":
+        cfg = data.get("_cfg") or {}
+        cfg["positions"] = [{k: v for k, v in p.items() if k != "qty"} for p in data["positions"]]   # 공개 파일엔 수량 금지
+        store.write("positions.json", cfg, "보유 종목")
+        store.write("positions_state.json", data["state"], "보유 종목 상태")
+
+
+def run_position_watch(store, at_ms: int) -> list:
+    data, files, mode = priv_load(store)
+    if data is None:
+        log("💼 보유 종목: 금고 비밀번호(ACCOUNT_PASSWORD)가 없어 건너뜀")
+        return []
+    state = data["state"]
     msgs = []
-    for p in cfg.get("positions", []):
+    for p in data["positions"]:
         tk, avg, style = p["ticker"], float(p["avg"]), p.get("style", "swing")
         rule = POS_RULES.get(style, POS_RULES["swing"])
         cd = fetch_v1(tk, "1h", 8)            # 마지막 봉은 아직 진행 중인 봉 → 실시간에 가까움
@@ -1942,6 +1978,7 @@ def run_position_watch(store, at_ms: int) -> list:
             continue
         cur = float(cd["c"][-1])
         lo3, hi3 = float(cd["l"][-3:].min()), float(cd["h"][-3:].max())
+        lo2, hi2 = float(cd["l"][-2:].min()), float(cd["h"][-2:].max())
         st = state.setdefault(tk, {})
         st["peak"] = max(float(st.get("peak") or 0), float(cd["h"][-1] if st.get("peak") else cd["h"].max()))
         ret = (cur / avg - 1) * 100
@@ -1954,6 +1991,14 @@ def run_position_watch(store, at_ms: int) -> list:
         if p.get("stop"):
             tail.append(f"손절 {fmt_krw(p['stop'])}까지 {(p['stop'] / cur - 1) * 100:+.1f}%")
         tail = " · ".join(tail)
+        # 손절·목표 도달 (한 번씩만)
+        if p.get("stop") and lo2 <= p["stop"] and not st.get("stop_hit"):
+            st["stop_hit"] = iso_kst(at_ms)
+            msgs.append(f"🛑 *{name}* 손절가 {fmt_krw(p['stop'])} 도달 → 지금 {fmt_krw(cur)} (평단 대비 {ret:+.1f}%)\n👉 손절 주문 체결 확인, 안 됐으면 정리")
+        for key, lab, act in (("t1", "1차 목표", "절반 매도, 남은 물량 손절을 본전 위로"), ("t2", "2차 목표", "나머지 매도")):
+            if p.get(key) and hi2 >= p[key] and not st.get(f"{key}_hit"):
+                st[f"{key}_hit"] = iso_kst(at_ms)
+                msgs.append(f"🎯 *{name}* {lab} {fmt_krw(p[key])} 도달 → 지금 {fmt_krw(cur)} (평단 대비 {ret:+.1f}%)\n👉 {act}")
         up = (cur / lo3 - 1) * 100
         dn = (cur / hi3 - 1) * 100
         if up >= rule["spike"] and ok("spike"):
@@ -1971,11 +2016,49 @@ def run_position_watch(store, at_ms: int) -> list:
                 msgs.append(f"↩️ *{name}* 수익 반납 중 — 고점 {fmt_krw(st['peak'])} 대비 {back:.1f}%, 지금 {fmt_krw(cur)} (평단 대비 {ret:+.1f}%)\n👉 손절을 본전 위로 올리거나 일부 익절 검토")
         st["last"] = cur
         st["checked_at"] = iso_kst(at_ms)
-    store.write("positions_state.json", state, "보유 종목 상태")
+    priv_save(store, data, files, mode)
     if msgs:
-        slack_post("💼 보유 종목 알림", [_md(m) for m in msgs])
-    log(f"💼 보유 종목 {len(cfg.get('positions', []))}개 확인 — 알림 {len(msgs)}건")
+        # 금고 모드에서는 공개 슬랙 채널 대신 텔레그램 1:1로만 (평단·손익이 들어 있으므로)
+        if mode == "vault":
+            telegram_send("💼 보유 종목 알림\n\n" + "\n\n".join(m.replace("*", "") for m in msgs))
+        else:
+            slack_post("💼 보유 종목 알림", [_md(m) for m in msgs])
+    log(f"💼 보유 종목 {len(data['positions'])}개 확인 — 알림 {len(msgs)}건")
     return msgs
+
+
+def run_vault_init():
+    """처음 한 번: 키를 만들고, 공개 파일에 있던 평단·보유 정보를 금고로 옮긴 뒤 공개 파일에서 지운다."""
+    import vault
+    if not (LOCAL_DATA_DIR and ACCOUNT_PASSWORD):
+        raise SystemExit("ACCOUNT_PASSWORD 시크릿과 LOCAL_DATA_DIR 이 필요합니다")
+    base, store = _vault_base(), Store()
+    first = not vault.ready(base)
+    vault.init_keys(base, ACCOUNT_PASSWORD)
+    data, files = vault.load(base, ACCOUNT_PASSWORD)
+    if first:
+        cfg = store.read("positions.json", {}) or {}
+        data["positions"] = cfg.get("positions", [])
+        data["state"] = store.read("positions_state.json", {}) or {}
+        ac = store.read("accumulate_cfg.json", {}) or {}
+        data["notes"] = ac.pop("notes", {}) or {}
+        store.write("accumulate_cfg.json", ac, "모으기 설정 (메모는 금고로)")
+        al = store.read("price_alerts.json", {"alerts": []}) or {"alerts": []}
+        al["alerts"] = [a for a in al["alerts"] if "position" not in a]          # 평단이 담긴 보유 알림은 금고 감시로 대체
+        store.write("price_alerts.json", al, "보유 알림을 금고로 이전")
+        acc = store.read("accumulate.json", {}) or {}
+        for it in acc.get("items", []):
+            it["note"] = ""
+        if acc:
+            store.write("accumulate.json", acc, "모으기 메모 제거")
+        for f in ("positions.json", "positions_state.json"):
+            try:
+                os.remove(os.path.join(LOCAL_DATA_DIR, f))
+            except FileNotFoundError:
+                pass
+    vault.save(base, data, files)
+    log(f"🔐 금고 준비 완료 — 보유 {len(data['positions'])}종목 이전")
+    telegram_send(f"🔐 계좌 금고가 준비됐습니다. 보유 {len(data['positions'])}종목의 평단·설정이 암호화돼 공개 파일에서 지워졌습니다.")
 
 
 # ==========================================================
@@ -2010,13 +2093,16 @@ def fetch_accounts() -> Optional[list]:
 
 
 def sync_positions(store, at_ms: int, tickers: Optional[dict] = None) -> Optional[dict]:
-    """계좌의 보유 종목·평단으로 positions.json 을 갱신. 공개 저장소에는 종목·평단·비중(%)만 저장."""
+    """계좌의 보유 종목·평단으로 보유 목록을 갱신. 금고가 있으면 수량·현금까지 금고에만, 없으면 공개 파일엔 종목·평단·비중만."""
     acc = fetch_accounts()
     if acc is None:
         return None
+    data, files, mode = priv_load(store)
+    if data is None:
+        log("🔐 계좌 동기화: 금고 비밀번호가 없어 건너뜀")
+        return None
     tickers = tickers or fetch_tickers_all() or {}
-    cfg = store.read("positions.json", {}) or {}
-    old = {p["ticker"]: p for p in cfg.get("positions", [])}
+    old = {p["ticker"]: p for p in data["positions"]}
     hold, cash = {}, 0.0
     for a in acc:
         cur = str(a.get("currency", "")).upper()
@@ -2035,12 +2121,19 @@ def sync_positions(store, at_ms: int, tickers: Optional[dict] = None) -> Optiona
         if tk not in old:
             added.append(tk)
         p["avg"] = rp(h["avg"])
-        p["weight_pct"] = round(h["value"] / total * 100, 1) if total else None     # 비중만 공개
+        p["weight_pct"] = round(h["value"] / total * 100, 1) if total else None
+        if mode == "vault":
+            p["qty"] = h["qty"]
         new_list.append(p)
-    cfg["positions"] = new_list
-    cfg["synced_at"] = iso_kst(at_ms)
-    cfg["cash_pct"] = round(cash / total * 100, 1) if total else None
-    store.write("positions.json", cfg, "보유 종목 동기화")
+    data["positions"] = new_list
+    for t in removed:
+        data["state"].pop(t, None)
+    if mode == "vault":
+        data["cash"] = cash
+    data["synced_at"] = iso_kst(at_ms)
+    if mode == "plain":
+        data.setdefault("_cfg", {})["cash_pct"] = round(cash / total * 100, 1) if total else None
+    priv_save(store, data, files, mode)
     log(f"🔐 계좌 동기화: 보유 {len(new_list)}종목 (추가 {len(added)} / 정리 {len(removed)})")   # 금액은 로그에 남기지 않음
     if added or removed:
         lines = [f"🆕 새로 산 종목: {label(t)} 평단 {fmt_krw(hold[t]['avg'])} — 단기/장기 알려주시면 알림 기준을 맞춥니다" for t in added]
@@ -2813,6 +2906,8 @@ def main(argv=None):
         run_accumulate()
     elif cmd == "portfolio":
         run_portfolio()
+    elif cmd == "vault-init":
+        run_vault_init()
     elif cmd == "ping":
         telegram_chat_id(register=True)
         ok = telegram_send("✅ <b>텔레그램 알림 서식 개선</b>\n\n줄바꿈·굵은 글씨·링크가 적용됩니다. 아래는 오늘 스캔 요약을 새 서식으로 다시 보낸 것입니다.", html=True)
