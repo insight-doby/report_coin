@@ -66,6 +66,9 @@ def fake_sorted(path, params=None, private=True):
 
 
 c.bget = fake_sorted
+SENT = []
+c.send = lambda t: SENT.append(t)
+c.send_photo = lambda png, caption="": None
 
 
 def test_ytd():
@@ -108,12 +111,19 @@ def test_lifetime():
     # 2025: 1/1 자산 0 → 입금 9,000,000 → 연말 7,000,000 (LINK 100개 15,000에 매수 후 연말 20,000) − 수수료
     assert abs(y25["e1"] - 7_000_000) < 1 and abs(y25["pnl"] - 499_400) < 1 and not y25["warn"], y25
     assert y26["n"] == 1 and y26["wr"] == 100, y26        # LINK 50개 매도 = 이익
-    txt = bot.block_lifetime()
-    assert "평생 순수익" in txt and "연도별 성적" in txt, txt
-    png = c.chart_years(r)
-    assert png and len(png) > 5000
-    open(os.path.join(tempfile.gettempdir(), "years.png"), "wb").write(png)
-    print(txt)
+    link = next(x for x in r["coins"] if x["coin"] == "LINK")
+    assert link["n"] == 1 and abs(link["real"] - (25000 * 50 - 500 - (1_500_600 / 2))) < 1, link
+    txts = [bot.block_lifetime(), bot.block_years(), bot.block_coins()]
+    assert "평생 순수익" in txts[0] and "연도별 성적" in txts[1] and "가장 많이 번 코인" in txts[2], txts
+    for name, fn in (("life", c.chart_lifetime), ("years", c.chart_years), ("coins", c.chart_coins)):
+        png = fn(r)
+        assert png and len(png) > 5000, name
+        open(os.path.join(tempfile.gettempdir(), f"{name}.png"), "wb").write(png)
+    for kw, want in (("/years", "연도별 성적"), ("코인별 성적", "코인별 평생 성적"), ("평생", "평생 순수익"),
+                     ("/year", "실질 수익")):
+        bot.handle(kw)
+        assert want in SENT[-1], (kw, SENT[-1][:80])
+    print("\n\n".join(txts))
 
 
 if __name__ == "__main__":
