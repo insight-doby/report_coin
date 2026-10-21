@@ -43,6 +43,8 @@ ENV = os.environ.get
 SLACK_BOT_TOKEN = ENV("SLACK_BOT_TOKEN", "")
 SLACK_CHANNEL_ID = ENV("SLACK_CHANNEL_ID", "")
 TELEGRAM_BOT_TOKEN = ENV("TELEGRAM_BOT_TOKEN", "")
+BITHUMB_ACCESS_KEY = ENV("BITHUMB_ACCESS_KEY", "")   # 자산조회 전용 키만 쓸 것
+BITHUMB_SECRET_KEY = ENV("BITHUMB_SECRET_KEY", "")
 TELEGRAM_CHAT_ID = ENV("TELEGRAM_CHAT_ID", "")
 GEMINI_API_KEY = ENV("GEMINI_API_KEY", "").strip()
 GEMINI_MODEL = ENV("GEMINI_MODEL", "gemini-2.5-flash")
@@ -1976,6 +1978,99 @@ def run_position_watch(store, at_ms: int) -> list:
     return msgs
 
 
+# ==========================================================
+# 빗썸 계좌 동기화 (자산조회 전용 키) — 수량·금액은 저장/로그하지 않고 텔레그램으로만
+# ==========================================================
+ACC_DUST_KRW = 10_000        # 평가금액 1만 원 미만은 무시
+
+
+def _bithumb_jwt() -> str:
+    import hmac, hashlib, uuid
+    b64 = lambda b: base64.urlsafe_b64encode(b).rstrip(b"=").decode()
+    head = b64(json.dumps({"alg": "HS256", "typ": "JWT"}, separators=(",", ":")).encode())
+    body = b64(json.dumps({"access_key": BITHUMB_ACCESS_KEY, "nonce": str(uuid.uuid4()), "timestamp": int(time.time() * 1000)},
+                          separators=(",", ":")).encode())
+    sig = b64(hmac.new(BITHUMB_SECRET_KEY.encode(), f"{head}.{body}".encode(), hashlib.sha256).digest())
+    return f"{head}.{body}.{sig}"
+
+
+def fetch_accounts() -> Optional[list]:
+    if not (BITHUMB_ACCESS_KEY and BITHUMB_SECRET_KEY):
+        return None
+    try:
+        r = requests.get("https://api.bithumb.com/v1/accounts", headers={"Authorization": f"Bearer {_bithumb_jwt()}"}, timeout=15)
+        if r.status_code != 200:
+            log(f"  ⚠️ 빗썸 계좌 조회 실패: HTTP {r.status_code}")      # 응답 본문은 출력하지 않음
+            return None
+        j = r.json()
+        return j if isinstance(j, list) else None
+    except Exception as e:
+        log(f"  ⚠️ 빗썸 계좌 조회 오류: {type(e).__name__}")
+        return None
+
+
+def sync_positions(store, at_ms: int, tickers: Optional[dict] = None) -> Optional[dict]:
+    """계좌의 보유 종목·평단으로 positions.json 을 갱신. 공개 저장소에는 종목·평단·비중(%)만 저장."""
+    acc = fetch_accounts()
+    if acc is None:
+        return None
+    tickers = tickers or fetch_tickers_all() or {}
+    cfg = store.read("positions.json", {}) or {}
+    old = {p["ticker"]: p for p in cfg.get("positions", [])}
+    hold, cash = {}, 0.0
+    for a in acc:
+        cur = str(a.get("currency", "")).upper()
+        qty = fnum(a.get("balance"), 0.0) + fnum(a.get("locked"), 0.0)
+        if cur == "KRW":
+            cash = qty
+            continue
+        price = fnum((tickers.get(cur) or {}).get("price"), 0.0)
+        if qty <= 0 or price * qty < ACC_DUST_KRW:
+            continue
+        hold[cur] = {"qty": qty, "avg": fnum(a.get("avg_buy_price"), 0.0), "value": price * qty, "price": price}
+    total = cash + sum(h["value"] for h in hold.values())
+    new_list, added, removed = [], [], [t for t in old if t not in hold]
+    for tk, h in sorted(hold.items(), key=lambda x: -x[1]["value"]):
+        p = dict(old.get(tk) or {"ticker": tk, "style": "swing"})
+        if tk not in old:
+            added.append(tk)
+        p["avg"] = rp(h["avg"])
+        p["weight_pct"] = round(h["value"] / total * 100, 1) if total else None     # 비중만 공개
+        new_list.append(p)
+    cfg["positions"] = new_list
+    cfg["synced_at"] = iso_kst(at_ms)
+    cfg["cash_pct"] = round(cash / total * 100, 1) if total else None
+    store.write("positions.json", cfg, "보유 종목 동기화")
+    log(f"🔐 계좌 동기화: 보유 {len(new_list)}종목 (추가 {len(added)} / 정리 {len(removed)})")   # 금액은 로그에 남기지 않음
+    if added or removed:
+        lines = [f"🆕 새로 산 종목: {label(t)} 평단 {fmt_krw(hold[t]['avg'])} — 단기/장기 알려주시면 알림 기준을 맞춥니다" for t in added]
+        lines += [f"✅ 정리 완료: {label(t)}" for t in removed]
+        telegram_send("💼 보유 종목 변화\n" + "\n".join(lines))
+    return {"hold": hold, "cash": cash, "total": total}
+
+
+def telegram_portfolio(snap: dict):
+    """총자산·수량은 텔레그램 1:1 대화로만."""
+    rows = [f"{'종목':<7}{'비중':>6}{'손익':>8}"]
+    for tk, h in sorted(snap["hold"].items(), key=lambda x: -x[1]["value"]):
+        pl = (h["price"] / h["avg"] - 1) * 100 if h["avg"] else 0
+        rows.append(f"{(kname(tk) or tk)[:5]:<7}{h['value'] / snap['total'] * 100:>5.0f}%{pl:>+7.1f}%")
+    rows.append(f"{'현금':<7}{snap['cash'] / snap['total'] * 100:>5.0f}%")
+    inv = sum(h["avg"] * h["qty"] for h in snap["hold"].values())
+    val = sum(h["value"] for h in snap["hold"].values())
+    txt = (f"💼 <b>내 계좌</b> (나만 보는 메시지)\n총자산 {krw_short(snap['total'])}원 · 코인 손익 {krw_short(val - inv) if val >= inv else '-' + krw_short(inv - val)}원"
+           f" ({(val / inv - 1) * 100 if inv else 0:+.1f}%)\n<pre>" + _hesc("\n".join(rows)) + "</pre>")
+    telegram_send(txt, html=True)
+
+
+def run_portfolio():
+    snap = sync_positions(Store(), now_ms())
+    if snap is None:
+        log("빗썸 키가 없거나 조회 실패")
+        raise SystemExit(1)
+    telegram_portfolio(snap)
+
+
 def run_track():
     store = Store()
     at = now_ms()
@@ -2013,6 +2108,10 @@ def run_track():
         run_price_alerts(store, at)
     except Exception as e:
         log(f"  ⚠️ 가격 알림 실패: {e}")
+    try:
+        sync_positions(store, at, tickers)
+    except Exception as e:
+        log(f"  ⚠️ 계좌 동기화 실패: {type(e).__name__}")
     try:
         run_position_watch(store, at)
     except Exception as e:
@@ -2708,6 +2807,8 @@ def main(argv=None):
         run_snapshot(argv[1:])
     elif cmd == "accumulate":
         run_accumulate()
+    elif cmd == "portfolio":
+        run_portfolio()
     elif cmd == "ping":
         ok = telegram_send("✅ <b>텔레그램 알림 서식 개선</b>\n\n줄바꿈·굵은 글씨·링크가 적용됩니다. 아래는 오늘 스캔 요약을 새 서식으로 다시 보낸 것입니다.", html=True)
         log("텔레그램 테스트:", "성공" if ok else ("채팅방을 못 찾음 — 봇에게 /start 를 보내주세요" if TELEGRAM_BOT_TOKEN else "토큰 없음"))

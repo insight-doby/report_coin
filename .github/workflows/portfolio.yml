@@ -1,0 +1,29 @@
+name: portfolio
+on:
+  schedule:
+    - cron: "50 23 * * *"   # 매일 08:50 KST — 계좌 요약을 텔레그램으로만
+  workflow_dispatch:
+concurrency: { group: bot-data, cancel-in-progress: false }
+permissions: { contents: write }
+jobs:
+  portfolio:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - run: pip install requests numpy
+      - name: 계좌 요약 (금액은 텔레그램으로만, 로그에는 남기지 않음)
+        env:
+          LOCAL_DATA_DIR: data
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          BITHUMB_ACCESS_KEY: ${{ secrets.BITHUMB_ACCESS_KEY }}
+          BITHUMB_SECRET_KEY: ${{ secrets.BITHUMB_SECRET_KEY }}
+        run: python -u bot.py portfolio
+      - name: Commit data
+        run: |
+          git config user.name "bot"; git config user.email "bot@users.noreply.github.com"
+          git add data && (git diff --cached --quiet || git commit -m "portfolio sync")
+          git pull --rebase origin ${{ github.ref_name }} && git push
