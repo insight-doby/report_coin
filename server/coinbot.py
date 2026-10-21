@@ -203,21 +203,30 @@ def bget(path: str, params=None, private=True):
     return r.json()
 
 
+def _tick(markets):
+    """시세 조회. 빗썸이 오류를 dict로 돌려주는 경우까지 걸러서 항상 list[dict]로."""
+    try:
+        data = bget("/v1/ticker", {"markets": markets}, private=False)
+    except (BithumbError, requests.RequestException, ValueError):
+        return None
+    if isinstance(data, dict):
+        data = data.get("data") if isinstance(data.get("data"), list) else None
+    if not isinstance(data, list):
+        return None
+    return [t for t in data if isinstance(t, dict)]
+
+
 def fetch_prices(coins) -> dict:
     coins = sorted({c for c in coins if c and c != "KRW"})
     out = {}
     for i in range(0, len(coins), 40):
         chunk = coins[i:i + 40]
-        try:
-            data = bget("/v1/ticker", {"markets": ",".join(f"KRW-{c}" for c in chunk)}, private=False)
-        except BithumbError:
+        data = _tick(",".join(f"KRW-{c}" for c in chunk))
+        if data is None:                         # 상장폐지·원화마켓 없는 코인 하나 때문에 묶음 전체가 실패하는 경우
             data = []
-            for c in chunk:                      # 상장폐지 종목 하나 때문에 묶음 전체가 실패하는 경우
-                try:
-                    data += bget("/v1/ticker", {"markets": f"KRW-{c}"}, private=False)
-                except BithumbError:
-                    pass
-        for t in data or []:
+            for c in chunk:
+                data += _tick(f"KRW-{c}") or []
+        for t in data:
             out[str(t.get("market", "")).split("-")[-1]] = fnum(t.get("trade_price"))
     return out
 
