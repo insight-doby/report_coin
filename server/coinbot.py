@@ -317,10 +317,12 @@ COMMANDS = [
     ("perf", "매매 성적 (승률·손익비·낙폭)"),
     ("trades", "최근 매도 기록"),
     ("orders", "걸어둔 주문"),
+    ("year", "올해 실질 수익 (금액·수익률)"),
     ("goal", "연 30% 목표 진행"),
     ("help", "사용법"),
 ]
 WORDS = {
+    "year": ["올해", "실질", "연간"],
     "account": ["계좌", "자산", "잔고", "전체"], "holdings": ["보유", "코인", "종목"],
     "perf": ["성적", "수익", "승률", "성과"], "trades": ["거래", "매도", "기록", "체결"],
     "orders": ["주문", "지정가", "대기"], "goal": ["목표"], "check": ["점검", "상태", "진단"], "help": ["도움", "help", "start", "메뉴"],
@@ -434,7 +436,7 @@ class Bot:
              "vol": fnum(o.get("remaining_volume") or o.get("volume")), "ts": parse_ts(o.get("created_at"))}
             for o in open_now])
         cand = prev_open - {o.get("uuid") for o in open_now}
-        recent = self._orders({"states": ["done", "cancel"]}, pages=20 if backfill else 1)
+        recent = self._orders({"states": ["done", "cancel"]}, pages=60 if backfill else 1)
         for o in recent:
             if fnum(o.get("executed_volume")) > 0:
                 cand.add(o.get("uuid"))
@@ -649,10 +651,22 @@ class Bot:
                 "month": day.replace(day=1).timestamp(), "year": day.replace(month=1, day=1).timestamp()}
 
     def goal(self, curve, flows):
-        """목표 기간: 기록 시작 후 첫 1년은 '시작일~1년 뒤', 그 다음부터는 달력 연도."""
+        """연 목표: 올해 실질 수익(1/1부터)이 있으면 그걸로, 없으면 기록 시작 후 1년 기준."""
         if not curve:
             return None
         b = self.bounds()
+        st = self.db.get("last_state")
+        y = self.ytd(st) if st else None
+        if y and y["ret"] is not None and not y["warn"]:
+            end = kst(now_ts()).replace(month=12, day=31, hour=23, minute=59).timestamp()
+            target = ((1 + GOAL_PCT / 100) ** (y["days"] / 365) - 1) * 100
+            months_left = max((end - now_ts()) / 86400 / 30.44, 0.25)
+            need_total = (1 + GOAL_PCT / 100) / (1 + y["ret"] / 100)
+            m = self.period(b["month"], curve, flows)
+            return {"ret": y["ret"], "pnl": y["pnl"], "target": target, "gap": y["ret"] - target, "days": y["days"],
+                    "need_m": (need_total ** (1 / months_left) - 1) * 100 if need_total > 0 else None,
+                    "month": m["ret"], "month_goal": ((1 + GOAL_PCT / 100) ** (1 / 12) - 1) * 100,
+                    "since": b["year"], "end": end}
         first, now = curve[0][0], now_ts()
         if now - first < 365 * 86400:
             start, end = first, first + 365 * 86400
@@ -669,6 +683,155 @@ class Bot:
         m = self.period(b["month"], curve, flows)
         return {"ret": y["ret"], "pnl": y["pnl"], "target": target, "gap": y["ret"] - target, "days": days,
                 "need_m": need_m, "month": m["ret"], "month_goal": month_goal, "since": start, "end": end}
+
+
+    # ── 올해 실질 수익 (1월 1일 자산을 체결·입출금 기록으로 역산) ──
+    def _paged(self, path, params, until_ts, ts_keys=("created_at",), max_pages=60):
+        out = []
+        for page in range(1, max_pages + 1):
+            try:
+                data = bget(path, {**params, "page": page, "limit": 100, "order_by": "desc"}) or []
+            except BithumbError as e:
+                if e.status in (401, 403):
+                    raise
+                break
+            if not isinstance(data, list):
+                break
+            out += [x for x in data if isinstance(x, dict)]
+            oldest = min([parse_ts(next((x.get(k) for k in ts_keys if x.get(k)), None)) for x in data] or [0])
+            if len(data) < 100 or (oldest and oldest < until_ts):
+                break
+        return out
+
+    @staticmethod
+    def _close_on(coin, day_end_ts):
+        """그날 종가 (KST 자정 직전). 없으면 None."""
+        to = kst(day_end_ts).strftime("%Y-%m-%dT%H:%M:%S")
+        try:
+            data = bget("/v1/candles/days", {"market": f"KRW-{coin}", "to": to, "count": 1}, private=False)
+            if isinstance(data, list) and data and isinstance(data[0], dict):
+                return fnum(data[0].get("trade_price")) or None
+        except (BithumbError, requests.RequestException, ValueError):
+            pass
+        return None
+
+    def compute_ytd(self):
+        b = self.bounds()
+        y0 = b["year"]
+        warn = []
+        # 1) 올해 체결: 목록을 1월 1일 이전까지 넘겨보고, 표에 없는 체결은 상세 조회해서 기록만 (알림·손익 계산 없음)
+        known = {r[0] for r in self.db.q("SELECT uuid FROM orders")}
+        lst = self._paged("/v1/orders", {"states": ["done", "cancel"]}, y0)
+        for o in lst:
+            u = o.get("uuid")
+            if not u or u in known or fnum(o.get("executed_volume")) <= 0:
+                continue
+            try:
+                d = self._detail(u)
+            except BithumbError:
+                warn.append("일부 체결 상세를 못 불러옴")
+                continue
+            if d["volume"] > 0 and d["market"].startswith("KRW-"):
+                self.db.x("INSERT OR IGNORE INTO orders VALUES(?,?,?,?,?,?,?)",
+                          (d["uuid"], int(d["ts"]), d["coin"], d["side"], d["volume"], d["funds"], d["fee"]))
+        if len(lst) >= 60 * 100:
+            warn.append("체결 기록이 너무 많아 일부만 반영")
+        orders = self.db.q("SELECT * FROM orders WHERE ts>=?", (y0,))
+        # 2) 올해 입출금
+        flows = []
+        for path, sign in (("/v1/deposits/krw", 1), ("/v1/withdraws/krw", -1), ("/v1/deposits", 1), ("/v1/withdraws", -1)):
+            try:
+                items = self._paged(path, {}, y0, ts_keys=("done_at", "created_at"))
+            except BithumbError:
+                warn.append("입출금 조회 권한 없음 — 입금이 수익으로 잡힐 수 있음")
+                continue
+            for it in items:
+                if str(it.get("state", "")).upper() not in DONE_STATES:
+                    continue
+                ts = parse_ts(it.get("done_at") or it.get("created_at"))
+                if ts < y0:
+                    continue
+                flows.append({"ts": ts, "coin": str(it.get("currency", "KRW")).upper(), "amt": fnum(it.get("amount")),
+                              "fee": fnum(it.get("fee")), "sign": sign})
+        # 3) 지금 잔고에서 거꾸로 1월 1일 잔고 계산
+        cash, hold = self.accounts()
+        qty0 = {c: h["qty"] for c, h in hold.items()}
+        fees = 0.0
+        for o in orders:
+            c, v, f, fee = o["coin"], o["volume"], o["funds"], o["fee"] or 0
+            fees += fee
+            if o["side"] == "bid":
+                cash += f + fee
+                qty0[c] = qty0.get(c, 0) - v
+            else:
+                cash -= f - fee
+                qty0[c] = qty0.get(c, 0) + v
+        dep = wd = 0.0
+        fl_krw = []
+        for fl in flows:
+            if fl["coin"] == "KRW":
+                val = fl["amt"]
+                cash += -fl["amt"] if fl["sign"] > 0 else fl["amt"] + fl["fee"]
+            else:
+                qty0[fl["coin"]] = qty0.get(fl["coin"], 0) + (-fl["amt"] if fl["sign"] > 0 else fl["amt"] + fl["fee"])
+                day_end = kst(fl["ts"]).replace(hour=0, minute=0, second=0).timestamp() + 86400
+                val = fl["amt"] * (self._close_on(fl["coin"], day_end) or 0)
+            fl_krw.append((fl["ts"], fl["sign"] * val))
+            if fl["sign"] > 0:
+                dep += val
+            else:
+                wd += val
+        # 4) 1월 1일 시가로 평가
+        listed = krw_markets()
+        e0 = max(cash, 0.0)
+        if cash < -1000:
+            warn.append("1월 1일 현금 추정이 음수 — 기록 일부 누락 가능")
+        for c, q in qty0.items():
+            if q < 0:
+                if q * (fetch_prices([c]).get(c) or 0) < -5000:
+                    warn.append(f"{c} 수량 역산 불일치")
+                continue
+            if q <= 0 or (listed and c not in listed):
+                continue
+            p0 = self._close_on(c, y0)
+            if p0:
+                e0 += q * p0
+        res = {"y0": y0, "e0": e0, "flows": fl_krw, "dep": dep, "wd": wd, "fees": fees,
+               "computed": now_ts(), "warn": sorted(set(warn)), "n_orders": len(orders)}
+        self.db.put("ytd", res)
+        log(f"올해 실질 수익 기준 계산 완료 (체결 {len(orders)}건, 입출금 {len(flows)}건)")
+        return res
+
+    def ytd(self, st):
+        """올해 수익 금액·수익률 (수정 디에츠: 입출금 시점 가중)."""
+        y = self.db.get("ytd")
+        if not y or y.get("y0") != self.bounds()["year"] or not st:
+            return None
+        flows = list(map(tuple, y["flows"]))
+        flows += [(r["ts"], r["krw"]) for r in self.db.q("SELECT ts,krw FROM flows WHERE ts>?", (y["computed"],))]
+        now = st["ts"]
+        span = max(now - y["y0"], 1)
+        net = sum(k for _, k in flows)
+        pnl = st["total"] - y["e0"] - net
+        base = y["e0"] + sum(k * (now - ts) / span for ts, k in flows)
+        dep = sum(k for _, k in flows if k > 0)
+        wd = -sum(k for _, k in flows if k < 0)
+        return {"pnl": pnl, "ret": pnl / base * 100 if base > 0 else None, "e0": y["e0"], "now": st["total"],
+                "net": net, "dep": dep, "wd": wd, "fees": y["fees"], "warn": y.get("warn", []),
+                "days": span / 86400, "year": kst(y["y0"]).year}
+
+    def block_ytd(self, st):
+        y = self.ytd(st)
+        if not y:
+            return "<b>올해 실질 수익</b>\n계산 준비 중이에요 (처음 한 번 몇 분 걸려요)"
+        lines = [f"<b>{y['year']}년 실질 수익</b> <i>(1/1~지금, 입출금 제외)</i>",
+                 f"{dot(y['pnl'])} 수익 금액 <b>{man(y['pnl'], True)}원</b> · 수익률 <b>{pct(y['ret'])}</b>",
+                 f"1/1 자산(추정) {man(y['e0'])}원 → 지금 {man(y['now'])}원",
+                 f"올해 순입금 {man(y['net'], True)}원 (입금 {man(y['dep'])} / 출금 {man(y['wd'])})",
+                 f"올해 수수료 {won(y['fees'])}"]
+        if y["warn"]:
+            lines.append("<i>⚠️ " + esc(" · ".join(y["warn"])) + "</i>")
+        return "\n".join(lines)
 
     # ── 체크 포인트 (돈 버는 습관) ──
     def checks(self, st, s_all, g):
@@ -922,7 +1085,7 @@ class Bot:
         curve, flows = self.curve()
         g = self.goal(curve, flows)
         perf, sa = self.block_perf(curve)
-        parts = [self.head(st, title), self.block_checkup(self.checkup(st, curve, flows)),
+        parts = [self.head(st, title), self.block_checkup(self.checkup(st, curve, flows)), self.block_ytd(st),
                  self.block_periods(curve, flows), self.block_holdings(st), self.block_goal(g), perf]
         missing = self.db.get("flow_perm_missing", [])
         if missing:
@@ -1021,6 +1184,8 @@ class Bot:
             send(self.block_perf(curve)[0] + "\n\n" + self.block_trades(5))
         elif cmd == "trades":
             send(self.block_trades(15))
+        elif cmd == "year":
+            send(self.head(st, "올해 실질 수익") + "\n\n" + self.block_ytd(st) + "\n\n" + self.block_goal(self.goal(curve, flows)))
         elif cmd == "goal":
             send(self.block_goal(self.goal(curve, flows)) + "\n\n" + self.block_periods(curve, flows))
 
@@ -1095,6 +1260,15 @@ class Bot:
     def scheduled(self):
         d = kst(now_ts())
         today = f"{d:%Y-%m-%d}"
+        y = self.db.get("ytd")
+        if (not y or y.get("y0") != self.bounds()["year"]
+                or (d.hour >= 5 and kst(y.get("computed", 0)).strftime("%Y-%m-%d") != today)):
+            if now_ts() - (self.db.get("ytd_fail_at") or 0) > 3600:
+                try:
+                    self.compute_ytd()
+                except (BithumbError, requests.RequestException) as e:
+                    log(f"올해 수익 계산 실패: {type(e).__name__} {e}")
+                    self.db.put("ytd_fail_at", now_ts())
         if d.hour >= REPORT_HOUR and self.db.get("last_daily") != today:
             self.db.put("last_daily", today)
             st = self.db.get("last_state")
@@ -1180,12 +1354,13 @@ def chart_account(bot, st, curve, flows):
         cash_w = st["cash"] / st["total"] * 100 if st["total"] else 0
         sub = f"현금 {cash_w:.0f}% · 코인 {len(st['hold'])}종목"
         if g:
-            sub += f"   |   기록 후 {pct(g['ret'])} · 목표 페이스 {pct(g['target'])}"
+            yl = "올해" if g["since"] == bot.bounds()["year"] else "기록 후"
+            sub += f"   |   {yl} {pct(g['ret'])} · 목표 페이스 {pct(g['target'])}"
         fig.text(0.06, 0.865, sub, fontsize=10.5, color=C_INK2, va="top")
 
         h_line = 3.2 / (6.4 + 0.42 * nb)
         ax = fig.add_axes([0.08, 0.83 - h_line - 0.04, 0.86, h_line])
-        start = g["since"] if g else (curve[0][0] if curve else 0)
+        start = curve[0][0] if curve else 0
         pts = [r for r in curve if r[0] >= start] if curve else []
         if len(pts) >= 2 and pts[-1][0] - pts[0][0] >= 3600 * 6:
             step = max(1, len(pts) // 400)
@@ -1210,7 +1385,7 @@ def chart_account(bot, st, curve, flows):
             ax.axis("off")
             ax.text(0.5, 0.5, "수익률 그래프는 기록이 하루쯤 쌓이면 그려져요", ha="center", va="center",
                     fontsize=10.5, color=C_MUTED, transform=ax.transAxes)
-        ax.set_title("수익률 추이 (입출금 제외)", loc="left", fontsize=11, fontweight="bold", pad=10)
+        ax.set_title("수익률 추이 (기록 시작 후 · 입출금 제외)", loc="left", fontsize=11, fontweight="bold", pad=10)
 
         h_bar = 0.42 * nb / (6.4 + 0.42 * nb)
         bx = fig.add_axes([0.20, 0.07, 0.62, h_bar])

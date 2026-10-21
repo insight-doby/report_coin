@@ -84,6 +84,13 @@ SHA=$(curl -fsSL "https://api.github.com/repos/$REPO/commits/main" | sed -n 's/^
 SRC="https://raw.githubusercontent.com/$REPO/${SHA:-main}/server"
 curl -fsSL "$SRC/coinbot.py" -o /opt/coinbot/coinbot.py
 curl -fsSL "$SRC/install.sh" -o /opt/coinbot/install.sh
+curl -fsSL "$SRC/autoupdate.sh" -o /usr/local/bin/coinbot-autoupdate
+chmod 755 /usr/local/bin/coinbot-autoupdate
+[ -n "${SHA:-}" ] && echo "$SHA" > /opt/coinbot/VERSION
+printf '[Unit]\nDescription=coinbot auto update\n[Service]\nType=oneshot\nExecStart=/usr/local/bin/coinbot-autoupdate\n' \
+  > /etc/systemd/system/coinbot-autoupdate.service
+printf '[Unit]\nDescription=coinbot auto update every 10 min\n[Timer]\nOnBootSec=3min\nOnUnitActiveSec=10min\n[Install]\nWantedBy=timers.target\n' \
+  > /etc/systemd/system/coinbot-autoupdate.timer
 echo "  version: ${SHA:0:7}"
 chmod 755 /opt/coinbot/coinbot.py /opt/coinbot/install.sh
 
@@ -138,6 +145,8 @@ fi
 
 systemctl daemon-reload
 systemctl enable coinbot >/dev/null 2>&1
+systemctl enable --now coinbot-autoupdate.timer >/dev/null 2>&1
 systemctl restart coinbot
+echo "  auto update: ON (every 10 min)"
 say "DONE! Check Telegram"
 echo "  coinbot status | coinbot log | sudo coinbot update"
