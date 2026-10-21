@@ -1346,7 +1346,13 @@ def sector_alert(store, rows: list, at_ms: int, tickers: dict = None, ledger: li
         if lag:
             txt += f"\n_이 섹터에서 평소 크게 움직이던 대장 중 아직 덜 오른 종목: {lag}_"
         blocks.append(_md(txt))
-    if picks:
+    if picks and gate == "STOP":
+        # 시장 신호등이 '매수 금지'면 매수 구간·손절·목표 없이 참고용 한 줄만 (사라는 말과 사지 말라는 말이 섞이지 않게)
+        blocks.append({"type": "divider"})
+        blocks.append(_md("\n".join(f"📌 {p['group']} 섹터 대장: *{kname(p['ticker']) or p['ticker']}* {p['chg24']:+.1f}%"
+                                    for p in picks)
+                          + "\n시장이 약세(신호등 '매수 금지')라 *지금은 매수 안 함* — 참고용"))
+    elif picks:
         blocks.append({"type": "divider"})
         blocks.append(_md("🎯 *매수 후보 — 지금 섹터를 이끄는 대장*\n_과거 검증: 섹터 과열 때 이미 +10% 오른 대장을 다음날 사서 손절 -10%/목표 +20%/3일 → 평균 +2.5% (132건). 덜 오른 종목 줍기보다 나았음. 약세장에선 본전 수준._"))
         for p in picks:
