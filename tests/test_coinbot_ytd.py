@@ -123,6 +123,12 @@ def test_lifetime():
                      ("/year", "실질 수익")):
         bot.handle(kw)
         assert want in SENT[-1], (kw, SENT[-1][:80])
+    rr = bot.realized_rows(0)
+    assert len(rr) == 1 and abs(rr[0]["pnl"] - (25000 * 50 - 500 - 1_500_600 / 2)) < 1, [dict(x) for x in rr]
+    bot.handle("실현")
+    assert "실현손익" in SENT[-1] and "1건" in SENT[-1], SENT[-1]
+    assert "실현손익</b> 오늘" in bot.full_report(bot.db.get("last_state") or bot.snapshot(notify=False))
+    print(SENT[-1])
     print("\n\n".join(txts))
 
 

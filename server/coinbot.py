@@ -299,6 +299,8 @@ class DB:
         CREATE TABLE IF NOT EXISTS trades(uuid TEXT PRIMARY KEY, ts INTEGER, coin TEXT, qty REAL, avg REAL,
                                           px REAL, pnl REAL, pct REAL, fee REAL, hold_h REAL);
         CREATE TABLE IF NOT EXISTS pos(coin TEXT PRIMARY KEY, qty REAL, cost REAL, opened INTEGER);
+        CREATE TABLE IF NOT EXISTS realized(uuid TEXT PRIMARY KEY, ts INTEGER, coin TEXT, qty REAL, avg REAL,
+                                            px REAL, pnl REAL, pct REAL, fee REAL, hold_h REAL);
         """)
         self.c.commit()
 
@@ -364,12 +366,14 @@ COMMANDS = [
     ("lifetime", "평생 순수익"),
     ("years", "연도별 성적"),
     ("coins", "코인별 평생 성적"),
+    ("realized", "실현손익 (판 것만 · 기간별)"),
     ("help", "사용법"),
 ]
 WORDS = {
     "year": ["올해", "실질", "연간"],
     "history": ["언제까지", "오래된", "과거", "히스토리"],
     "coins": ["코인별", "종목별"],
+    "realized": ["실현", "확정"],
     "years": ["연도", "역대", "해마다"],
     "lifetime": ["평생", "전체기간", "총수익"],
     "account": ["계좌", "자산", "잔고", "전체"], "holdings": ["보유", "코인", "종목"],
@@ -673,8 +677,19 @@ class Bot:
         cur = curve[-1][2] / peak - 1 if curve and peak else 0
         return mdd * 100, cur * 100
 
+    def realized_rows(self, t_from=0, t_to=None):
+        """주식 앱처럼 매도 한 건씩의 확정 손익. 2017년부터 전체 기록 + 그 뒤 실시간 체결."""
+        t_to = t_to or 2 ** 40
+        life = self.db.get("lifetime") or {}
+        cut = int(life.get("computed", 0)) if self.db.q("SELECT 1 FROM realized LIMIT 1") else 0
+        rows = self.db.q("SELECT * FROM realized WHERE ts>=? AND ts<? AND ts<=? AND pct IS NOT NULL",
+                         (t_from, t_to, cut))
+        rows += self.db.q("SELECT * FROM trades WHERE ts>=? AND ts<? AND ts>? AND pct IS NOT NULL",
+                          (t_from, t_to, cut))
+        return sorted(rows, key=lambda r: r["ts"])
+
     def stats(self, t_from=0):
-        rows = self.db.q("SELECT * FROM trades WHERE ts>=? AND pct IS NOT NULL ORDER BY ts", (t_from,))
+        rows = self.realized_rows(t_from)
         n = len(rows)
         wins = [r for r in rows if r["pnl"] > 0]
         losses = [r for r in rows if r["pnl"] <= 0]
@@ -989,6 +1004,7 @@ class Bot:
         st = self.state()
         # 4) 연도별 매도 성적 (평균단가로 처음부터 다시 계산)
         pos, per = {}, {y: {"n": 0, "w": 0, "real": 0.0, "fee": 0.0, "nb": 0} for y in years}
+        real_rows = []
         coins, opened = {}, {}
 
         def cs(cn):
@@ -1029,8 +1045,12 @@ class Bot:
                     cc["n"] += 1
                     cc["w"] += pnl > 0
                     cc["real"] += pnl
-                    if opened.get(e["coin"]):
-                        cc["hold"].append((ts - opened[e["coin"]]) / 86400)
+                    hold_h = (ts - opened[e["coin"]]) / 3600 if opened.get(e["coin"]) else None
+                    if hold_h is not None:
+                        cc["hold"].append(hold_h / 24)
+                    real_rows.append((e["uuid"], int(ts), e["coin"], e["volume"], cost / q,
+                                      e["funds"] / e["volume"] if e["volume"] else 0, pnl,
+                                      pnl / basis * 100 if basis else None, e["fee"] or 0, hold_h))
                 take = min(q, e["volume"])
                 pos[e["coin"]] = (q - take, cost * (1 - take / q) if q > 0 else 0.0)
                 if pos[e["coin"]][0] * (e["funds"] / e["volume"] if e["volume"] else 0) < DUST_KRW:
@@ -1058,6 +1078,9 @@ class Bot:
         first_ord = orders[0]["ts"] if orders else 0
         if first_ord and (not first_dep or first_dep > first_ord + 86400 * 2):
             warn.add("입금 기록이 첫 체결보다 늦게 시작 — 초기 입금 일부가 빠졌을 수 있음")
+        self.db.c.execute("DELETE FROM realized")
+        self.db.c.executemany("INSERT OR REPLACE INTO realized VALUES(?,?,?,?,?,?,?,?,?,?)", real_rows)
+        self.db.c.commit()
         coin_rows = []
         for cn, cc in coins.items():
             h = st["hold"].get(cn)
@@ -1477,6 +1500,43 @@ class Bot:
         out.append(f"지금 고점 대비 {cdd:.1f}%")
         return "\n".join(out), sa
 
+    # ── 실현손익 (판 것만 · 기간별) ──
+    def block_realized(self, st=None):
+        b = self.bounds()
+        life = self.db.get("lifetime")
+        periods = [("오늘", b["day"]), ("이번주", b["week"]), ("이번달", b["month"]), ("올해", b["year"]), ("전체", 0)]
+        lines = ["<b>실현손익</b>", "<i>판 것만 · 매도금액 − 평단×수량 − 수수료</i>"]
+        rows = []
+        for name, t in periods:
+            rr = self.realized_rows(t)
+            n = len(rr)
+            w = sum(1 for r in rr if r["pnl"] > 0)
+            pnl = sum(r["pnl"] for r in rr)
+            wr = f"{w / n * 100:.0f}%" if n else "-"
+            rows.append(f"{label(name)} {man(pnl, True):>9} {n:>5}건 {wr:>4}")
+        lines.append("<i>기간 · 실현손익 · 매도 수 · 승률</i>")
+        lines.append("<pre>" + esc("\n".join(rows)) + "</pre>")
+        month = self.realized_rows(b["month"])
+        if month:
+            best = max(month, key=lambda r: r["pnl"])
+            worst = min(month, key=lambda r: r["pnl"])
+            lines.append(f"이번달 최고 {best['coin']} {man(best['pnl'], True)}원 ({pct(best['pct'])})")
+            lines.append(f"이번달 최저 {worst['coin']} {man(worst['pnl'], True)}원 ({pct(worst['pct'])})")
+        st = st or self.db.get("last_state")
+        if st and st.get("hold"):
+            upnl = sum(h["pnl"] or 0 for h in st["hold"].values())
+            lines.append("")
+            lines.append(f"참고: 평가손익(들고 있는 것) {man(upnl, True)}원")
+        if not life:
+            lines.append("<i>전체 기록 계산 전이라 '전체'는 기록 시작 이후만이에요</i>")
+        return "\n".join(lines)
+
+    def line_realized(self):
+        b = self.bounds()
+        today = sum(r["pnl"] for r in self.realized_rows(b["day"]))
+        month = sum(r["pnl"] for r in self.realized_rows(b["month"]))
+        return f"<b>실현손익</b> 오늘 {man(today, True)}원 · 이번달 {man(month, True)}원"
+
     def block_trades(self, limit=10):
         rows = self.db.q("SELECT * FROM trades ORDER BY ts DESC LIMIT ?", (limit,))
         if not rows:
@@ -1507,7 +1567,8 @@ class Bot:
         g = self.goal(curve, flows)
         perf, sa = self.block_perf(curve)
         parts = [self.head(st, title), self.block_checkup(self.checkup(st, curve, flows)), self.block_ytd(st),
-                 self.block_periods(curve, flows), self.block_holdings(st), self.block_goal(g), perf]
+                 self.block_periods(curve, flows), self.line_realized(), self.block_holdings(st),
+                 self.block_goal(g), perf]
         missing = self.db.get("flow_perm_missing", [])
         if missing:
             parts.append(f"<i>⚠️ {', '.join(missing)} 조회 권한이 없어 입출금이 수익으로 잡힐 수 있어요 (빗썸 API 키에 입금조회·출금조회 추가)</i>")
@@ -1615,6 +1676,8 @@ class Bot:
                 send("코인별 성적은 새로 계산해야 해요. 몇 분 뒤 다시 '코인별'이라고 보내 주세요.")
             else:
                 self.send_life(cmd)
+        elif cmd == "realized":
+            send(self.block_realized(st))
         elif cmd == "history":
             send(self.block_history())
         elif cmd == "year":
@@ -1718,7 +1781,8 @@ class Bot:
         life = self.db.get("lifetime")
         started = self.db.get("lifetime_started") or 0
         stale_start = now_ts() - started > 3600              # 계산 중 재시작(업데이트)돼 끊긴 경우 다시
-        if ((not life or "coins" not in life) and stale_start) or \
+        need_real = bool(life) and not self.db.q("SELECT 1 FROM realized LIMIT 1")   # 실현손익 기록표 첫 생성
+        if ((not life or "coins" not in life or need_real) and stale_start) or \
                 (life and d.weekday() == 6 and d.hour >= 4 and now_ts() - life["computed"] > 86400 * 3):
             self.db.put("lifetime_started", now_ts())
             self.start_lifetime(notify=not life or "coins" not in life)
