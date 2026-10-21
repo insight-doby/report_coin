@@ -51,7 +51,21 @@ def fake(path, params=None, private=True):
     raise AssertionError(path)
 
 
-c.bget = fake
+HONOR_ASC = {"on": True}
+
+
+def fake_sorted(path, params=None, private=True):
+    data = fake(path, params, private)
+    key = lambda x: c.parse_ts(x.get("done_at") or x.get("created_at"))
+    if isinstance(data, list) and params and params.get("order_by") and data and isinstance(data[0], dict) \
+            and (data[0].get("created_at") or data[0].get("done_at")):
+        data = sorted(data, key=key, reverse=params["order_by"] == "desc" or not HONOR_ASC["on"])
+        if params.get("limit"):
+            data = data[:params["limit"]]
+    return data
+
+
+c.bget = fake_sorted
 
 
 def test_ytd():
@@ -70,6 +84,17 @@ def test_ytd():
     print(txt)
 
 
+def test_history():
+    bot = c.Bot(c.DB(os.path.join(tempfile.mkdtemp(), "h.db")))
+    txt = bot.block_history()
+    HONOR_ASC["on"] = False                                  # 빗썸이 오래된 순 정렬을 무시해도 같은 결과
+    assert bot.block_history() == txt
+    assert "체결: <b>2025-12-01</b>" in txt and "원화 입금: <b>2025-06-01</b>" in txt and "년치" in txt, txt
+    assert bot.handle.__func__  # 명령어 매칭
+    print(txt)
+
+
 if __name__ == "__main__":
     test_ytd()
+    test_history()
     print("OK")

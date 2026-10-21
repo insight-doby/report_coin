@@ -319,10 +319,12 @@ COMMANDS = [
     ("orders", "걸어둔 주문"),
     ("year", "올해 실질 수익 (금액·수익률)"),
     ("goal", "연 30% 목표 진행"),
+    ("history", "불러올 수 있는 가장 오래된 기록"),
     ("help", "사용법"),
 ]
 WORDS = {
     "year": ["올해", "실질", "연간"],
+    "history": ["언제까지", "오래된", "과거", "히스토리"],
     "account": ["계좌", "자산", "잔고", "전체"], "holdings": ["보유", "코인", "종목"],
     "perf": ["성적", "수익", "승률", "성과"], "trades": ["거래", "매도", "기록", "체결"],
     "orders": ["주문", "지정가", "대기"], "goal": ["목표"], "check": ["점검", "상태", "진단"], "help": ["도움", "help", "start", "메뉴"],
@@ -833,6 +835,58 @@ class Bot:
             lines.append("<i>⚠️ " + esc(" · ".join(y["warn"])) + "</i>")
         return "\n".join(lines)
 
+    # ── 불러올 수 있는 가장 오래된 기록 (날짜만) ──
+    def oldest_record(self, path, params, ts_keys):
+        def ts_of(x):
+            return parse_ts(next((x.get(k) for k in ts_keys if x.get(k)), None))
+        try:
+            data = bget(path, {**params, "page": 1, "limit": 2, "order_by": "asc"})
+            if isinstance(data, list) and not data:
+                return None, "기록 없음"
+            t = [ts_of(x) for x in data if isinstance(x, dict)] if isinstance(data, list) else []
+            if len(t) == 1 and t[0]:
+                return t[0], "ok"
+            if len(t) == 2 and t[0] and t[1] and t[0] <= t[1]:      # 오래된 순 정렬이 실제로 적용된 경우만 믿음
+                return t[0], "ok"
+        except BithumbError as e:
+            if e.status in (401, 403):
+                return None, "권한 없음"
+        oldest, page = None, 1                      # 오래된 순 정렬이 안 되면 최신순으로 끝까지 넘겨봄
+        while page <= 300:
+            try:
+                data = bget(path, {**params, "page": page, "limit": 100, "order_by": "desc"})
+            except BithumbError:
+                break
+            if not isinstance(data, list) or not data:
+                break
+            t = [ts_of(x) for x in data if isinstance(x, dict) and ts_of(x)]
+            if t:
+                oldest = min(t + ([oldest] if oldest else []))
+            if len(data) < 100:
+                break
+            page += 1
+        return oldest, ("ok" if oldest else "기록 없음") + (" (300쪽 이상 — 더 있을 수 있음)" if page > 300 else "")
+
+    def block_history(self):
+        rows = [("체결", "/v1/orders", {"states": ["done", "cancel"]}, ("created_at",)),
+                ("원화 입금", "/v1/deposits/krw", {}, ("done_at", "created_at")),
+                ("원화 출금", "/v1/withdraws/krw", {}, ("done_at", "created_at")),
+                ("코인 입금", "/v1/deposits", {}, ("done_at", "created_at")),
+                ("코인 출금", "/v1/withdraws", {}, ("done_at", "created_at"))]
+        lines = ["<b>불러올 수 있는 가장 오래된 기록</b> <i>(날짜만)</i>"]
+        first = None
+        for name, path, params, keys in rows:
+            ts, note = self.oldest_record(path, params, keys)
+            if ts:
+                first = min(first or ts, ts)
+                lines.append(f"{name}: <b>{kst(ts):%Y-%m-%d}</b>" + ("" if note == "ok" else f" <i>{esc(note)}</i>"))
+            else:
+                lines.append(f"{name}: {esc(note)}")
+        if first:
+            yrs = (now_ts() - first) / 86400 / 365
+            lines.append(f"\n약 {yrs:.1f}년치 기록을 불러올 수 있어요.")
+        return "\n".join(lines)
+
     # ── 체크 포인트 (돈 버는 습관) ──
     def checks(self, st, s_all, g):
         tips = []
@@ -1184,6 +1238,8 @@ class Bot:
             send(self.block_perf(curve)[0] + "\n\n" + self.block_trades(5))
         elif cmd == "trades":
             send(self.block_trades(15))
+        elif cmd == "history":
+            send(self.block_history())
         elif cmd == "year":
             send(self.head(st, "올해 실질 수익") + "\n\n" + self.block_ytd(st) + "\n\n" + self.block_goal(self.goal(curve, flows)))
         elif cmd == "goal":
@@ -1236,6 +1292,12 @@ class Bot:
                 send(self.full_report(self.db.get("last_state")))
             except Exception as e:
                 self.on_error(e)
+        if not self.db.get("history_sent"):
+            try:
+                send(self.block_history())
+                self.db.put("history_sent", True)
+            except Exception as e:
+                log(f"기록 범위 확인 실패: {type(e).__name__}")
         next_fill = next_snap = 0.0
         while True:
             t = now_ts()
