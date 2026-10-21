@@ -42,6 +42,8 @@ DB_PATH = os.environ.get("COINBOT_DB", "/var/lib/coinbot/coinbot.db")
 GOAL_PCT = float(os.environ.get("COINBOT_GOAL_PCT", "30"))     # 연 목표 수익률(%)
 REPORT_HOUR = int(os.environ.get("COINBOT_REPORT_HOUR", "22"))  # 하루 결산 시각(KST)
 
+TP1, TP2, SL = (float(os.environ.get(k, d)) for k, d in
+                (("COINBOT_TP1", "3"), ("COINBOT_TP2", "5"), ("COINBOT_SL", "3")))   # 매수 후 안내할 매도·손절 %
 MAJOR_KRW = float(os.environ.get("COINBOT_MAJOR_KRW", "1000000"))   # 이 금액 이상 보유만 자세히
 
 FILL_EVERY = 120
@@ -126,6 +128,17 @@ def qty(v) -> str:
     if v >= 1:
         return f"{v:,.4f}".rstrip("0").rstrip(".")
     return f"{v:.8f}".rstrip("0").rstrip(".") or "0"
+
+
+def tick_round(v: float, up=True) -> float:
+    """주문 가격을 넉넉한 호가 단위(실제 호가 단위의 배수)로 맞춤. 매도는 올림, 손절은 내림."""
+    import math
+    v = float(v)
+    for lim, t in ((1e6, 1000), (1e5, 100), (1e4, 10), (1e3, 5), (100, 1), (10, 0.1), (1, 0.01), (0, 0.0001)):
+        if v >= lim:
+            n = (math.ceil if up else math.floor)(round(v / t, 6))
+            return round(n * t, 6)
+    return v
 
 
 def rp(v: float) -> float:
@@ -537,7 +550,12 @@ class Bot:
             new_avg = p["cost"] / p["qty"]
             avg_txt = (f"평단 {price_txt(old_avg)} → <b>{price_txt(new_avg)}</b>" if old_avg
                        else f"평단 <b>{price_txt(new_avg)}</b> (새로 매수)")
-            msg = (f"🟢 <b>매수 체결 · {coin}</b>\n{price_txt(px)}원 × {qty(vol)}개 = {won(funds)}\n{avg_txt}")
+            msg = (f"🟢 <b>매수 체결 · {coin}</b>\n{price_txt(px)}원 × {qty(vol)}개 = {won(funds)}\n{avg_txt}\n\n"
+                   f"<b>바로 걸어 두기</b> <i>(평단 기준)</i>\n"
+                   + boxq([f"매도 +{TP1:g}% <b>{price_txt(tick_round(new_avg * (1 + TP1 / 100)))}원</b> · 절반",
+                           f"매도 +{TP2:g}% <b>{price_txt(tick_round(new_avg * (1 + TP2 / 100)))}원</b> · 나머지",
+                           f"손절 -{SL:g}% <b>{price_txt(tick_round(new_avg * (1 - SL / 100), up=False))}원</b> · 알림 오면 바로"])
+                   )
         else:
             proceeds = funds - fee
             replay_avg = p["cost"] / p["qty"] if p["qty"] >= vol * 0.98 and p["qty"] > 0 else None
