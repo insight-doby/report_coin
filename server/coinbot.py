@@ -149,6 +149,22 @@ def label(t: str, width=3) -> str:
     return t + FW * max(0, width - len(t))
 
 
+def wrap(text: str, width=36, indent="   ") -> str:
+    """폰 한 줄 폭(한글 2칸)에 맞춰 띄어쓰기 기준으로 줄바꿈. ' — ' 는 항상 줄바꿈."""
+    out = []
+    for part in text.split(" — "):
+        line = ""
+        for word in part.split(" "):
+            cand = (line + " " + word).strip()
+            if line and sum(2 if ord(ch) > 0x1100 else 1 for ch in cand) > width:
+                out.append(line)
+                line = word
+            else:
+                line = cand
+        out.append(line)
+    return ("\n" + indent).join(out)
+
+
 def dot(v) -> str:
     if v is None:
         return "⚪"
@@ -834,10 +850,15 @@ class Bot:
         y = self.ytd(st)
         if not y:
             return "<b>올해 실질 수익</b>\n계산 준비 중이에요 (처음 한 번 몇 분 걸려요)"
-        lines = [f"<b>{y['year']}년 실질 수익</b> <i>(1/1~지금, 입출금 제외)</i>",
-                 f"{dot(y['pnl'])} 수익 금액 <b>{man(y['pnl'], True)}원</b> · 수익률 <b>{pct(y['ret'])}</b>",
-                 f"1/1 자산(추정) {man(y['e0'])}원 → 지금 {man(y['now'])}원",
-                 f"올해 순입금 {man(y['net'], True)}원 (입금 {man(y['dep'])} / 출금 {man(y['wd'])})",
+        lines = [f"<b>{y['year']}년 실질 수익</b>",
+                 "<i>1/1~지금 · 입출금 제외</i>",
+                 f"{dot(y['pnl'])} 수익 금액 <b>{man(y['pnl'], True)}원</b>",
+                 f"수익률 <b>{pct(y['ret'])}</b>",
+                 "",
+                 f"1/1 자산(추정) {man(y['e0'])}원",
+                 f"지금 자산 {man(y['now'])}원",
+                 f"올해 입금 {man(y['dep'])}원",
+                 f"올해 출금 {man(y['wd'])}원",
                  f"올해 수수료 {won(y['fees'])}"]
         if y["warn"]:
             lines.append("<i>⚠️ " + esc(" · ".join(y["warn"])) + "</i>")
@@ -1074,14 +1095,14 @@ class Bot:
         if not r:
             return "<b>평생 순수익</b>\n" + self.LIFE_WAIT
         net_in = r["dep"] - r["wd"]
-        lines = [f"<b>평생 순수익</b> <i>({kst(r['first']):%Y-%m} ~ 지금, 입출금 기준)</i>",
+        lines = ["<b>평생 순수익</b>", f"<i>{kst(r['first']):%Y-%m} ~ 지금 · 입출금 기준</i>",
                  f"총 입금 {won(r['dep'])}",
                  f"총 출금 {won(r['wd'])}",
                  f"순투입 {won(net_in)}",
                  f"지금 자산 {won(r['now'])}",
                  "",
-                 f"{dot(r['pnl'])} 평생 순수익 <b>{man(r['pnl'], True)}원</b>"
-                 + (f" (순투입 대비 <b>{pct(r['pnl'] / net_in * 100)}</b>)" if net_in > 0 else ""),
+                 f"{dot(r['pnl'])} 평생 순수익 <b>{man(r['pnl'], True)}원</b>",
+                 (f"순투입 대비 <b>{pct(r['pnl'] / net_in * 100)}</b>" if net_in > 0 else ""),
                  f"매매 {r['n_orders']:,}건 · 입출금 {r['n_flows']:,}건 기준"]
         if r["warn"]:
             lines.append("<i>⚠️ " + esc(" · ".join(r["warn"])) + "</i>")
@@ -1097,18 +1118,19 @@ class Bot:
             mark = "*" if y["warn"] else " "
             wr = f"{y['wr']:.0f}%" if y["wr"] is not None else "-"
             rows.append(f"{y['year']}{mark}{pct(y['ret']):>8} {y['n']:>4} {wr:>4} {man(y['pnl'], True):>9}")
-        lines = ["<b>연도별 성적</b>  <i>수익률 · 매도 수 · 승률 · 수익금액</i>",
+        lines = ["<b>연도별 성적</b>", "<i>수익률 · 매도 수 · 승률 · 수익금액</i>",
                  "<pre>" + esc("\n".join(rows)) + "</pre>"]
         good = [y for y in r["years"] if y["ret"] is not None]
         if good:
             best = max(good, key=lambda y: y["ret"])
             worst = min(good, key=lambda y: y["ret"])
             hit = sum(1 for y in good if y["ret"] >= GOAL_PCT)
-            lines.append(f"최고 {best['year']}년 {pct(best['ret'])} · 최저 {worst['year']}년 {pct(worst['ret'])}")
+            lines.append(f"최고 {best['year']}년 {pct(best['ret'])}")
+            lines.append(f"최저 {worst['year']}년 {pct(worst['ret'])}")
             lines.append(f"연 {GOAL_PCT:.0f}% 달성 {hit}/{len(good)}년")
         fees = sum(y["fee"] for y in r["years"])
         lines.append(f"수수료 합계 {won(fees)}")
-        lines.append("<i>입금·출금은 빼고 계산 · 매년 1/1 자산은 기록으로 역산</i>")
+        lines.append("<i>입출금 제외 · 1/1 자산은 기록으로 역산</i>")
         if any(y["warn"] for y in r["years"]):
             lines.append("<i>* 상장폐지 코인 가격 등을 못 구해 오차가 있을 수 있는 해</i>")
         return "\n".join(lines)
@@ -1129,15 +1151,16 @@ class Bot:
 
         win = [c for c in rows if c["total"] > 0][:top]
         lose = sorted([c for c in rows if c["total"] < 0], key=lambda c: c["total"])[:top]
-        lines = ["<b>코인별 평생 성적</b>  <i>매도 수 · 승률 · 평균 보유 · 총 손익</i>"]
+        lines = ["<b>코인별 평생 성적</b>", "<i>매도 수 · 승률 · 평균 보유 · 총 손익</i>"]
         if win:
             lines += ["\n🟢 <b>가장 많이 번 코인</b>", "<pre>" + esc("\n".join(line(c) for c in win)) + "</pre>"]
         if lose:
             lines += ["🔴 <b>가장 많이 잃은 코인</b>", "<pre>" + esc("\n".join(line(c) for c in lose)) + "</pre>"]
         tot_real = sum(c["real"] for c in rows)
         n_coin = len([c for c in rows if c["n"]])
-        lines.append(f"매매한 코인 {n_coin}개 · 실현 손익 합계 {man(tot_real, True)}원")
-        lines.append("<i>• 지금 보유 중 (평가손익 포함) · 총 손익 = 실현 + 평가</i>")
+        lines.append(f"매매한 코인 {n_coin}개")
+        lines.append(f"실현 손익 합계 {man(tot_real, True)}원")
+        lines.append("<i>• 보유 중 · 총 손익 = 실현 + 평가</i>")
         return "\n".join(lines)
 
     # ── 불러올 수 있는 가장 오래된 기록 (날짜만) ──
@@ -1256,7 +1279,9 @@ class Bot:
         wd = "월화수목금토일"[t.weekday()]
         cash_w = st["cash"] / st["total"] * 100 if st["total"] else 0
         return (f"<b>{title}</b> · {t:%m/%d}({wd}) {t:%H:%M}\n"
-                f"총자산 <b>{won(st['total'])}</b>\n현금 {man(st['cash'])}원 ({cash_w:.0f}%) · 코인 {len(st['hold'])}종목")
+                f"총자산 <b>{won(st['total'])}</b>\n"
+                f"현금 {man(st['cash'])}원 ({cash_w:.0f}%)\n"
+                f"코인 {len(st['hold'])}종목")
 
     def block_periods(self, curve, flows):
         b = self.bounds()
@@ -1273,7 +1298,8 @@ class Bot:
         if not st["hold"]:
             return "<b>보유 코인</b>\n없음 (전부 현금)"
         major, minor = self.split_major(st)
-        out = [f"<b>보유 코인</b>  <i>{man(MAJOR_KRW)}원 이상 · 비중 · 수익률 · 평가손익</i>"]
+        out = [f"<b>보유 코인</b> <i>{man(MAJOR_KRW)}원 이상</i>",
+               "<i>비중 · 수익률 · 평가손익</i>"]
         if major:
             rows = [f"{dot(h['pct'])}{c:<6}{h['weight']:>4.0f}% {pct(h['pct']):>7} {man(h['pnl'], True):>8}"
                     for c, h in major]
@@ -1282,9 +1308,10 @@ class Bot:
             out.append(f"{man(MAJOR_KRW)}원 이상 보유 코인 없음")
         if minor:
             m = self.group_sum(minor)
-            out.append(f"기타 {m['n']}종목 · 합계 {man(m['value'])}원 · {pct(m['pct'])}")
+            out.append(f"기타 {m['n']}종목 {man(m['value'])}원 ({pct(m['pct'])})")
         allg = self.group_sum(list(st["hold"].items()))
-        out.append(f"평가손익 합계 <b>{man(allg['pnl'], True)}원</b> ({pct(allg['pct'])})")
+        out.append(f"평가손익 합계 <b>{man(allg['pnl'], True)}원</b>")
+        out.append(f"({pct(allg['pct'])})")
         return "\n".join(out)
 
     def block_holdings_detail(self, st):
@@ -1301,7 +1328,7 @@ class Bot:
                 if lv.get(k):
                     marks.append(f"{name} {price_txt(lv[k])} ({pct((lv[k] / h['price'] - 1) * 100)})")
             if marks:
-                ln += "\n   " + " · ".join(marks)
+                ln += "".join(f"\n   {m}" for m in marks)
             lines.append(ln)
         return "\n".join(lines)
 
@@ -1313,9 +1340,9 @@ class Bot:
         if g and g["days"] >= 7:
             gap = g["gap"]
             s_ = "good" if gap >= 0 else ("warn" if gap >= -5 else "bad")
-            items.append((s_, f"목표 페이스 {'앞섬' if gap >= 0 else '뒤처짐'} {abs(gap):.1f}%p (지금 {pct(g['ret'])})"))
+            items.append((s_, f"목표 페이스보다 {abs(gap):.1f}%p {'앞섬' if gap >= 0 else '뒤처짐'}"))
             if s_ == "bad":
-                todos.append("목표보다 많이 뒤처짐 — 새 매수는 승률 높은 자리만, 손실 종목 정리부터")
+                todos.append("목표보다 많이 뒤처짐 — 새 매수는 승률 높은 자리만 — 손실 종목부터 정리")
         elif g:
             items.append(("info", f"목표 페이스: 기록 {g['days']:.0f}일째 (7일부터 판정)"))
         cash_w = st["cash"] / total * 100
@@ -1323,7 +1350,7 @@ class Bot:
             items.append(("good", f"현금 {cash_w:.0f}% (적정 10~50%)"))
         elif cash_w < 5:
             items.append(("bad", f"현금 {cash_w:.0f}% — 급락 때 살 돈이 없음"))
-            todos.append("현금을 10% 이상 확보 (가장 약한 종목 일부 정리)")
+            todos.append("현금 10% 이상 확보 — 가장 약한 종목 일부 정리")
         elif cash_w < 10:
             items.append(("warn", f"현금 {cash_w:.0f}% — 조금 부족 (10% 이상 권장)"))
         else:
@@ -1344,7 +1371,7 @@ class Bot:
                 todos.append(f"{c} 손절가 이탈 — 정리할지 보유할지 결정")
             elif h["pct"] is not None and h["pct"] <= -10:
                 items.append(("bad", f"{c} {pct(h['pct'])} — 큰 손실"))
-                todos.append(f"{c} 손절 기준 다시 정하기 (물타기는 계획 안에서만)")
+                todos.append(f"{c} 손절 기준 다시 정하기 — 물타기는 계획 안에서만")
             elif h["pct"] is not None and h["pct"] <= -5:
                 items.append(("warn", f"{c} {pct(h['pct'])} — 손절 기준 확인"))
             t1 = (levels.get(c) or {}).get("t1")
@@ -1373,11 +1400,11 @@ class Bot:
     def block_checkup(self, ck):
         icon = {"good": "🟢", "warn": "🟡", "bad": "🔴", "info": "⚪"}
         order = {"bad": 0, "warn": 1, "good": 2, "info": 3}
-        lines = [f"<b>계좌 점검</b> · 종합 <b>{ck['grade']}</b> ({ck['score']}/100)"]
-        lines += [f"{icon[k]} {esc(t)}" for k, t in sorted(ck["items"], key=lambda x: order[x[0]])]
+        lines = ["<b>계좌 점검</b>", f"종합 <b>{ck['grade']}</b> ({ck['score']}/100)"]
+        lines += [f"{icon[k]} " + esc(wrap(t, 34, "     ")) for k, t in sorted(ck["items"], key=lambda x: order[x[0]])]
         if ck["todos"]:
             lines.append("\n<b>할 일</b>")
-            lines += [f"{i}. {esc(t)}" for i, t in enumerate(ck["todos"], 1)]
+            lines += [f"{i}. " + esc(wrap(t, 34, "   ")) for i, t in enumerate(ck["todos"], 1)]
         else:
             lines.append("\n지금 급하게 손볼 것은 없어요.")
         return "\n".join(lines)
@@ -1386,12 +1413,15 @@ class Bot:
         if not g:
             return ""
         state = "🟢 앞서는 중" if g["gap"] >= 0 else "🔴 뒤처짐"
-        lines = [f"<b>연 {GOAL_PCT:.0f}% 목표</b> ({kst(g['since']):%m/%d}부터 {g['days']:.0f}일째)",
-                 f"지금까지 <b>{pct(g['ret'])}</b> ({man(g['pnl'], True)}원) · 목표 페이스 {pct(g['target'])}",
+        lines = [f"<b>연 {GOAL_PCT:.0f}% 목표</b> · {g['days']:.0f}일째",
+                 f"지금까지 <b>{pct(g['ret'])}</b> ({man(g['pnl'], True)}원)",
+                 f"목표 페이스 {pct(g['target'])}",
                  f"{state} {abs(g['gap']):.1f}%p",
-                 f"이번달 {pct(g['month'])} / 월 목표 {pct(g['month_goal'])}"]
+                 "",
+                 f"이번달 {pct(g['month'])}",
+                 f"월 목표 {pct(g['month_goal'])}"]
         if g["need_m"] is not None:
-            lines.append(f"{kst(g['end']):%Y/%m/%d}까지 {GOAL_PCT:.0f}% 채우려면 남은 기간 매달 {pct(g['need_m'])}")
+            lines.append(f"{kst(g['end']):%m/%d}까지 매달 {pct(g['need_m'])} 필요")
         return "\n".join(lines)
 
     def block_perf(self, curve):
@@ -1402,17 +1432,23 @@ class Bot:
         def line(name, s):
             if not s["n"]:
                 return f"{name}: 매도 기록 없음"
-            return f"{name}: {s['n']}건 · 승률 {s['wr']:.0f}% ({s['w']}승 {s['l']}패) · {man(s['pnl'], True)}원"
+            return (f"{name} {s['n']}건 · 승률 {s['wr']:.0f}%\n"
+                    f"   {s['w']}승 {s['l']}패 · {man(s['pnl'], True)}원")
 
         out = ["<b>매매 성적</b> (매도 체결 기준)", line("이번달", sm), line("누적", sa)]
         if sa["n"]:
             pf = "∞" if sa["pf"] == float("inf") else (f"{sa['pf']:.2f}" if sa["pf"] is not None else "-")
-            out.append(f"평균 이익 {pct(sa['avg_w'])} / 평균 손실 {pct(sa['avg_l'])}")
-            out.append(f"손익비(PF) {pf} · 거래당 기대값 {pct(sa['exp'], 2)}")
+            out.append("")
+            out.append(f"평균 이익 {pct(sa['avg_w'])}")
+            out.append(f"평균 손실 {pct(sa['avg_l'])}")
+            out.append(f"손익비(PF) {pf}")
+            out.append(f"거래당 기대값 {pct(sa['exp'], 2)}")
             if sa["hold_d"]:
                 out.append(f"평균 보유 {sa['hold_d']:.1f}일")
+        out.append("")
         out.append(f"수수료 누적 {won(sa['fee'])}")
-        out.append(f"최대 낙폭 {mdd:.1f}% · 지금 고점 대비 {cdd:.1f}%")
+        out.append(f"최대 낙폭 {mdd:.1f}%")
+        out.append(f"지금 고점 대비 {cdd:.1f}%")
         return "\n".join(out), sa
 
     def block_trades(self, limit=10):
