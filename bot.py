@@ -1919,6 +1919,63 @@ def slack_accumulate(out: dict):
     slack_post("🧺 주간 모으기 구간", blocks, tg=tg_accumulate(out))
 
 
+# ==========================================================
+# 보유 종목 감시 (data/positions.json) — 10분마다: 급등(익절 기회)·급락·수익 반납 알림
+# ==========================================================
+POS_RULES = {"swing": {"spike": 4.0, "drop": 4.0, "trail": 4.0, "trail_min": 5.0},
+             "long": {"spike": 4.5, "drop": 5.0, "trail": None, "trail_min": None},
+             "exit": {"spike": 2.5, "drop": 3.0, "trail": None, "trail_min": None}}
+POS_COOLDOWN_H = 4
+
+
+def run_position_watch(store, at_ms: int) -> list:
+    cfg = store.read("positions.json", {}) or {}
+    state = store.read("positions_state.json", {}) or {}
+    msgs = []
+    for p in cfg.get("positions", []):
+        tk, avg, style = p["ticker"], float(p["avg"]), p.get("style", "swing")
+        rule = POS_RULES.get(style, POS_RULES["swing"])
+        cd = fetch_v1(tk, "1h", 8)            # 마지막 봉은 아직 진행 중인 봉 → 실시간에 가까움
+        if cd is None or len(cd["c"]) < 4:
+            continue
+        cur = float(cd["c"][-1])
+        lo3, hi3 = float(cd["l"][-3:].min()), float(cd["h"][-3:].max())
+        st = state.setdefault(tk, {})
+        st["peak"] = max(float(st.get("peak") or 0), float(cd["h"][-1] if st.get("peak") else cd["h"].max()))
+        ret = (cur / avg - 1) * 100
+        name = label(tk)
+        def ok(kind):
+            return at_ms - st.get(kind, 0) >= POS_COOLDOWN_H * HOUR_MS
+        tail = []
+        if p.get("t1"):
+            tail.append(f"목표 {fmt_krw(p['t1'])}까지 {(p['t1'] / cur - 1) * 100:+.1f}%")
+        if p.get("stop"):
+            tail.append(f"손절 {fmt_krw(p['stop'])}까지 {(p['stop'] / cur - 1) * 100:+.1f}%")
+        tail = " · ".join(tail)
+        up = (cur / lo3 - 1) * 100
+        dn = (cur / hi3 - 1) * 100
+        if up >= rule["spike"] and ok("spike"):
+            st["spike"] = int(at_ms)
+            hint = {"swing": "단기 급등 — 일부 익절 고려 자리", "long": "장기 보유라 팔 필요는 없음. 일부 챙기려면 지금이 기회",
+                    "exit": "정리하려던 종목 — 지금 반등에 매도"}[style]
+            msgs.append(f"📈 *{name}* 3시간 새 {up:+.1f}% 급등 → {fmt_krw(cur)} (평단 대비 {ret:+.1f}%)\n👉 {hint}" + (f"\n{tail}" if tail else ""))
+        elif dn <= -rule["drop"] and ok("drop"):
+            st["drop"] = int(at_ms)
+            msgs.append(f"📉 *{name}* 3시간 새 {dn:.1f}% 급락 → {fmt_krw(cur)} (평단 대비 {ret:+.1f}%)" + (f"\n{tail}" if tail else ""))
+        if rule["trail"] and (st["peak"] / avg - 1) * 100 >= rule["trail_min"]:
+            back = (cur / st["peak"] - 1) * 100
+            if back <= -rule["trail"] and ok("trail"):
+                st["trail"] = int(at_ms)
+                msgs.append(f"↩️ *{name}* 수익 반납 중 — 고점 {fmt_krw(st['peak'])} 대비 {back:.1f}%, 지금 {fmt_krw(cur)} (평단 대비 {ret:+.1f}%)\n👉 손절을 본전 위로 올리거나 일부 익절 검토")
+        st["last"] = cur
+        st["checked_at"] = iso_kst(at_ms)
+    store.write("positions_state.json", state, "보유 종목 상태")
+    if msgs:
+        slack_post("💼 보유 종목 알림", [_md(m) for m in msgs])
+    log(f"💼 보유 종목 {len(cfg.get('positions', []))}개 확인 — 알림 {len(msgs)}건")
+    return msgs
+
+
 def run_track():
     store = Store()
     at = now_ms()
@@ -1956,6 +2013,10 @@ def run_track():
         run_price_alerts(store, at)
     except Exception as e:
         log(f"  ⚠️ 가격 알림 실패: {e}")
+    try:
+        run_position_watch(store, at)
+    except Exception as e:
+        log(f"  ⚠️ 보유 종목 감시 실패: {e}")
     store.write("ledger.json", ledger, f"장부 갱신 {iso_kst(at)}")
     store.write("stats.json", compute_stats(ledger), "통계 갱신")
     log(f"✅ 장부 갱신 — 이벤트 {len(events)}건")
