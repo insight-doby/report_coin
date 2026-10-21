@@ -216,8 +216,29 @@ def _tick(markets):
     return [t for t in data if isinstance(t, dict)]
 
 
+_MARKETS = {"t": 0.0, "v": set()}
+
+
+def krw_markets() -> set:
+    """원화마켓에 상장된 코인 목록 (6시간 캐시). 상장폐지·에어드롭 잔여 코인을 미리 걸러 조회를 빠르게."""
+    if time.time() - _MARKETS["t"] > 6 * 3600 or not _MARKETS["v"]:
+        try:
+            data = bget("/v1/market/all", {"isDetails": "false"}, private=False)
+            v = {str(m.get("market", "")).split("-")[-1] for m in data
+                 if isinstance(m, dict) and str(m.get("market", "")).startswith("KRW-")}
+            if v:
+                _MARKETS.update(t=time.time(), v=v)
+        except (BithumbError, requests.RequestException, ValueError):
+            pass
+    return _MARKETS["v"]
+
+
 def fetch_prices(coins) -> dict:
-    coins = sorted({c for c in coins if c and c != "KRW"})
+    coins = {c for c in coins if c and c != "KRW"}
+    listed = krw_markets()
+    if listed:
+        coins &= listed
+    coins = sorted(coins)
     out = {}
     for i in range(0, len(coins), 40):
         chunk = coins[i:i + 40]
