@@ -940,26 +940,26 @@ def check():
     """설치 확인: 금액은 출력하지 않습니다."""
     ok = True
     if not (AK and SK):
-        print("❌ 빗썸 키가 없습니다")
+        print("FAIL no Bithumb keys")
         return False
-    tests = [("자산조회", "/v1/accounts", None), ("주문조회", "/v1/orders", {"state": "wait", "limit": 1}),
-             ("입금조회", "/v1/deposits/krw", {"limit": 1}), ("출금조회", "/v1/withdraws/krw", {"limit": 1})]
+    tests = [("accounts", "/v1/accounts", None), ("orders", "/v1/orders", {"state": "wait", "limit": 1}),
+             ("deposits", "/v1/deposits/krw", {"limit": 1}), ("withdraws", "/v1/withdraws/krw", {"limit": 1})]
     for name, path, params in tests:
         try:
             data = bget(path, params)
             extra = ""
             if path == "/v1/accounts":
-                extra = f" (코인 {sum(1 for a in data if a.get('currency') != 'KRW')}종 확인)"
-            print(f"✅ {name} OK{extra}")
+                extra = f" ({sum(1 for a in data if a.get('currency') != 'KRW')} coins)"
+            print(f"OK   {name}{extra}")
         except BithumbError as e:
-            print(f"❌ {name} 실패: {e}")
-            if name in ("자산조회", "주문조회"):
+            print(f"FAIL {name}: {e}")
+            if name in ("accounts", "orders"):
                 ok = False
     if TG_TOKEN and TG_CHAT:
         r = tg("sendMessage", chat_id=TG_CHAT, text="🔧 계좌 비서 설치 확인 메시지입니다.")
-        print("✅ 텔레그램 OK" if r and r.get("ok") else "❌ 텔레그램 전송 실패 (토큰/채팅ID 확인)")
+        print("OK   telegram" if r and r.get("ok") else "FAIL telegram (check token / chat id)")
     else:
-        print("⚠️ 텔레그램 설정 없음")
+        print("WARN no telegram settings")
     return ok
 
 
