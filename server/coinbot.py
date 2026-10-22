@@ -44,6 +44,9 @@ REPORT_HOUR = int(os.environ.get("COINBOT_REPORT_HOUR", "22"))  # 하루 결산 
 
 TP1, TP2, SL = (float(os.environ.get(k, d)) for k, d in
                 (("COINBOT_TP1", "3"), ("COINBOT_TP2", "5"), ("COINBOT_SL", "3")))   # 매수 후 안내할 매도·손절 %
+LOSS_MIN_KRW = float(os.environ.get("COINBOT_LOSS_MIN_KRW", "300000"))   # 손실 경고 대상: 평가금액 30만원 이상
+LOSS_WARN, LOSS_CUT = -5.0, -8.0                                           # 평단 대비 경고 / 정리 권고
+BIG_BUY_KRW = float(os.environ.get("COINBOT_BIG_BUY_KRW", "3000000"))      # 큰 금액 매수 경고
 MAJOR_KRW = float(os.environ.get("COINBOT_MAJOR_KRW", "1000000"))   # 이 금액 이상 보유만 자세히
 
 FILL_EVERY = 120
@@ -554,6 +557,11 @@ class Bot:
             avg_txt = (f"평단 {price_txt(old_avg)} → <b>{price_txt(new_avg)}</b>" if old_avg
                        else f"평단 <b>{price_txt(new_avg)}</b> (새로 매수)")
             warn = ""
+            if funds >= BIG_BUY_KRW:
+                ok_amt = 100000 / 0.05                               # 손절 -5%에 10만원만 잃는 금액
+                warn += ("\n\n" + f"💰 <b>큰 금액 매수</b> ({man(funds)}원)\n"
+                         + boxq([f"손절 -5%면 {man(-funds * 0.05, True)}원",
+                                 f"10만원만 잃으려면 {man(ok_amt)}원까지가 적당해요"]))
             if old_avg and px < old_avg * 0.995:                  # 손실 중인 코인을 더 산 경우 (물타기)
                 hist = self.db.get("avgdown", {}) or {}
                 month0 = self.bounds(ts)["month"]
@@ -561,7 +569,7 @@ class Bot:
                 hist[coin] = times
                 self.db.put("avgdown", hist)
                 loss_now = p["qty"] * px - p["cost"]
-                warn = ("\n\n" + f"⚠️ <b>손실 중 추가 매수</b> (이번 달 {len(times)}번째)\n"
+                warn += ("\n\n" + f"⚠️ <b>손실 중 추가 매수</b> (이번 달 {len(times)}번째)\n"
                         + boxq([f"사기 전 {pct((px / old_avg - 1) * 100)} 손실 중이었어요",
                                 f"이 코인에 들어간 돈 {man(old_cost)} → {man(p['cost'])}원",
                                 f"지금 손실 {man(loss_now, True)}원 · 평단 회복까지 {pct((new_avg / px - 1) * 100)} 필요",
@@ -662,6 +670,11 @@ class Bot:
         self.reconcile(st)
         self.db.put("last_state", st)
         log(f"스냅샷: 보유 {len(st['hold'])}종목")
+        if notify:
+            try:
+                self.watch_losses(st)
+            except Exception as e:
+                log(f"손실 점검 실패: {type(e).__name__}")
         if GH_TOKEN:
             try:
                 self.publish_public(st)
@@ -1584,6 +1597,111 @@ class Bot:
         if g and g["days"] >= 14 and g["gap"] < -5:
             tips.append(f"목표보다 {abs(g['gap']):.1f}%p 뒤처짐 — 무리한 추격보다 승률 높은 자리만")
         return tips
+
+    # ── 보유 코인 손실 점검 (같은 경고는 한 번만, 여러 개면 한 메시지로) ──
+    def long_term_lines(self):
+        """장기 모으기 코인과 포기선 (공개 accumulate_cfg.json)."""
+        cache = self.db.get("lt_cache")
+        if cache and now_ts() - cache.get("t", 0) < 6 * 3600:
+            return cache["v"]
+        v = (cache or {}).get("v", {})
+        try:
+            r = requests.get(f"https://raw.githubusercontent.com/{GH_REPO}/main/data/accumulate_cfg.json", timeout=10)
+            cfg = r.json()
+            v = {c: fnum((cfg.get("manual") or {}).get(c, {}).get("inval")) or None for c in cfg.get("watch", [])}
+        except Exception:
+            pass
+        self.db.put("lt_cache", {"t": now_ts(), "v": v})
+        return v
+
+    def _ma20(self, coin):
+        c = self.db.get("ma20_cache", {}) or {}
+        hit = c.get(coin)
+        if hit and now_ts() - hit["t"] < 3600:
+            return hit["v"]
+        val = None
+        try:
+            data = bget("/v1/candles/days", {"market": f"KRW-{coin}", "count": 21}, private=False)
+            closes = [fnum(r.get("trade_price")) for r in sorted(data, key=lambda r: r["candle_date_time_kst"])][:-1]
+            if len(closes) >= 20:
+                val = sum(closes[-20:]) / 20
+        except (BithumbError, requests.RequestException, ValueError, KeyError, TypeError):
+            pass
+        c[coin] = {"t": now_ts(), "v": val}
+        self.db.put("ma20_cache", c)
+        return val
+
+    def watch_losses(self, st):
+        state = self.db.get("loss_state")
+        first = state is None
+        state = state or {}
+        lt = self.long_term_lines()
+        lines, deep_list = [], []
+        for c, h in sorted(st["hold"].items(), key=lambda x: -x[1]["value"]):
+            if h["value"] < LOSS_MIN_KRW or not h["avg"] or h["pct"] is None:
+                state.pop(c, None)
+                continue
+            px, pc = h["price"], h["pct"]
+            s0 = state.get(c) or {}
+            if s0.get("avg") and abs(s0["avg"] / h["avg"] - 1) > 0.01:      # 추가 매수 등으로 평단이 바뀌면 처음부터
+                s0 = {}
+            s0["avg"] = h["avg"]
+            name = f"<b>{c}</b>"
+            if c in lt:                                                       # 장기 코인: 포기선만
+                inv = lt.get(c)
+                if inv and px < inv and not s0.get("inval"):
+                    lines.append(f"🔴 {name} 포기선 {price_txt(inv)} 아래 ({price_txt(px)}) — 장기 보유 이유가 깨졌는지 점검")
+                    s0["inval"] = True
+                elif inv and px > inv * 1.03:
+                    s0["inval"] = False
+                state[c] = s0
+                continue
+            if first and pc <= LOSS_CUT:                                      # 켜는 날 이미 깊이 물린 코인
+                s0.update(level="deep", base=px)
+                deep_list.append((c, h))
+            elif s0.get("level") == "deep":
+                base = s0.get("base") or px
+                ma = self._ma20(c)
+                if px >= base * 1.10:
+                    lines.append(f"🟡 {name} 반등 +{(px / base - 1) * 100:.0f}% ({price_txt(base)} → {price_txt(px)}) · 평단 대비 {pct(pc)}\n"
+                                 "   빠져나올 기회 — 정리하거나 줄일지 결정")
+                    s0["base"] = px
+                elif ma and px >= ma and not s0.get("ma_hit"):
+                    lines.append(f"🟡 {name} 일봉 20일선 {price_txt(ma)} 도달 · 평단 대비 {pct(pc)}\n   빠져나올 기회 — 정리하거나 줄일지 결정")
+                    s0["ma_hit"] = True
+                elif px <= base * 0.90:
+                    lines.append(f"🔴 {name} 물린 뒤 -{(1 - px / base) * 100:.0f}% 더 하락 ({price_txt(base)} → {price_txt(px)}) · 평단 대비 {pct(pc)}")
+                    s0["base"] = px
+                if pc > -3:
+                    s0 = {"avg": h["avg"]}                                    # 거의 회복하면 일반으로
+            else:
+                lv = s0.get("level")
+                if pc <= LOSS_CUT and lv != "cut":
+                    lines.append(f"🔴 {name} {pct(pc)} · 정리 권고 (평단 {price_txt(h['avg'])} → {price_txt(px)})\n"
+                                 f"   평가손실 {man(h['pnl'], True)}원 · 더 버티면 물리는 구간이에요")
+                    s0.update(level="deep", base=px)
+                elif pc <= LOSS_WARN and lv not in ("warn", "cut", "deep"):
+                    cut_px = tick_round(h["avg"] * (1 + LOSS_CUT / 100), up=False)
+                    lines.append(f"⚠️ {name} {pct(pc)} (평단 {price_txt(h['avg'])} → {price_txt(px)})\n"
+                                 f"   평가손실 {man(h['pnl'], True)}원 · -8% {price_txt(cut_px)}원 아래면 정리 권고")
+                    s0["level"] = "warn"
+                elif pc > -3 and lv:
+                    s0 = {"avg": h["avg"]}
+            state[c] = s0
+        for c in list(state):
+            if c not in st["hold"]:
+                state.pop(c)
+        self.db.put("loss_state", state)
+        if deep_list:
+            tot_v = sum(h["value"] for _, h in deep_list)
+            tot_l = sum(h["pnl"] or 0 for _, h in deep_list)
+            rows = [f"{c:<7}{pct(h['pct'], 0):>6} {man(h['value']):>7} {man(h['pnl'], True):>8}" for c, h in deep_list]
+            send("🔎 <b>물린 코인 점검</b> (한 번만 보내요)\n<i>코인 · 수익률 · 평가금액 · 평가손익</i>\n<pre>" + esc("\n".join(rows)) + "</pre>"
+                 f"\n묶인 돈 {man(tot_v)}원 · 평가손실 {man(tot_l, True)}원\n\n"
+                 "앞으로 이 코인들은 손실 경고 대신 <b>+10% 반등</b>이나 <b>20일선 도달</b> 때 '빠져나올 기회'로 알려 드려요.\n"
+                 "<i>판단 기준: 지금 이 돈이 현금이라면 이 코인을 이 가격에 살까?</i>")
+        if lines:
+            send("<b>보유 코인 점검</b>\n" + "\n".join(lines))
 
     def public_levels(self):
         """공개 보유목록(positions.json)의 손절가·목표가."""
