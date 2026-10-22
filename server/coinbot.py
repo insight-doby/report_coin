@@ -547,12 +547,26 @@ class Bot:
             if p["qty"] <= 1e-12:
                 p["opened"] = int(ts)
             old_avg = p["cost"] / p["qty"] if p["qty"] > 0 else None
+            old_cost = p["cost"]
             p["qty"] += vol
             p["cost"] += funds + fee
             new_avg = p["cost"] / p["qty"]
             avg_txt = (f"평단 {price_txt(old_avg)} → <b>{price_txt(new_avg)}</b>" if old_avg
                        else f"평단 <b>{price_txt(new_avg)}</b> (새로 매수)")
-            msg = (f"🟢 <b>매수 체결 · {coin}</b>\n{price_txt(px)}원 × {qty(vol)}개 = {won(funds)}\n{avg_txt}\n\n"
+            warn = ""
+            if old_avg and px < old_avg * 0.995:                  # 손실 중인 코인을 더 산 경우 (물타기)
+                hist = self.db.get("avgdown", {}) or {}
+                month0 = self.bounds(ts)["month"]
+                times = [t for t in hist.get(coin, []) if t >= month0] + [int(ts)]
+                hist[coin] = times
+                self.db.put("avgdown", hist)
+                loss_now = p["qty"] * px - p["cost"]
+                warn = ("\n\n" + f"⚠️ <b>손실 중 추가 매수</b> (이번 달 {len(times)}번째)\n"
+                        + boxq([f"사기 전 {pct((px / old_avg - 1) * 100)} 손실 중이었어요",
+                                f"이 코인에 들어간 돈 {man(old_cost)} → {man(p['cost'])}원",
+                                f"지금 손실 {man(loss_now, True)}원 · 평단 회복까지 {pct((new_avg / px - 1) * 100)} 필요",
+                                f"손절 -5%면 {man(-p['cost'] * 0.05, True)}원 (평단 {price_txt(new_avg)} 기준)"]))
+            msg = (f"🟢 <b>매수 체결 · {coin}</b>\n{price_txt(px)}원 × {qty(vol)}개 = {won(funds)}\n{avg_txt}{warn}\n\n"
                    f"<b>바로 걸어 두기</b> <i>(평단 기준)</i>\n"
                    + boxq([f"매도 +{TP1:g}% <b>{price_txt(tick_round(new_avg * (1 + TP1 / 100)))}원</b> · 절반",
                            f"매도 +{TP2:g}% <b>{price_txt(tick_round(new_avg * (1 + TP2 / 100)))}원</b> · 나머지",
