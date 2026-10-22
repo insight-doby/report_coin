@@ -1608,7 +1608,9 @@ class Bot:
         try:
             r = requests.get(f"https://raw.githubusercontent.com/{GH_REPO}/main/data/accumulate_cfg.json", timeout=10)
             cfg = r.json()
-            v = {c: fnum((cfg.get("manual") or {}).get(c, {}).get("inval")) or None for c in cfg.get("watch", [])}
+            v = {c: fnum((cfg.get("manual") or {}).get(c, {}).get("inval")) or None
+                 for c in (cfg.get("longterm") or cfg.get("watch", []))}
+            self.db.put("lt_max_pct", fnum(cfg.get("longterm_max_pct"), 20.0) or 20.0)
         except Exception:
             pass
         self.db.put("lt_cache", {"t": now_ts(), "v": v})
@@ -1647,7 +1649,14 @@ class Bot:
                 s0 = {}
             s0["avg"] = h["avg"]
             name = f"<b>{c}</b>"
-            if c in lt:                                                       # 장기 코인: 포기선만
+            if c in lt:                                                       # 장기 코인: 포기선 + 원금 회수 시점
+                got = max([m for m in (100, 200, 500, 1000) if pc >= m] or [0])
+                if got > (s0.get("milestone") or 0):
+                    cost = h["qty"] * h["avg"]
+                    sell_q = cost / px
+                    lines.append(f"💎 {name} 장기 +{pc:.0f}% — 원금 회수 시점\n"
+                                 f"   원금 {man(cost)}원만큼({qty(sell_q)}개) 팔면 나머지 {qty(h['qty'] - sell_q)}개는 공짜로 들고 가요")
+                    s0["milestone"] = got
                 inv = lt.get(c)
                 if inv and px < inv and not s0.get("inval"):
                     lines.append(f"🔴 {name} 포기선 {price_txt(inv)} 아래 ({price_txt(px)}) — 장기 보유 이유가 깨졌는지 점검")
@@ -1689,8 +1698,16 @@ class Bot:
                     s0 = {"avg": h["avg"]}
             state[c] = s0
         for c in list(state):
-            if c not in st["hold"]:
+            if c not in st["hold"] and not c.startswith("_"):
                 state.pop(c)
+        lt_val = sum(h["value"] for c, h in st["hold"].items() if c in lt)
+        w = lt_val / st["total"] * 100 if st["total"] else 0
+        cap = self.db.get("lt_max_pct", 20.0) or 20.0
+        if w > cap and not state.get("_lt_over"):
+            lines.append(f"🧺 장기 바구니가 자산의 {w:.0f}% ({man(lt_val)}원) — 목표 {cap:.0f}%를 넘었어요. 오른 코인 일부를 정리할 때")
+            state["_lt_over"] = True
+        elif w < cap - 2:
+            state["_lt_over"] = False
         self.db.put("loss_state", state)
         if deep_list:
             tot_v = sum(h["value"] for _, h in deep_list)
@@ -1774,6 +1791,19 @@ class Bot:
         out.append(f"평가손익 합계 <b>{man(allg['pnl'], True)}원</b>")
         out.append(f"({pct(allg['pct'])})")
         return "\n".join(out)
+
+    def block_longterm(self, st):
+        lt = self.long_term_lines()
+        rows = [(c, h) for c, h in sorted(st["hold"].items(), key=lambda x: -x[1]["value"]) if c in lt]
+        if not rows:
+            return ""
+        val = sum(h["value"] for _, h in rows)
+        pnl = sum(h["pnl"] or 0 for _, h in rows)
+        w = val / st["total"] * 100 if st["total"] else 0
+        body = [f"{c:<7}{pct(h['pct'], 0):>6} {man(h['value']):>7}" for c, h in rows]
+        cap = self.db.get("lt_max_pct", 20.0) or 20.0
+        return (f"🧺 <b>장기 바구니</b> · 자산의 {w:.0f}% (목표 {cap:.0f}% 이내)\n<pre>" + esc("\n".join(body)) + "</pre>"
+                f"\n합계 {man(val)}원 · 평가손익 {man(pnl, True)}원")
 
     def block_holdings_detail(self, st):
         major, _ = self.split_major(st)
@@ -1982,6 +2012,7 @@ class Bot:
         perf, sa = self.block_perf(curve)
         parts = [self.head(st, title), self.block_checkup(self.checkup(st, curve, flows)), self.block_ytd(st),
                  self.block_periods(curve, flows), self.line_realized(), self.block_holdings(st),
+                 self.block_longterm(st),
                  self.block_goal(g), perf]
         missing = self.db.get("flow_perm_missing", [])
         if missing:
@@ -2076,7 +2107,8 @@ class Bot:
             send(self.head(st, "내 계좌") + "\n\n" + self.block_checkup(self.checkup(st, curve, flows)))
         elif cmd == "holdings":
             send_photo(chart_holdings(self, st))
-            send(self.head(st, "보유 코인") + "\n\n" + self.block_holdings(st) + "\n\n" + self.block_holdings_detail(st))
+            send(self.head(st, "보유 코인") + "\n\n" + self.block_holdings(st) + "\n\n" + self.block_longterm(st)
+                 + "\n\n" + self.block_holdings_detail(st))
         elif cmd == "perf":
             send(self.block_perf(curve)[0] + "\n\n" + self.block_trades(5))
         elif cmd == "trades":
