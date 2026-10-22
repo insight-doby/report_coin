@@ -50,3 +50,11 @@ assert not buy and "최근 25건 중 2승" in ref[0][1], ref
 buy, ref = bot.split_picks(latest, {"by_setup": {"pullback": {"n_closed": 25, "win_rate": 48.0}}})
 assert buy and not ref
 print("OK2")
+
+# 거래대금 5억 미만은 알림에서 빠짐
+posted.clear()
+bot.sector_alert(S(), [dict(row)], 1_800_000_000_000, {"PEPE": {"price": 0.0062, "value": 3e8}}, ledger=[], gate="GO")
+assert "PEPE" not in "".join(x for x in posted if "매수 후보" in x), posted
+latest = {"market": {"gate": "GO"}, "picks": [{"ticker": "W", "setup": "pullback", "setup_label": "눌림목", "price": 20, "value24": 4e8}]}
+assert bot.split_picks(latest, {}) == ([], [])
+print("OK3")

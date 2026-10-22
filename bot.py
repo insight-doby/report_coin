@@ -57,6 +57,7 @@ WATCHLIST = [t.strip().upper() for t in ENV("WATCHLIST", "").split(",") if t.str
 BITHUMB = "https://api.bithumb.com/public"
 
 UNIVERSE_N = int(ENV("UNIVERSE_N", "0"))              # 0이면 제한 없음(거래대금 하한만 적용)
+ALERT_MIN_VALUE = float(ENV("ALERT_MIN_VALUE", "5e8"))  # 매수 알림은 알림 시점 24시간 거래대금 5억 이상만 (손으로 사고팔 수 있게)
 MIN_VALUE_KRW = float(ENV("MIN_VALUE_KRW", "3e8"))     # 24h 거래대금 최소 3억원 (너무 얇으면 원하는 가격에 못 산다)
 FEE_PCT_PER_SIDE = float(ENV("FEE_PCT_PER_SIDE", "0.04"))  # 빗썸 수수료 편도 0.04%
 
@@ -1237,6 +1238,7 @@ def record_div4h(store, good: list, weak: list, ledger: list, at_ms: int, gate: 
 
 
 def slack_div4h(fresh: list, gate: str = "UNKNOWN", stats: dict = None):
+    fresh = [p for p in fresh if float(p.get("value24") or 0) >= ALERT_MIN_VALUE]
     if not fresh:
         return
     ok, why_not = buy_ok(gate, "div4h", stats)
@@ -1327,7 +1329,8 @@ def sector_picks(rows: list, tickers: dict, gate: str) -> list:
             continue
         for x in r["leaders"]:
             tk = x["tk"]
-            if tk in seen or x["chg"] < SECTOR_LEAD_MIN_CHG or tk not in tickers:
+            if tk in seen or x["chg"] < SECTOR_LEAD_MIN_CHG or tk not in tickers \
+                    or float(tickers[tk].get("value") or 0) < ALERT_MIN_VALUE:
                 continue
             seen.add(tk)
             px = float(tickers[tk]["price"])
@@ -1691,7 +1694,7 @@ BREAK_VOL = 2.0      # 감시 종목 기준가 돌파 시 거래량 기준
 MOVE_COOLDOWN_H = 24
 
 
-def scan_hourly_moves(store, latest: dict, at_ms: int) -> list:
+def scan_hourly_moves(store, latest: dict, at_ms: int, tickers: dict = None) -> list:
     watch = {w["ticker"]: w for w in (latest.get("watch") or []) if w.get("trigger_price")}
     tks = sorted(set(latest.get("uptrend") or []) | set(watch))
     sent = store.read("move_alerts.json", {}) or {}
@@ -1699,6 +1702,8 @@ def scan_hourly_moves(store, latest: dict, at_ms: int) -> list:
     for tk in tks:
         if tk in sent and at_ms - sent[tk].get("ts", 0) < MOVE_COOLDOWN_H * HOUR_MS:
             continue
+        if tickers and float((tickers.get(tk) or {}).get("value") or 0) < ALERT_MIN_VALUE:
+            continue                                            # 지금 거래대금 5억 미만이면 알리지 않음
         cd = fetch_v1(tk, "1h", 30)
         if cd is None or len(cd["c"]) < 22:
             continue
@@ -2169,7 +2174,7 @@ def run_track():
         log(f"⚡ 4시간 다이버전스 확인 {len(up_list)}종목 — 거래량 붙음 {len(good)} / 안 붙음 {len(weak)} / 새 신호 {len(fresh)}")
     moves = []
     try:
-        moves = scan_hourly_moves(store, latest, at)
+        moves = scan_hourly_moves(store, latest, at, tickers)
         log(f"🚀 급등 시작 확인 — {len(moves)}건")
     except Exception as e:
         log(f"  ⚠️ 급등 확인 실패: {e}")
@@ -2407,6 +2412,8 @@ def split_picks(latest: dict, stats: dict = None) -> tuple:
     gate = (latest.get("market") or {}).get("gate", "UNKNOWN")
     buy, ref = [], []
     for p in latest.get("picks") or []:
+        if p.get("value24") is not None and float(p["value24"]) < ALERT_MIN_VALUE:
+            continue                                            # 거래대금 5억 미만은 알림에서 뺌 (장부엔 기록)
         ok, why = buy_ok(gate, p.get("setup"), stats)
         (buy.append(p) if ok else ref.append((p, why)))
     return buy, ref
