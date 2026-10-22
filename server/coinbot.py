@@ -380,6 +380,7 @@ COMMANDS = [
     ("years", "연도별 성적"),
     ("coins", "코인별 평생 성적"),
     ("realized", "실현손익 (판 것만 · 기간별)"),
+    ("export", "매매 기록 파일 내보내기 (엑셀)"),
     ("help", "사용법"),
 ]
 WORDS = {
@@ -387,6 +388,7 @@ WORDS = {
     "history": ["언제까지", "오래된", "과거", "히스토리"],
     "coins": ["코인별", "종목별"],
     "realized": ["실현", "확정"],
+    "export": ["내보내기", "엑셀", "파일", "기록파일"],
     "years": ["연도", "역대", "해마다"],
     "lifetime": ["평생", "전체기간", "총수익"],
     "account": ["계좌", "자산", "잔고", "전체"], "holdings": ["보유", "코인", "종목"],
@@ -977,6 +979,7 @@ class Bot:
                 if not p:
                     warn.add("가격을 못 구한 코인 입출금 있음")
                 f["krw"] = f["amt"] * (p or 0)
+        self.db.put("life_flows", flows)
         # 3) 지금 잔고에서 시간을 거꾸로 돌리며 매년 1월 1일 잔고 기록
         cash, hold = self.accounts()
         qty = {c: h["qty"] for c, h in hold.items()}
@@ -1227,6 +1230,267 @@ class Bot:
         lines.append(f"실현 손익 합계 {man(tot_real, True)}원")
         lines.append("<i>• 보유 중 · 총 손익 = 실현 + 평가</i>")
         return "\n".join(lines)
+
+
+    # ── 매매 기록 내보내기 (압축 파일: 엑셀로 여는 CSV 여러 개) ──
+    def _monthly_closes(self, coin):
+        """월봉 종가 {'YYYY-MM': 종가}. 상장폐지 등으로 없으면 빈 dict."""
+        out = {}
+        try:
+            data = bget("/v1/candles/months", {"market": f"KRW-{coin}", "count": 200}, private=False)
+            for r in data if isinstance(data, list) else []:
+                if isinstance(r, dict) and r.get("candle_date_time_kst"):
+                    out[str(r["candle_date_time_kst"])[:7]] = fnum(r.get("trade_price"))
+        except (BithumbError, requests.RequestException, ValueError):
+            pass
+        return out
+
+    def build_export(self):
+        import csv, io, zipfile
+        if not self.db.get("lifetime") or self.db.get("life_flows") is None:
+            self.compute_lifetime(notify=False)
+        life = self.db.get("lifetime") or {}
+        flows = self.db.get("life_flows") or []
+        orders = [dict(r) for r in self.db.q("SELECT * FROM orders ORDER BY ts")]
+        real = {r["uuid"]: dict(r) for r in self.realized_rows(0)}
+        st = self.state()
+        listed = krw_markets()
+        files = {}
+
+        def table(name, header, rows):
+            buf = io.StringIO()
+            w = csv.writer(buf)
+            w.writerow(header)
+            for r in rows:
+                w.writerow(["" if v is None else (round(v, 8) if isinstance(v, float) else v) for v in r])
+            files[name] = "﻿" + buf.getvalue()          # 엑셀에서 한글이 안 깨지게
+
+        day = lambda ts: kst(ts).strftime("%Y-%m-%d %H:%M")
+        # 1) 매매 기록 + 매도별 실현손익
+        table("2_매매기록.csv", ["일시", "코인", "구분", "체결가", "수량", "금액", "수수료", "평단(매도 시)", "실현손익", "수익률%", "보유일"],
+              [[day(o["ts"]), o["coin"], "매수" if o["side"] == "bid" else "매도",
+                o["funds"] / o["volume"] if o["volume"] else None, o["volume"], o["funds"], o["fee"],
+                (real.get(o["uuid"]) or {}).get("avg"), (real.get(o["uuid"]) or {}).get("pnl"),
+                (real.get(o["uuid"]) or {}).get("pct"),
+                ((real.get(o["uuid"]) or {}).get("hold_h") or 0) / 24 if (real.get(o["uuid"]) or {}).get("hold_h") else None]
+               for o in orders])
+        rr = sorted(real.values(), key=lambda r: r["ts"])
+        table("3_매도별_실현손익.csv", ["일시", "코인", "수량", "평단", "매도가", "실현손익", "수익률%", "수수료", "보유일"],
+              [[day(r["ts"]), r["coin"], r["qty"], r["avg"], r["px"], r["pnl"], r["pct"], r["fee"],
+                r["hold_h"] / 24 if r["hold_h"] else None] for r in rr])
+        # 2) 입출금
+        kind = {(1, True): "원화 입금", (-1, True): "원화 출금", (1, False): "코인 입금", (-1, False): "코인 출금"}
+        table("4_입출금.csv", ["일시", "구분", "코인", "수량", "원화 환산", "수수료"],
+              [[day(f["ts"]), kind[(f["sign"], f["coin"] == "KRW")], f["coin"], f["amt"], f.get("krw"), f.get("fee")]
+               for f in sorted(flows, key=lambda f: f["ts"])])
+        # 3) 코인별 매수·매도 합계와 남은 원가 (평균단가로 처음부터 다시 쌓기)
+        pos, agg = {}, {}
+        evs = [("o", o["ts"], o) for o in orders] + [("f", f["ts"], f) for f in flows if f["coin"] != "KRW"]
+        for k, ts, e in sorted(evs, key=lambda x: x[1]):
+            q, cost = pos.get(e["coin"], (0.0, 0.0))
+            a = agg.setdefault(e["coin"], {"buy": 0.0, "sell": 0.0, "fee": 0.0, "nb": 0, "ns": 0, "in": 0.0, "out": 0.0,
+                                           "first": ts, "last": ts})
+            a["last"] = ts
+            if k == "f":
+                if e["sign"] > 0:
+                    a["in"] += e.get("krw") or 0
+                    pos[e["coin"]] = (q + e["amt"], cost + (e.get("krw") or 0))
+                else:
+                    a["out"] += e.get("krw") or 0
+                    take = min(q, e["amt"] + (e.get("fee") or 0))
+                    pos[e["coin"]] = (q - take, cost * (1 - take / q) if q > 0 else 0.0)
+                continue
+            a["fee"] += e["fee"] or 0
+            if e["side"] == "bid":
+                a["buy"] += e["funds"]
+                a["nb"] += 1
+                pos[e["coin"]] = (q + e["volume"], cost + e["funds"] + (e["fee"] or 0))
+            else:
+                a["sell"] += e["funds"]
+                a["ns"] += 1
+                take = min(q, e["volume"])
+                pos[e["coin"]] = (q - take, cost * (1 - take / q) if q > 0 else 0.0)
+        coins_life = {c["coin"]: c for c in life.get("coins", [])}
+        delisted = []
+        rows = []
+        for cn, a in sorted(agg.items(), key=lambda x: -(x[1]["sell"] - x[1]["buy"])):
+            h = st["hold"].get(cn)
+            q, cost = pos.get(cn, (0.0, 0.0))
+            gone = bool(listed) and cn not in listed
+            cl = coins_life.get(cn) or {}
+            if gone and (q > 0 or a["buy"] > 0):
+                delisted.append({"coin": cn, "buy": a["buy"], "sell": a["sell"], "fee": a["fee"], "left_qty": q,
+                                 "left_cost": cost,
+                                 "first": a["first"], "last": a["last"]})
+            rows.append([cn, "상장폐지/원화마켓 없음" if gone else ("보유 중" if h else ""), a["nb"], a["buy"], a["ns"], a["sell"],
+                         a["fee"], cl.get("real"), (h or {}).get("pnl"), cl.get("wr"), cl.get("hold_d"),
+                         day(a["first"]), day(a["last"])])
+        table("6_코인별_요약.csv", ["코인", "상태", "매수 횟수", "총 매수액", "매도 횟수", "총 매도액", "수수료",
+                                "실현손익", "평가손익(보유 중)", "승률%", "평균 보유일", "처음 거래", "마지막 거래"], rows)
+        table("8_상장폐지_코인.csv", ["코인", "총 매수액", "총 매도액", "수수료", "남은 수량(가치 0)", "남은 원가(사라진 돈)", "처음 거래", "마지막 거래"],
+              [[d["coin"], d["buy"], d["sell"], d["fee"], d["left_qty"], d["left_cost"], day(d["first"]), day(d["last"])]
+               for d in sorted(delisted, key=lambda d: -d["left_cost"])])
+        # 4) 보유 현황
+        table("5_보유현황.csv", ["코인", "수량", "평단(빗썸)", "현재가", "평가금액", "평가손익", "수익률%", "비중%"],
+              [[c, h["qty"], h["avg"], h["price"], h["value"], h["pnl"], h["pct"], h["weight"]]
+               for c, h in sorted(st["hold"].items(), key=lambda x: -x[1]["value"])]
+              + [["현금(원화)", None, None, None, st["cash"], None, None, st["cash"] / st["total"] * 100 if st["total"] else None]])
+        # 5) 연도별
+        table("7_연도별_요약.csv", ["연도", "1/1 자산(추정)", "연말 자산(추정)", "입금", "출금", "순수익(입출금 제외)", "수익률%",
+                                "매도 수", "승률%", "실현손익", "수수료", "주의"],
+              [[y["year"], y["e0"], y["e1"], y["dep"], y["wd"], y["pnl"], y["ret"], y["n"], y["wr"], y["real"], y["fee"],
+                " · ".join(y["warn"])] for y in life.get("years", [])])
+        # 6) 월별 자산 흐름 + 비트코인 비교
+        months = self.monthly_curve(orders, flows)
+        table("9_월별_자산흐름.csv", ["월", "월초 자산(추정)", "월말 자산(추정)", "입금", "출금", "손익(입출금 제외)", "수익률%",
+                                "누적 수익률%", "고점 대비%", "비트코인 수익률%", "비트 누적%", "주의"],
+              [[m["month"], m["e0"], m["e1"], m["dep"], m["wd"], m["pnl"], m["ret"], m["cum"], m["dd"], m["btc"], m["btc_cum"],
+                m["warn"]] for m in months])
+        # 7) 손익 맞추기
+        realized_sum = sum(r["pnl"] for r in rr)
+        unreal = sum(h["pnl"] or 0 for h in st["hold"].values())
+        gone_cost = sum(d["left_cost"] for d in delisted)
+        unknown = [o for o in orders if o["side"] == "ask" and o["uuid"] not in real]
+        net = life.get("pnl", st["total"] - (life.get("dep", 0) - life.get("wd", 0)))
+        other = net - realized_sum - unreal + gone_cost
+        rec = [["평생 순수익 (지금 자산 − 순투입)", net, "넣은 돈 대비 지금 계좌 전체"],
+               ["① 실현손익 (판 것, 평단 아는 매도)", realized_sum, f"매도 {len(rr)}건"],
+               ["② 평가손익 (지금 들고 있는 것)", unreal, f"{len(st['hold'])}종목"],
+               ["③ 상장폐지 등으로 사라진 원가", -gone_cost, f"{len(delisted)}종목 · 팔지 못하고 가치가 0이 된 몫"],
+               ["④ 기타 (나머지 차이)", other, "평단 모르는 매도·에어드롭·코인 출금 뒤 손익·기록 누락 등"],
+               ["", None, ""],
+               ["참고: 평단을 몰라 ①에서 빠진 매도", sum(o["funds"] for o in unknown), f"{len(unknown)}건 (매도 금액 합계)"],
+               ["참고: 총 입금", life.get("dep"), ""], ["참고: 총 출금", life.get("wd"), ""],
+               ["참고: 지금 자산", st["total"], ""],
+               ["참고: 총 수수료", sum(o["fee"] or 0 for o in orders), f"체결 {len(orders)}건"]]
+        table("1_손익_맞추기.csv", ["항목", "금액(원)", "설명"], rec)
+        files["0_읽어보기.txt"] = (
+            "계좌 비서 매매 기록 (빗썸)\n"
+            f"만든 시각: {kst(now_ts()):%Y-%m-%d %H:%M}\n\n"
+            "1_손익_맞추기 : 평생 순수익 = ① 실현 + ② 평가 + ③ 상장폐지 + ④ 기타\n"
+            "2_매매기록 : 모든 체결 (매도에는 평단·실현손익 표시)\n"
+            "3_매도별_실현손익 : 판 것마다 손익·수익률·보유일\n"
+            "4_입출금 : 원화·코인 입출금 (코인은 그날 종가로 원화 환산)\n"
+            "5_보유현황 : 지금 들고 있는 코인과 현금\n"
+            "6_코인별_요약 : 코인마다 총 매수·매도, 실현·평가, 승률\n"
+            "7_연도별_요약 : 해마다 순수익·실현손익·입출금·수수료\n"
+            "8_상장폐지_코인 : 원화마켓에서 사라진 코인과 사라진 원가\n"
+            "9_월별_자산흐름 : 매달 자산·수익률·고점 대비 낙폭, 같은 달 비트코인 수익률\n\n"
+            "주의: 과거 자산은 체결·입출금 기록으로 거꾸로 계산한 추정치입니다. 상장폐지 코인 가격 등은 0으로 봅니다.\n"
+            "금액이 들어 있는 파일이니 공유에 주의하세요.\n")
+        zbuf = io.BytesIO()
+        with zipfile.ZipFile(zbuf, "w", zipfile.ZIP_DEFLATED) as z:
+            for name, text in files.items():
+                z.writestr(name, text.encode("utf-8"))
+        summary = {"net": net, "realized": realized_sum, "unreal": unreal, "gone": gone_cost, "other": other,
+                   "n_delisted": len(delisted), "top_gone": sorted(delisted, key=lambda d: -d["left_cost"])[:3],
+                   "months": months}
+        return zbuf.getvalue(), summary
+
+    def monthly_curve(self, orders, flows):
+        """매달 1일 자산을 지금 잔고에서 거꾸로 계산 + 월말 종가로 평가."""
+        cash, hold = self.accounts()
+        qty = {c: h["qty"] for c, h in hold.items()}
+        if not orders and not flows:
+            return []
+        first = min([o["ts"] for o in orders] + [f["ts"] for f in flows])
+        d0 = kst(first).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        bounds, d = [], d0
+        while d.timestamp() <= now_ts():
+            bounds.append(d)
+            d = (d.replace(day=28) + timedelta(days=4)).replace(day=1)
+        events = [("o", o["ts"], o) for o in orders] + [("f", f["ts"], f) for f in flows]
+        events.sort(key=lambda e: -e[1])
+        snaps, todo = {}, list(reversed(bounds))
+        for k, ts, e in events:
+            while todo and ts < todo[0].timestamp():
+                snaps[todo.pop(0).strftime("%Y-%m")] = (cash, dict(qty))
+            if k == "o":
+                if e["side"] == "bid":
+                    cash += e["funds"] + (e["fee"] or 0)
+                    qty[e["coin"]] = qty.get(e["coin"], 0) - e["volume"]
+                else:
+                    cash -= e["funds"] - (e["fee"] or 0)
+                    qty[e["coin"]] = qty.get(e["coin"], 0) + e["volume"]
+            elif e["coin"] == "KRW":
+                cash += -e["amt"] if e["sign"] > 0 else e["amt"] + (e.get("fee") or 0)
+            else:
+                qty[e["coin"]] = qty.get(e["coin"], 0) + (-e["amt"] if e["sign"] > 0 else e["amt"] + (e.get("fee") or 0))
+        for b in todo:
+            snaps[b.strftime("%Y-%m")] = (cash, dict(qty))
+        coins = {c for _, (_, q) in snaps.items() for c, v in q.items() if v > 1e-12} | {"BTC"}
+        mc = {c: self._monthly_closes(c) for c in sorted(coins)}
+
+        def prev_month(key):
+            y, m = int(key[:4]), int(key[5:])
+            return f"{y - 1}-12" if m == 1 else f"{y}-{m - 1:02d}"
+
+        def value(key):
+            c0, q0 = snaps[key]
+            v, miss = max(c0, 0.0), False
+            for c, q in q0.items():
+                if q <= 1e-12:
+                    continue
+                px = mc.get(c, {}).get(prev_month(key))
+                if px:
+                    v += q * px
+                else:
+                    miss = True
+            return v, miss
+
+        st = self.db.get("last_state") or {}
+        out, idx, peak, bidx = [], 1.0, 1.0, 1.0
+        keys = [b.strftime("%Y-%m") for b in bounds]
+        for i, key in enumerate(keys):
+            e0, miss0 = value(key)
+            if i + 1 < len(keys):
+                e1, miss1 = value(keys[i + 1])
+                end_ts = bounds[i + 1].timestamp()
+            else:
+                e1, miss1 = st.get("total", e0), False
+                end_ts = now_ts()
+            fl = [(f["ts"], f["sign"] * (f.get("krw") or 0)) for f in flows if bounds[i].timestamp() <= f["ts"] < end_ts]
+            net = sum(k for _, k in fl)
+            base = e0 + 0.5 * net
+            pnl = e1 - e0 - net
+            ret = pnl / base * 100 if base > 1000 else None
+            if ret is not None:
+                idx *= 1 + ret / 100
+            peak = max(peak, idx)
+            b0 = mc["BTC"].get(prev_month(key))
+            b1 = mc["BTC"].get(key)
+            bret = (b1 / b0 - 1) * 100 if b0 and b1 else None
+            if bret is not None:
+                bidx *= 1 + bret / 100
+            out.append({"month": key, "e0": e0, "e1": e1, "dep": sum(k for _, k in fl if k > 0),
+                        "wd": -sum(k for _, k in fl if k < 0), "pnl": pnl, "ret": ret, "cum": (idx - 1) * 100,
+                        "dd": (idx / peak - 1) * 100, "btc": bret, "btc_cum": (bidx - 1) * 100,
+                        "warn": "가격 없는 코인 포함" if (miss0 or miss1) else ""})
+        return out
+
+    def send_export(self):
+        try:
+            data, sm = self.build_export()
+        except Exception as e:
+            log(f"내보내기 실패: {type(e).__name__} {e}")
+            send(f"⚠️ 매매 기록 파일을 만들다 오류가 났어요 ({esc(type(e).__name__)}).")
+            return
+        send_document(data, f"bithumb_records_{kst(now_ts()):%Y%m%d}.zip",
+                      "매매 기록 (엑셀로 열 수 있는 파일 9개) · 금액이 들어 있으니 공유 주의")
+        ms = [m for m in sm["months"] if m["ret"] is not None]
+        lines = ["<b>손익 맞추기</b>",
+                 boxq([f"평생 순수익 <b>{man(sm['net'], True)}원</b>",
+                       f"① 실현손익 {man(sm['realized'], True)}원",
+                       f"② 평가손익 {man(sm['unreal'], True)}원",
+                       f"③ 상장폐지로 사라진 원가 {man(-sm['gone'], True)}원",
+                       f"④ 기타 {man(sm['other'], True)}원"])]
+        if sm["top_gone"]:
+            lines.append("상장폐지 코인: " + ", ".join(f"{d['coin']} {man(-d['left_cost'], True)}" for d in sm["top_gone"]))
+        if ms:
+            worst = min(ms, key=lambda m: m["dd"])
+            lines.append(f"가장 깊었던 낙폭: {worst['month']} 고점 대비 {worst['dd']:.0f}%")
+        lines.append("<i>파일을 Claude 대화에 첨부하면 자세히 분석해 드려요</i>")
+        send("\n".join(lines))
 
     # ── 불러올 수 있는 가장 오래된 기록 (날짜만) ──
     def oldest_record(self, path, params, ts_keys):
@@ -1694,6 +1958,9 @@ class Bot:
                 send("코인별 성적은 새로 계산해야 해요. 몇 분 뒤 다시 '코인별'이라고 보내 주세요.")
             else:
                 self.send_life(cmd)
+        elif cmd == "export":
+            send("파일을 만드는 중이에요. 기록이 많으면 몇 분 걸려요.")
+            threading.Thread(target=lambda: Bot(DB(self.db.path)).send_export(), daemon=True).start()
         elif cmd == "realized":
             send(self.block_realized(st))
         elif cmd == "history":
@@ -2142,6 +2409,18 @@ def chart_coins(r, top=8):
     except Exception as e:
         log(f"코인별 카드 그리기 실패: {type(e).__name__}")
         return None
+
+
+def send_document(data: bytes, filename: str, caption=""):
+    if not (TG_TOKEN and TG_CHAT):
+        print(f"[document] {filename} {len(data)} bytes (텔레그램 설정 없음)")
+        return
+    try:
+        requests.post(f"https://api.telegram.org/bot{TG_TOKEN}/sendDocument",
+                      data={"chat_id": TG_CHAT, "caption": caption},
+                      files={"document": (filename, data, "application/zip")}, timeout=60)
+    except Exception as e:
+        log(f"텔레그램 파일 전송 오류: {type(e).__name__}")
 
 
 def send_photo(png, caption=""):

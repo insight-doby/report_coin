@@ -43,6 +43,10 @@ def fake(path, params=None, private=True):
     if path == "/v1/candles/days":
         assert params["to"] == "2026-01-01T00:00:00", params
         return [{"trade_price": {"KRW-LINK": 20000, "KRW-AAVE": 150000}[params["market"]]}]
+    if path == "/v1/candles/months":
+        px = {"KRW-LINK": 20000, "KRW-AAVE": 150000, "KRW-BTC": 100000000}[params["market"]]
+        months = [f"{y}-{m:02d}" for y in (2025, 2026) for m in range(1, 13)]
+        return [{"candle_date_time_kst": f"{k}-01T00:00:00", "trade_price": px} for k in months]
     if path == "/v1/market/all":
         return [{"market": "KRW-LINK"}, {"market": "KRW-AAVE"}]
     if path == "/v1/ticker":
@@ -132,8 +136,27 @@ def test_lifetime():
     print("\n\n".join(txts))
 
 
+def test_export():
+    import io, zipfile, csv
+    bot = c.Bot(c.DB(os.path.join(tempfile.mkdtemp(), "e.db")))
+    bot.snapshot(notify=False)
+    data, sm = bot.build_export()
+    z = zipfile.ZipFile(io.BytesIO(data))
+    names = z.namelist()
+    assert len(names) == 10 and "1_손익_맞추기.csv" in names, names
+    rec = list(csv.reader(io.StringIO(z.read("1_손익_맞추기.csv").decode("utf-8-sig"))))
+    print("\n".join(" | ".join(r) for r in rec))
+    # ①+②+③+④ = 순수익
+    assert abs(sm["realized"] + sm["unreal"] - sm["gone"] + sm["other"] - sm["net"]) < 1
+    months = list(csv.reader(io.StringIO(z.read("9_월별_자산흐름.csv").decode("utf-8-sig"))))
+    print(len(months) - 1, "months;", months[1][:7], months[-1][:7])
+    trades = list(csv.reader(io.StringIO(z.read("2_매매기록.csv").decode("utf-8-sig"))))
+    assert len(trades) == 4, trades
+
+
 if __name__ == "__main__":
     test_ytd()
     test_history()
     test_lifetime()
+    test_export()
     print("OK")
