@@ -23,3 +23,30 @@ for gate, want, not_want in (("STOP", "지금은 매수 안 함", "매수 구간
     bot.sector_alert(S(), [dict(row)], 1_800_000_000_000, tick, ledger=[], gate=gate)
     assert want in posted[-1] and not_want not in posted[-1], (gate, posted[-1][:300])
 print("OK")
+
+# 선별 매수도 참고용
+posted.clear()
+bot.sector_alert(S(), [dict(row)], 1_800_000_000_000, tick, ledger=[], gate="SELECTIVE")
+assert "지금은 매수 안 함" in posted[-1] and "매수 구간" not in posted[-1], posted[-1][:300]
+
+# 성적이 나쁘면 '매수 가능'이어도 참고용
+st = S(); st.d["stats.json"] = {"by_setup": {"sector_lead": {"n_closed": 8, "win_rate": 12.5}}}
+posted.clear()
+bot.sector_alert(st, [dict(row)], 1_800_000_000_000, tick, ledger=[], gate="GO")
+assert "최근 8건 중 1승" in posted[-1] and "매수 구간" not in posted[-1], posted[-1][:300]
+
+# 1시간 급등: 매수 가능일 때만 손절·목표
+mv = [{"ticker": "ENA", "kind": "move", "bar": "2026-10-22T00:00:00+09:00", "close": 294.0, "chg1h": 5.8, "vol_x": 4.6,
+       "high": 297.0, "low": 279.0, "trigger": None, "setup_label": None, "uptrend": True}]
+posted.clear(); bot.slack_moves(mv, "SELECTIVE")
+assert "따라 사지 않음" in posted[-1] and "목표 +15~25%" not in posted[-1]
+posted.clear(); bot.slack_moves(mv, "GO")
+assert "목표 +15~25%" in posted[-1]
+
+# 스캔 추천: 눌림목 성적이 나쁘면 참고용으로
+latest = {"market": {"gate": "GO"}, "picks": [{"ticker": "DOT", "setup": "pullback", "setup_label": "눌림목", "price": 1547}]}
+buy, ref = bot.split_picks(latest, {"by_setup": {"pullback": {"n_closed": 25, "win_rate": 8.0}}})
+assert not buy and "최근 25건 중 2승" in ref[0][1], ref
+buy, ref = bot.split_picks(latest, {"by_setup": {"pullback": {"n_closed": 25, "win_rate": 48.0}}})
+assert buy and not ref
+print("OK2")

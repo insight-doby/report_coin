@@ -1236,8 +1236,15 @@ def record_div4h(store, good: list, weak: list, ledger: list, at_ms: int, gate: 
     return fresh
 
 
-def slack_div4h(fresh: list):
+def slack_div4h(fresh: list, gate: str = "UNKNOWN", stats: dict = None):
     if not fresh:
+        return
+    ok, why_not = buy_ok(gate, "div4h", stats)
+    if not ok:
+        lines = "\n".join(f"📌 *{label(p['ticker'])}* 4시간 다이버전스 · 현재 {fmt_krw(p['price'])}" for p in fresh)
+        slack_post(f"⚡ 4시간 다이버전스 (참고용) {', '.join(label(p['ticker']) for p in fresh)}",
+                   [_md(f"{lines}\n*지금은 매수 안 함* — {why_not} · 참고용"),
+                    _ctx("시장이 '매수 가능'일 때만 매수 구간·손절·목표를 붙여 드려요.")])
         return
     blocks = [{"type": "header", "text": {"type": "plain_text", "text": f"⚡ 4시간 다이버전스 신호 {len(fresh)}개", "emoji": True}},
               _ctx("일봉 상승추세 + 4시간 RSI 상승 다이버전스 + 반등 거래량 · 2년 백테스트 승률 77% (30건, 표본 적음) · AI 악재 확인 없음")]
@@ -1285,6 +1292,29 @@ def sector_heat(tickers: dict, smap: dict) -> list:
 
 SECTOR_LEAD_MIN_CHG = 10.0
 SECTOR_STOP, SECTOR_TGT1, SECTOR_TGT2, SECTOR_HOLD_H = 0.10, 0.20, 0.30, 72
+
+
+REC_MIN_CLOSED, REC_MIN_WINRATE = 8, 35.0      # 최근 실제 성적이 이보다 나쁘면 추천을 '참고용'으로 낮춤
+
+
+def live_record(stats: dict, setup: str) -> Optional[dict]:
+    r = ((stats or {}).get("by_setup") or {}).get(setup) or {}
+    n = r.get("n_closed") or 0
+    if not n:
+        return None
+    wins = round(n * (r.get("win_rate") or 0) / 100)
+    return {"n": n, "wins": wins, "win_rate": r.get("win_rate") or 0,
+            "poor": n >= REC_MIN_CLOSED and (r.get("win_rate") or 0) < REC_MIN_WINRATE}
+
+
+def buy_ok(gate: str, setup: str = None, stats: dict = None) -> tuple:
+    """(사도 되는지, 안 되는 이유). 시장 신호등이 '매수 가능'이고 최근 실제 성적이 나쁘지 않을 때만 매수 후보."""
+    if gate != "GO":
+        return False, f"시장 신호등 '{GATE_LABEL.get(gate, gate)}'"
+    rec = live_record(stats, setup) if setup else None
+    if rec and rec["poor"]:
+        return False, f"최근 {rec['n']}건 중 {rec['wins']}승 — 지금 시장에선 잘 안 통함"
+    return True, ""
 
 
 def sector_picks(rows: list, tickers: dict, gate: str) -> list:
@@ -1346,15 +1376,18 @@ def sector_alert(store, rows: list, at_ms: int, tickers: dict = None, ledger: li
         if lag:
             txt += f"\n_이 섹터에서 평소 크게 움직이던 대장 중 아직 덜 오른 종목: {lag}_"
         blocks.append(_md(txt))
-    if picks and gate == "STOP":
-        # 시장 신호등이 '매수 금지'면 매수 구간·손절·목표 없이 참고용 한 줄만 (사라는 말과 사지 말라는 말이 섞이지 않게)
+    ok, why_not = buy_ok(gate, "sector_lead", store.read("stats.json", {}) or {})
+    if picks and not ok:
+        # 매수 구간·손절·목표 없이 참고용 한 줄만 (사라는 말과 사지 말라는 말이 섞이지 않게)
         blocks.append({"type": "divider"})
         blocks.append(_md("\n".join(f"📌 {p['group']} 섹터 대장: *{kname(p['ticker']) or p['ticker']}* {p['chg24']:+.1f}%"
                                     for p in picks)
-                          + "\n시장이 약세(신호등 '매수 금지')라 *지금은 매수 안 함* — 참고용"))
+                          + f"\n*지금은 매수 안 함* — {why_not} · 참고용"))
     elif picks:
         blocks.append({"type": "divider"})
-        blocks.append(_md("🎯 *매수 후보 — 지금 섹터를 이끄는 대장*\n_과거 검증: 섹터 과열 때 이미 +10% 오른 대장을 다음날 사서 손절 -10%/목표 +20%/3일 → 평균 +2.5% (132건). 덜 오른 종목 줍기보다 나았음. 약세장에선 본전 수준._"))
+        rec = live_record(store.read("stats.json", {}) or {}, "sector_lead")
+        rec_txt = f" 최근 실제 {rec['n']}건 중 {rec['wins']}승." if rec else ""
+        blocks.append(_md("🎯 *매수 후보 — 지금 섹터를 이끄는 대장*\n_과거 검증: 섹터 과열 때 이미 +10% 오른 대장을 다음날 사서 손절 -10%/목표 +20%/3일 → 평균 +2.5% (132건)." + rec_txt + "_"))
         for p in picks:
             blocks += _pick_blocks(p)
             blocks.append(_ctx("⚠️ " + " · ".join(p["risks"]) + f" · 3일 안에 결판 안 나면 정리"))
@@ -1553,8 +1586,8 @@ def run_scan() -> dict:
     store.write("stats.json", stats, "통계 갱신")
 
     log(f"✅ 추천 {len(picks)}건 / 감시 {len(watch)}건 / 제외 {len(excluded)}건 — {time.time() - t0:.0f}초")
-    slack_scan(latest, events)
-    slack_div4h(d_fresh)
+    slack_scan(latest, events, stats)
+    slack_div4h(d_fresh, gate, stats)
     return latest
 
 
@@ -1697,9 +1730,10 @@ def scan_hourly_moves(store, latest: dict, at_ms: int) -> list:
     return out
 
 
-def slack_moves(rows: list):
+def slack_moves(rows: list, gate: str = "UNKNOWN"):
     if not rows:
         return
+    ok, why_not = buy_ok(gate)
     lines = []
     for r in rows:
         stop = r["low"] * 0.97
@@ -1707,11 +1741,17 @@ def slack_moves(rows: list):
             head = f"🚀 *{label(r['ticker'])}* 감시 기준가 {fmt_krw(r['trigger'])} 돌파 ({r['setup_label']})"
         else:
             head = f"🚀 *{label(r['ticker'])}* 1시간 {r['chg1h']:+.1f}% 급등 시작"
-        lines.append(f"{head}\n{r['bar'][5:16]} 봉 종가 {fmt_krw(r['close'])} · 거래량 평소의 {r['vol_x']}배"
-                     f"{' · 일봉 상승추세' if r['uptrend'] else ''}\n"
-                     f"👉 들어간다면 작은 비중 · 손절 {fmt_krw(stop)}(이 봉 저가 −3%, 현재가 대비 −{(1 - stop / r['close']) * 100:.0f}%) · 목표 +15~25% · 3일 안에 정리")
-    blocks = [_md("\n\n".join(lines[:15])),
-              _ctx("일봉 상승추세 종목만 알립니다. 과거 100일 검증(232건): 위 손절·목표로 승률 41~47%, 이익/손실 비 1.2 — 크게 먹는 몇 번이 수익을 만드는 방식이라 비중은 작게. 상승추세가 아닌 종목은 같은 방식이 손실(이익/손실 비 0.8)이었습니다.")]
+        base = (f"{head}\n{r['bar'][5:16]} 봉 종가 {fmt_krw(r['close'])} · 거래량 평소의 {r['vol_x']}배"
+                f"{' · 일봉 상승추세' if r['uptrend'] else ''}")
+        if ok:
+            base += (f"\n👉 들어간다면 작은 비중 · 손절 {fmt_krw(stop)}(이 봉 저가 −3%, 현재가 대비 −{(1 - stop / r['close']) * 100:.0f}%)"
+                     f" · 목표 +15~25% · 3일 안에 정리")
+        else:
+            base += f"\n📌 *지금은 따라 사지 않음* — {why_not} · 참고용"
+        lines.append(base)
+    note = ("일봉 상승추세 종목만 알립니다. 과거 100일 검증(232건): 위 손절·목표로 승률 41~47%, 이익/손실 비 1.2 — 크게 먹는 몇 번이 수익을 만드는 방식이라 비중은 작게."
+            if ok else "시장이 '매수 가능'일 때만 손절·목표를 붙여 드려요. 지금은 돈이 어디로 몰리는지 정보로만 보세요.")
+    blocks = [_md("\n\n".join(lines[:15])), _ctx(note)]
     slack_post(f"🚀 급등 시작 {len(rows)}건", blocks)
 
 
@@ -2148,8 +2188,8 @@ def run_track():
     store.write("ledger.json", ledger, f"장부 갱신 {iso_kst(at)}")
     store.write("stats.json", compute_stats(ledger), "통계 갱신")
     log(f"✅ 장부 갱신 — 이벤트 {len(events)}건")
-    slack_div4h(fresh)
-    slack_moves(moves)
+    slack_div4h(fresh, (latest.get("market") or {}).get("gate", "UNKNOWN"), store.read("stats.json", {}) or {})
+    slack_moves(moves, (latest.get("market") or {}).get("gate", "UNKNOWN"))
     if events:
         slack_post("📣 추천 장부 업데이트", [{"type": "section", "text": {"type": "mrkdwn", "text": "📣 *추천 장부 업데이트*\n" + "\n".join(f"• {x}" for x in events)}}])
 
@@ -2362,19 +2402,32 @@ def _pick_blocks(p: dict) -> list:
     return blocks
 
 
-def telegram_scan_text(latest: dict, events: list) -> str:
+def split_picks(latest: dict, stats: dict = None) -> tuple:
+    """(매수 후보, [(참고용, 이유)]) — 신호등·최근 실제 성적 기준."""
+    gate = (latest.get("market") or {}).get("gate", "UNKNOWN")
+    buy, ref = [], []
+    for p in latest.get("picks") or []:
+        ok, why = buy_ok(gate, p.get("setup"), stats)
+        (buy.append(p) if ok else ref.append((p, why)))
+    return buy, ref
+
+
+def telegram_scan_text(latest: dict, events: list, stats: dict = None) -> str:
     """텔레그램 전용 스캔 요약: 핵심은 위에, 상세는 접힘 박스로."""
     e = lambda x: str(x).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
     m = latest["market"]
     icon = {"GO": "🟢", "SELECTIVE": "🟡", "STOP": "🔴"}.get(m["gate"], "⚪")
     when = latest["generated_at"][5:16].replace("T", " ").replace("-", "/")
-    picks = latest.get("picks") or []
-    out = [f"{icon} <b>{e(m['label'])}</b>  ·  추천 {len(picks)}개\n"
+    picks, refs = split_picks(latest, stats)
+    out = [f"{icon} <b>{e(m['label'])}</b>  ·  추천 {len(picks)}개" + (f" · 참고 {len(refs)}개" if refs else "") + "\n"
            f"<i>{when} · 2~5일 스윙 · 권장 비중 ×{m['size_mult']:g}</i>"]
     if m.get("headline"):
         out.append(f"<blockquote>{e(m['headline'])}</blockquote>")
     if not picks:
-        out.append("오늘은 조건을 충족한 종목이 없습니다.\n억지로 사지 않는 것도 전략입니다.")
+        out.append("지금은 사라고 할 종목이 없습니다.\n억지로 사지 않는 것도 전략입니다.")
+    if refs:
+        out.append("📌 <b>참고용 — 지금은 매수 안 함</b>\n" + "\n".join(
+            f"• {e(label(p['ticker']))} · {e(p['setup_label'])} · {fmt_krw(p['price'])} — {e(why)}" for p, why in refs))
     for head, group in (("✅ <b>지금 매수 구간</b>", [p for p in picks if p["state"] == "now"]),
                         ("⏳ <b>지정가 대기</b>", [p for p in picks if p["state"] != "now"])):
         if not group:
@@ -2413,7 +2466,7 @@ def telegram_scan_text(latest: dict, events: list) -> str:
             rows.append(f"• <b>{e(label(w['ticker']))}</b> · {e(w['setup_label'])} · 기준가 {fmt_krw(w['trigger_price'])}{d}")
         out.append(f"👀 <b>감시 후보</b>  {len(watch)}개 · 조건 맞으면 추천으로\n<blockquote expandable>" + "\n".join(rows) + "</blockquote>")
     ai_rows = []
-    for p in picks:
+    for p in latest.get("picks") or []:
         ai = p.get("ai") or {}
         if ai.get("status") in ("block", "caution") and ai.get("note"):
             ai_rows.append(f"<b>{e(label(p['ticker']))}</b> — {e(ai['note'])}")
@@ -2437,11 +2490,11 @@ def telegram_scan_text(latest: dict, events: list) -> str:
     return "\n\n".join(out)
 
 
-def slack_scan(latest: dict, events: list):
+def slack_scan(latest: dict, events: list, stats: dict = None):
     m = latest["market"]
     icon = {"GO": "🟢", "SELECTIVE": "🟡", "STOP": "🔴"}.get(m["gate"], "⚪")
     when = latest["generated_at"][5:16].replace("T", " ").replace("-", "/")
-    picks = latest["picks"]
+    picks, refs = split_picks(latest, stats)
     now = [p for p in picks if p["state"] == "now"]
     wait = [p for p in picks if p["state"] != "now"]
 
@@ -2451,7 +2504,10 @@ def slack_scan(latest: dict, events: list):
         _ctx(f"{when} · 2~5일 스윙 · 권장 비중 ×{m['size_mult']:g} · {m['headline']}"),
     ]
     if not picks:
-        blocks.append(_md("오늘은 조건을 충족한 종목이 없습니다. 억지로 사지 않는 것도 전략입니다."))
+        blocks.append(_md("지금은 사라고 할 종목이 없습니다. 억지로 사지 않는 것도 전략입니다."))
+    if refs:
+        blocks.append(_md("📌 *참고용 — 지금은 매수 안 함*\n" + "\n".join(
+            f"• {label(p['ticker'])} · {p['setup_label']} · {fmt_krw(p['price'])} — {why}" for p, why in refs)))
     for head, group in (("✅ 지금 매수 구간", now), ("⏳ 지정가 대기", wait)):
         if not group:
             continue
@@ -2461,7 +2517,7 @@ def slack_scan(latest: dict, events: list):
             blocks += _pick_blocks(p)
     blocks.append({"type": "divider"})
     blocks.append(_ctx(f"<{DASHBOARD_URL}|대시보드에서 실시간 가격 보기> · 감시 후보·AI 설명은 스레드에 · 투자 판단과 책임은 본인에게 있습니다"))
-    telegram_send(telegram_scan_text(latest, events), html=True)
+    telegram_send(telegram_scan_text(latest, events, stats), html=True)
     ts = slack_post(f"{icon} {m['label']} — 추천 {len(picks)}개", blocks, tg=False)
 
     # ── 스레드: 자세한 내용 ──
