@@ -1611,6 +1611,7 @@ class Bot:
             v = {c: fnum((cfg.get("manual") or {}).get(c, {}).get("inval")) or None
                  for c in (cfg.get("longterm") or cfg.get("watch", []))}
             self.db.put("lt_max_pct", fnum(cfg.get("longterm_max_pct"), 20.0) or 20.0)
+            self.db.put("keep_forever", [str(x).upper() for x in cfg.get("keep_forever", [])])
         except Exception:
             pass
         self.db.put("lt_cache", {"t": now_ts(), "v": v})
@@ -1639,9 +1640,10 @@ class Bot:
         state = state or {}
         lt = self.long_term_lines()
         lines, deep_list = [], []
+        keep = set(self.db.get("keep_forever", []) or [])
         for c, h in sorted(st["hold"].items(), key=lambda x: -x[1]["value"]):
-            if h["value"] < LOSS_MIN_KRW or not h["avg"] or h["pct"] is None:
-                state.pop(c, None)
+            if c in keep or h["value"] < LOSS_MIN_KRW or not h["avg"] or h["pct"] is None:
+                state.pop(c, None)                                    # 기념 코인(트론 등)은 알림 없이 그대로
                 continue
             px, pc = h["price"], h["pct"]
             s0 = state.get(c) or {}
@@ -1700,7 +1702,7 @@ class Bot:
         for c in list(state):
             if c not in st["hold"] and not c.startswith("_"):
                 state.pop(c)
-        lt_val = sum(h["value"] for c, h in st["hold"].items() if c in lt)
+        lt_val = sum(h["value"] for c, h in st["hold"].items() if c in lt and c not in keep)
         w = lt_val / st["total"] * 100 if st["total"] else 0
         cap = self.db.get("lt_max_pct", 20.0) or 20.0
         if w > cap and not state.get("_lt_over"):
@@ -1794,13 +1796,15 @@ class Bot:
 
     def block_longterm(self, st):
         lt = self.long_term_lines()
-        rows = [(c, h) for c, h in sorted(st["hold"].items(), key=lambda x: -x[1]["value"]) if c in lt]
+        keep = set(self.db.get("keep_forever", []) or [])
+        rows = [(c, h) for c, h in sorted(st["hold"].items(), key=lambda x: -x[1]["value"]) if c in lt and c not in keep]
         if not rows:
             return ""
         val = sum(h["value"] for _, h in rows)
         pnl = sum(h["pnl"] or 0 for _, h in rows)
         w = val / st["total"] * 100 if st["total"] else 0
         body = [f"{c:<7}{pct(h['pct'], 0):>6} {man(h['value']):>7}" for c, h in rows]
+        body += [f"{c:<7}{pct(h['pct'], 0):>6} {man(h['value']):>7} 기념" for c, h in st["hold"].items() if c in keep]
         cap = self.db.get("lt_max_pct", 20.0) or 20.0
         return (f"🧺 <b>장기 바구니</b> · 자산의 {w:.0f}% (목표 {cap:.0f}% 이내)\n<pre>" + esc("\n".join(body)) + "</pre>"
                 f"\n합계 {man(val)}원 · 평가손익 {man(pnl, True)}원")
