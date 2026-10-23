@@ -813,7 +813,7 @@
    "cond": "low_below",
    "price": 195000,
    "action": "손절가 도달 (매수 199,700원 → −2.4%). 빗썸 손절 주문 체결 확인. 체결 안 됐으면 바로 정리.",
-   "status": "active",
+   "status": "cancelled",
    "created_ts": 1792454483630,
    "created_at": "2026-10-20T09:01:23+09:00",
    "expires_ts": 1792713683630,
@@ -823,7 +823,8 @@
    },
    "checked_ts": 1792650631690,
    "checked_at": "2026-10-22T15:30:31+09:00",
-   "last_price": 199700.0
+   "last_price": 199700.0,
+   "note": "에이브 매도 완료 (10/22)"
   },
   {
    "id": "AAVE-pos-t1-215000",
@@ -832,7 +833,7 @@
    "cond": "high_above",
    "price": 215000,
    "action": "1차 목표 도달 (+7.7%). 절반 매도, 남은 절반 손절을 199,700원(본전)으로 올리기.",
-   "status": "active",
+   "status": "cancelled",
    "created_ts": 1792454483630,
    "created_at": "2026-10-20T09:01:23+09:00",
    "expires_ts": 1792713683630,
@@ -842,7 +843,8 @@
    },
    "checked_ts": 1792650631690,
    "checked_at": "2026-10-22T15:30:31+09:00",
-   "last_price": 199700.0
+   "last_price": 199700.0,
+   "note": "에이브 매도 완료 (10/22)"
   },
   {
    "id": "AAVE-pos-t2-223000",
@@ -851,7 +853,7 @@
    "cond": "high_above",
    "price": 223000,
    "action": "2차 목표 도달 (+11.7%). 나머지 매도.",
-   "status": "active",
+   "status": "cancelled",
    "created_ts": 1792454483630,
    "created_at": "2026-10-20T09:01:23+09:00",
    "expires_ts": 1792713683630,
@@ -861,7 +863,8 @@
    },
    "checked_ts": 1792650631690,
    "checked_at": "2026-10-22T15:30:31+09:00",
-   "last_price": 199700.0
+   "last_price": 199700.0,
+   "note": "에이브 매도 완료 (10/22)"
   },
   {
    "id": "ACC-ETH-1",
@@ -958,6 +961,138 @@
    "created_ts": 1792651185875,
    "created_at": "2026-10-22T15:39:45+09:00",
    "expires_ts": 1797835185875
+  },
+  {
+   "id": "ONDO-1h-595-sell",
+   "ticker": "ONDO",
+   "tf": "1h",
+   "cond": "high_above",
+   "price": 595,
+   "action": "반등 매도 자리 — 보유량 1/3 정리 (4시간 중앙선).",
+   "status": "active",
+   "created_ts": 1792730904028,
+   "created_at": "2026-10-23T13:48:24+09:00",
+   "expires_ts": 1795322904028
+  },
+  {
+   "id": "ONDO-acc-520",
+   "ticker": "ONDO",
+   "tf": "1h",
+   "cond": "low_below",
+   "price": 520,
+   "action": "2차 추매 자리 (평단 -9%). 300만 원 이하. 이 아래로는 추매 금지.",
+   "status": "active",
+   "created_ts": 1792730904028,
+   "created_at": "2026-10-23T13:48:24+09:00",
+   "expires_ts": 1796618904028
+  },
+  {
+   "id": "ONDO-1d-500-down",
+   "ticker": "ONDO",
+   "tf": "1d",
+   "cond": "close_below",
+   "price": 500,
+   "action": "일봉 500원 아래 마감 — 추매한 만큼 정리.",
+   "status": "active",
+   "created_ts": 1792730904028,
+   "created_at": "2026-10-23T13:48:24+09:00",
+   "expires_ts": 1796618904028
+  },
+  {
+   "id": "WAL-acc-47.5",
+   "ticker": "WAL",
+   "tf": "1h",
+   "cond": "low_below",
+   "price": 47.5,
+   "action": "추매 1번만 (평단 -9%). 150만 원 이하. 매도는 새 평단 +3% (약 52.5~53원).",
+   "status": "active",
+   "created_ts": 1792730904028,
+   "created_at": "2026-10-23T13:48:24+09:00",
+   "expires_ts": 1795322904028
+  },
+  {
+   "id": "WAL-1d-43.5-down",
+   "ticker": "WAL",
+   "tf": "1d",
+   "cond": "close_below",
+   "price": 43.5,
+   "action": "일봉 43.5원 아래 마감 — 월러스 전부 정리.",
+   "status": "active",
+   "created_ts": 1792730904028,
+   "created_at": "2026-10-23T13:48:24+09:00",
+   "expires_ts": 1795322904028
+  },
+  {
+   "id": "VIRTUAL-1h-845-touch",
+   "ticker": "VIRTUAL",
+   "tf": "1h",
+   "cond": "low_below",
+   "price": 845,
+   "action": "단타 2차 매수 자리 (10/19 저점 위). 매도 880·898, 손절 825.",
+   "status": "active",
+   "created_ts": 1792730904028,
+   "created_at": "2026-10-23T13:48:24+09:00",
+   "expires_ts": 1793940504028
+  },
+  {
+   "id": "VIRTUAL-1h-825-down",
+   "ticker": "VIRTUAL",
+   "tf": "1h",
+   "cond": "close_below",
+   "price": 825,
+   "action": "단타 손절 — 842원 박스 바닥이 깨짐. 물타지 말고 정리.",
+   "status": "active",
+   "created_ts": 1792730904028,
+   "created_at": "2026-10-23T13:48:24+09:00",
+   "expires_ts": 1793940504028
+  },
+  {
+   "id": "BTC-4h-110M-up",
+   "ticker": "BTC",
+   "tf": "4h",
+   "cond": "close_above",
+   "price": 110000000,
+   "action": "상승 확인 신호 1 — 비트 4시간봉 1억 1천 위 마감. 코인들이 4시간 중앙선 위로 올라오면 매수 고려.",
+   "status": "active",
+   "created_ts": 1792730904028,
+   "created_at": "2026-10-23T13:48:24+09:00",
+   "expires_ts": 1793940504028
+  },
+  {
+   "id": "ONDO-4h-595-up",
+   "ticker": "ONDO",
+   "tf": "4h",
+   "cond": "close_above",
+   "price": 595,
+   "action": "상승 확인 신호 — 4시간 중앙선 위 마감.",
+   "status": "active",
+   "created_ts": 1792730904028,
+   "created_at": "2026-10-23T13:48:24+09:00",
+   "expires_ts": 1793940504028
+  },
+  {
+   "id": "LINK-4h-16320-up",
+   "ticker": "LINK",
+   "tf": "4h",
+   "cond": "close_above",
+   "price": 16320,
+   "action": "상승 확인 신호 — 4시간 중앙선 위 마감. 추매분은 16,900~17,000원에서 매도.",
+   "status": "active",
+   "created_ts": 1792730904028,
+   "created_at": "2026-10-23T13:48:24+09:00",
+   "expires_ts": 1793940504028
+  },
+  {
+   "id": "VIRTUAL-4h-897-up",
+   "ticker": "VIRTUAL",
+   "tf": "4h",
+   "cond": "close_above",
+   "price": 897,
+   "action": "상승 확인 신호 — 4시간 중앙선 위 마감.",
+   "status": "active",
+   "created_ts": 1792730904028,
+   "created_at": "2026-10-23T13:48:24+09:00",
+   "expires_ts": 1793940504028
   }
  ],
  "checked_at": "2026-10-22T15:30:31+09:00"
