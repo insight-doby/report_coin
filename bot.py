@@ -848,6 +848,20 @@ def new_entry(p: dict, at_ms: int, gate: str) -> dict:
     }
 
 
+def _evt(e: dict, icon: str, what: str, price=None) -> str:
+    """추천 결과 문구 — 추천일·추천가 → 끝난 가격·수익률 (쉬운 말)."""
+    day = (e.get("issued_at") or "")[5:10].replace("-", "/")
+    head = f"{icon} {label(e['ticker'])} {SETUP_LABEL.get(e['setup'], e['setup'])}"
+    base = f"{day} {fmt_krw(e['entry'])} 추천"
+    if price is None:
+        return f"{head}\n   {base} → {what}"
+    fill = e.get("fill_price") or e["entry"]
+    pct = (price / fill - 1) * 100
+    if e.get("r_net") is not None and e["entry"] > e["stop"]:
+        pct = e["r_net"] * (e["entry"] - e["stop"]) / fill * 100      # 절반 익절·수수료 반영
+    return f"{head}\n   {base} → {fmt_krw(price)} {what}\n   결과 <b>{pct:+.1f}%</b>"
+
+
 def _close(e: dict, ts: float, price: float, reason: str, events: list):
     e["status"] = "closed"
     e["exit_ts"], e["exit_price"], e["exit_reason"] = int(ts), price, reason
@@ -860,8 +874,9 @@ def _close(e: dict, ts: float, price: float, reason: str, events: list):
             gross = (price - fill) / risk
         cost = 2 * FEE_PCT_PER_SIDE / 100 * fill / risk
         e["r_gross"], e["r_net"] = round(gross, 3), round(gross - cost, 3)
-    why = {"stop": "손절", "be_stop": "본전 청산", "t2": "2차 목표 도달", "time": "5일 타임스톱"}.get(reason, reason)
-    events.append(f"{label(e['ticker'])} {SETUP_LABEL.get(e['setup'], e['setup'])} — {why} (순수익 {e['r_net']:+.2f}R)")
+    why = {"stop": "손절", "be_stop": "본전 청산", "t2": "2차 목표 도달", "time": "5일 지나 정리"}.get(reason, reason)
+    win = (e.get("r_net") or 0) > 0
+    events.append(_evt(e, "📗" if win else "📕", why, price))
 
 
 def replay_entry(e: dict, cd: dict, at_ms: float, bar_ms: int = HOUR_MS, max_hold_ms: int = MAX_HOLD_HOURS * HOUR_MS) -> list:
@@ -883,16 +898,16 @@ def replay_entry(e: dict, cd: dict, at_ms: float, bar_ms: int = HOUR_MS, max_hol
         if e["status"] == "pending":
             if t >= e["valid_until_ts"]:
                 e["status"], e["exit_reason"], e["exit_ts"] = "expired", "unfilled", int(t)
-                events.append(f"{label(e['ticker'])} {SETUP_LABEL.get(e['setup'], e['setup'])} — 유효시간 내 미체결(만료)")
+                events.append(_evt(e, "⚪", "가격이 안 와서 안 샀음 (만료)"))
                 return events
             if l <= e["entry"]:
                 if o <= e["stop"]:                      # 손절선 아래로 갭 — 진입 무효
                     e["status"], e["exit_reason"], e["exit_ts"] = "expired", "invalidated", int(t)
-                    events.append(f"{label(e['ticker'])} {SETUP_LABEL.get(e['setup'], e['setup'])} — 체결 전 손절선 이탈(무효)")
+                    events.append(_evt(e, "⚪", "사기 전에 손절선 아래로 빠짐 (무효)"))
                     return events
                 e["status"], e["fill_ts"], e["fill_price"] = "open", int(t), min(e["entry"], o)
                 fill_candle = True
-                events.append(f"{label(e['ticker'])} {SETUP_LABEL.get(e['setup'], e['setup'])} — 지정가 체결 {fmt_krw(e['fill_price'])}")
+                events.append(_evt(e, "🔔", f"{fmt_krw(e['fill_price'])}에 샀다고 가정하고 추적 시작"))
             else:
                 continue
 
@@ -908,7 +923,7 @@ def replay_entry(e: dict, cd: dict, at_ms: float, bar_ms: int = HOUR_MS, max_hol
                 return events
             if (not fill_candle) and h >= e["t1"]:
                 e["t1_hit"], e["t1_ts"] = True, int(t)
-                events.append(f"{label(e['ticker'])} {SETUP_LABEL.get(e['setup'], e['setup'])} — 1차 목표 도달 (절반 매도, 손절 본전으로)")
+                events.append(_evt(e, "📗", f"1차 목표 {fmt_krw(e['t1'])} 도달 (절반 매도, 나머지 손절은 본전으로)"))
         else:
             if t > e["t1_ts"]:
                 if l <= fill:
@@ -2196,7 +2211,8 @@ def run_track():
     slack_div4h(fresh, (latest.get("market") or {}).get("gate", "UNKNOWN"), store.read("stats.json", {}) or {})
     slack_moves(moves, (latest.get("market") or {}).get("gate", "UNKNOWN"))
     if events:
-        slack_post("📣 추천 장부 업데이트", [{"type": "section", "text": {"type": "mrkdwn", "text": "📣 *추천 장부 업데이트*\n" + "\n".join(f"• {x}" for x in events)}}])
+        body = "\n\n".join(x.replace("<b>", "*").replace("</b>", "*") for x in events)
+        slack_post("📒 추천 결과 (매수 신호 아님)", [{"type": "section", "text": {"type": "mrkdwn", "text": "📒 *추천 결과* (매수 신호 아님)\n\n" + body}}])
 
 
 # ==========================================================
