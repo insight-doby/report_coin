@@ -1613,7 +1613,7 @@ def run_scan() -> dict:
 # 가격 알림 (data/price_alerts.json — 사람이 정한 가격 조건, 매시간 확인, AI 없음)
 # ==========================================================
 TF_PATH = {"1h": ("minutes/60", HOUR_MS), "4h": ("minutes/240", 4 * HOUR_MS), "1d": ("days", 24 * HOUR_MS), "1w": ("weeks", 7 * 24 * HOUR_MS)}
-TF_LABEL = {"1h": "1시간봉", "4h": "4시간봉", "1d": "일봉"}
+TF_LABEL = {"1h": "1시간봉", "4h": "4시간봉", "1d": "일봉", "1w": "주봉"}
 
 
 def fetch_v1(ticker: str, tf: str, count: int = 60) -> Optional[dict]:
@@ -1682,7 +1682,7 @@ def run_price_alerts(store, at_ms: int) -> list:
         al["checked_ts"] = int(at_ms)
         al["checked_at"] = iso_kst(at_ms)
         al["last_price"] = float(cd["c"][-1])
-        head = f"{label(al['ticker'])} {TF_LABEL[al['tf']]} {fmt_krw(al['price'])} {COND_TEXT[al['cond']]}"
+        head = f"{label(al['ticker'])} {TF_LABEL.get(al['tf'], al['tf'])} {fmt_krw(al['price'])} {COND_TEXT[al['cond']]}"
         for kind, b in res:
             vx = f" · 거래량 평소의 {b['vol_x']:.1f}배" if b["vol_x"] is not None else ""
             if kind == "hit":
