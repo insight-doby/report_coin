@@ -253,13 +253,14 @@
    "cond": "low_below",
    "price": 14600,
    "action": "모으기 2구간 도달 (주봉 20선·일봉 120선·9월 저점 14,400~14,600원). 지정가 체결 확인.",
-   "status": "active",
+   "status": "cancelled",
    "created_ts": 1792253743643,
    "created_at": "2026-10-18T01:15:43+09:00",
    "expires_ts": 1797437743643,
    "checked_ts": 1792858229569,
    "checked_at": "2026-10-25T01:10:29+09:00",
-   "last_price": 15310.0
+   "last_price": 15310.0,
+   "note": "새 평단 16,494 기준 -11.5% — 추매 금지 (10/25)"
   },
   {
    "id": "LINK-acc3-13400",
@@ -268,13 +269,14 @@
    "cond": "low_below",
    "price": 13400,
    "action": "모으기 3구간 도달 (8월 돌파 자리 13,150~13,400원). 지정가 체결 확인.",
-   "status": "active",
+   "status": "cancelled",
    "created_ts": 1792253743643,
    "created_at": "2026-10-18T01:15:43+09:00",
    "expires_ts": 1797437743643,
    "checked_ts": 1792858229569,
    "checked_at": "2026-10-25T01:10:29+09:00",
-   "last_price": 15310.0
+   "last_price": 15310.0,
+   "note": "추매 계획 종료 (10/25)"
   },
   {
    "id": "LINK-thesis-13000",
@@ -344,13 +346,14 @@
    "cond": "low_below",
    "price": 480,
    "action": "모으기 3구간 도달 (6~9월 바닥 450~480원). 지정가 체결 확인.",
-   "status": "active",
+   "status": "cancelled",
    "created_ts": 1792253823977,
    "created_at": "2026-10-18T01:17:03+09:00",
    "expires_ts": 1797437823977,
    "checked_ts": 1792858229569,
    "checked_at": "2026-10-25T01:10:29+09:00",
-   "last_price": 541.0
+   "last_price": 541.0,
+   "note": "현금 부족·평단 -15% — 추매 계획 종료 (10/25)"
   },
   {
    "id": "ONDO-thesis-440",
@@ -1073,13 +1076,14 @@
    "cond": "high_above",
    "price": 595,
    "action": "반등 매도 자리 — 보유량 1/3 정리 (4시간 중앙선).",
-   "status": "active",
+   "status": "cancelled",
    "created_ts": 1792730904028,
    "created_at": "2026-10-23T13:48:24+09:00",
    "expires_ts": 1795322904028,
    "checked_ts": 1792858229569,
    "checked_at": "2026-10-25T01:10:29+09:00",
-   "last_price": 541.0
+   "last_price": 541.0,
+   "note": "새 평단 566.9 기준 580원 매도로 변경 (10/25)"
   },
   {
    "id": "ONDO-acc-520",
@@ -1087,7 +1091,7 @@
    "tf": "1h",
    "cond": "low_below",
    "price": 520,
-   "action": "2차 추매 자리 (평단 -9%). 300만 원 이하. 이 아래로는 추매 금지.",
+   "action": "마지막 추매 자리 (평단 566.9 대비 -8%). 남은 현금 150~190만 원까지만. 이후 추매 없음.",
    "status": "active",
    "created_ts": 1792730904028,
    "created_at": "2026-10-23T13:48:24+09:00",
@@ -1102,7 +1106,7 @@
    "tf": "1d",
    "cond": "close_below",
    "price": 500,
-   "action": "일봉 500원 아래 마감 — 추매한 만큼 정리.",
+   "action": "일봉 500원 아래 마감 — 온도 절반 정리 (평단 566.9 기준 -12%).",
    "status": "active",
    "created_ts": 1792730904028,
    "created_at": "2026-10-23T13:48:24+09:00",
@@ -1254,6 +1258,42 @@
    "checked_ts": 1792858229569,
    "checked_at": "2026-10-25T01:10:29+09:00",
    "last_price": 826.0
+  },
+  {
+   "id": "ONDO-1h-580-sell",
+   "ticker": "ONDO",
+   "tf": "1h",
+   "cond": "high_above",
+   "price": 580,
+   "action": "반등 매도 자리 — 평단 566.9 +2.3%, 60일선 582. 추매한 만큼 매도.",
+   "status": "active",
+   "created_ts": 1792858529105,
+   "created_at": "2026-10-25T01:15:29+09:00",
+   "expires_ts": 1796746529105
+  },
+  {
+   "id": "LINK-1h-16900-sell",
+   "ticker": "LINK",
+   "tf": "1h",
+   "cond": "high_above",
+   "price": 16900,
+   "action": "반등 매도 자리 — 평단 16,494 +2.5%. 추매한 만큼 매도.",
+   "status": "active",
+   "created_ts": 1792858529105,
+   "created_at": "2026-10-25T01:15:29+09:00",
+   "expires_ts": 1796746529105
+  },
+  {
+   "id": "LINK-1d-14600-down",
+   "ticker": "LINK",
+   "tf": "1d",
+   "cond": "close_below",
+   "price": 14600,
+   "action": "일봉 14,600원(120일선) 아래 마감 — 체인링크 절반 정리. 추매 금지.",
+   "status": "active",
+   "created_ts": 1792858529105,
+   "created_at": "2026-10-25T01:15:29+09:00",
+   "expires_ts": 1796746529105
   }
  ],
  "checked_at": "2026-10-25T01:10:29+09:00"
