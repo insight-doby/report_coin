@@ -41,6 +41,7 @@ GH_REPO = os.environ.get("GITHUB_REPO", "insight-doby/report_coin").strip()
 DB_PATH = os.environ.get("COINBOT_DB", "/var/lib/coinbot/coinbot.db")
 GOAL_PCT = float(os.environ.get("COINBOT_GOAL_PCT", "30"))     # 연 목표 수익률(%)
 REPORT_HOUR = int(os.environ.get("COINBOT_REPORT_HOUR", "22"))  # 하루 결산 시각(KST)
+MORNING_HOUR = int(os.environ.get("COINBOT_MORNING_HOUR", "9"))  # 아침 브리핑 시각(KST)
 
 TP1, TP2, SL = (float(os.environ.get(k, d)) for k, d in
                 (("COINBOT_TP1", "3"), ("COINBOT_TP2", "5"), ("COINBOT_SL", "3")))   # 매수 후 안내할 매도·손절 %
@@ -370,6 +371,7 @@ def send(text: str):
 
 
 COMMANDS = [
+    ("brief", "아침 브리핑 (시장·내 코인·계획선)"),
     ("account", "계좌 한눈에 (총자산·손익·목표)"),
     ("check", "계좌 점검 (상태 점수·할 일)"),
     ("holdings", "보유 코인별 수익률"),
@@ -387,6 +389,7 @@ COMMANDS = [
     ("help", "사용법"),
 ]
 WORDS = {
+    "brief": ["브리핑", "아침", "시장"],
     "year": ["올해", "실질", "연간"],
     "history": ["언제까지", "오래된", "과거", "히스토리"],
     "coins": ["코인별", "종목별"],
@@ -1998,6 +2001,109 @@ class Bot:
             parts.append(f"<i>⚠️ {', '.join(missing)} 조회 권한이 없어 입출금이 수익으로 잡힐 수 있어요 (빗썸 API 키에 입금조회·출금조회 추가)</i>")
         return "\n\n".join(p for p in parts if p)
 
+    # ── 아침 브리핑 (매일 MORNING_HOUR) ──
+    @staticmethod
+    def _public(name):
+        try:
+            r = requests.get(f"https://raw.githubusercontent.com/{GH_REPO}/main/data/{name}", timeout=10)
+            return r.json()
+        except Exception:
+            return {}
+
+    @staticmethod
+    def _open_hours_ago(coin, hours):
+        """hours 시간 전 1시간봉 시가 (밤사이 변화 계산용)."""
+        try:
+            data = bget("/v1/candles/minutes/60", {"market": f"KRW-{coin}", "count": hours + 1}, private=False)
+            rows = sorted([r for r in data if isinstance(r, dict)], key=lambda r: r["candle_date_time_kst"])
+            return fnum(rows[0].get("opening_price")) or None
+        except (BithumbError, requests.RequestException, ValueError, KeyError, TypeError, IndexError):
+            return None
+
+    def morning_brief(self, st=None):
+        st = st or self.snapshot(notify=False)
+        d = kst(now_ts())
+        since = (d.replace(hour=REPORT_HOUR, minute=0, second=0, microsecond=0) - timedelta(days=1)
+                 if d.hour < REPORT_HOUR else d.replace(hour=REPORT_HOUR, minute=0, second=0, microsecond=0)).timestamp()
+        hours = max(1, int((now_ts() - since) // 3600))
+        out = [f"☀️ <b>아침 브리핑</b> · {d:%m/%d}({'월화수목금토일'[d.weekday()]}) {d:%H:%M}"]
+
+        # 1) 시장
+        m = (self._public("latest.json") or {}).get("market") or {}
+        gate = {"GO": "🟢 매수 가능", "SELECTIVE": "🟡 골라서만 매수", "STOP": "🔴 매수 금지"}.get(m.get("gate"), "⚪ 확인 안 됨")
+        px = fetch_prices(["BTC", "ETH"])
+        mk = []
+        for c, nm in (("BTC", "비트"), ("ETH", "이더")):
+            if px.get(c):
+                o = self._open_hours_ago(c, hours)
+                mk.append(f"{nm} {man(px[c])}" + (f" (밤사이 {pct((px[c] / o - 1) * 100)})" if o else ""))
+        met = m.get("metrics") or {}
+        if met.get("breadth_pct") is not None:
+            mk.append(f"알트 {met['breadth_pct']:.0f}%만 20일선 위" if met["breadth_pct"] < 50 else f"알트 {met['breadth_pct']:.0f}%가 20일선 위")
+        out.append(f"<b>시장</b> {gate}\n" + "\n".join(mk))
+
+        # 2) 총자산 밤사이 변화
+        row = self.db.q("SELECT total FROM snaps WHERE ts<=? ORDER BY ts DESC LIMIT 1", (since,))
+        line = f"총자산 <b>{won(st['total'])}</b>"
+        if row and row[0]["total"]:
+            ch = st["total"] - row[0]["total"]
+            line += f"\n밤사이 {man(ch, True)}원 ({pct(ch / row[0]['total'] * 100)}) <i>입출금 포함</i>"
+        out.append(line)
+
+        # 3) 보유 코인 + 가장 가까운 계획선
+        alerts = [a for a in (self._public("price_alerts.json") or {}).get("alerts", []) if a.get("status") == "active"]
+        keep = set(self.db.get("keep_forever", []) or [])
+        major, minor = self.split_major(st)
+        rows, warn = [], []
+        for c, h in major:
+            cur = h["price"]
+            head = f"<b>{c}</b> {price_txt(cur)} ({pct(h['pct'])})" if h["pct"] is not None else f"<b>{c}</b> {price_txt(cur)}"
+            if c in keep:
+                rows.append(head + " · 기념")
+                continue
+            mine = [a for a in alerts if a.get("ticker") == c]
+            def near(conds, below):
+                cand = [fnum(a["price"]) for a in mine if a.get("cond") in conds
+                        and (fnum(a["price"]) < cur if below else fnum(a["price"]) > cur)]
+                return (max(cand) if below else min(cand)) if cand else None
+            parts = []
+            for name, conds, below in (("추매", ("low_below",), True), ("매도", ("high_above",), False),
+                                       ("정리", ("close_below",), True)):
+                v = near(conds, below)
+                if v:
+                    dist = (v / cur - 1) * 100
+                    parts.append(f"{name} {price_txt(v)} {pct(dist, 0)}")
+                    if name == "정리" and dist > -5:
+                        warn.append(c)
+            mark = " ⚠️" if c in warn else ""
+            rows.append(head + mark + ("\n   " + " · ".join(parts) if parts else ""))
+        if rows:
+            out.append(f"<b>내 코인</b> <i>{man(MAJOR_KRW)}원 이상 · 평단 대비</i>\n" + "\n".join(rows))
+        if minor:
+            g = self.group_sum(minor)
+            out.append(f"기타 {g['n']}종목 {man(g['value'])}원 ({pct(g['pct'])})")
+        if warn:
+            out.append("⚠️ " + ", ".join(warn) + " — 정리선까지 5% 안. 오늘 일봉 마감 확인")
+
+        # 4) 밤사이 체결·알림
+        fills = self.db.q("SELECT coin, side, SUM(funds) f, COUNT(*) n FROM orders WHERE ts>=? GROUP BY coin, side ORDER BY f DESC",
+                          (since,))
+        ft = [f"{'🔴 매수' if r['side'] == 'bid' else '🔵 매도'} {r['coin']} {man(r['f'])}원" + (f" ({r['n']}건)" if r["n"] > 1 else "")
+              for r in fills]
+        fired = []
+        for a in (self._public("price_alerts.json") or {}).get("alerts", []):
+            fa = a.get("fired_at")
+            try:
+                if fa and datetime.fromisoformat(fa).timestamp() >= since:
+                    fired.append(f"{a['ticker']} {price_txt(a['price'])}")
+            except ValueError:
+                pass
+        out.append("<b>밤사이</b>\n체결: " + (", ".join(ft) if ft else "없음")
+                   + "\n울린 알림: " + (", ".join(fired[:8]) + (" 외" if len(fired) > 8 else "") if fired else "없음"))
+        if m.get("gate") == "STOP":
+            out.append("<i>오늘 할 일: 새 코인 매수 쉬기 · 계획한 추매만 · 정리선은 일봉 마감으로 판단</i>")
+        return "\n\n".join(out)
+
     def month_report(self):
         now = kst(now_ts())
         first = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
@@ -2078,6 +2184,9 @@ class Bot:
             return
         st = self.snapshot(notify=True)
         curve, flows = self.curve()
+        if cmd == "brief":
+            send(self.morning_brief(st))
+            return
         if cmd == "account":
             send_photo(chart_account(self, st, curve, flows))
             send(self.full_report(st))
@@ -2198,6 +2307,12 @@ class Bot:
                 except (BithumbError, requests.RequestException) as e:
                     log(f"올해 수익 계산 실패: {type(e).__name__} {e}")
                     self.db.put("ytd_fail_at", now_ts())
+        if MORNING_HOUR <= d.hour < MORNING_HOUR + 3 and self.db.get("last_morning") != today:
+            self.db.put("last_morning", today)
+            try:
+                send(self.morning_brief())
+            except Exception as e:
+                log(f"아침 브리핑 실패: {type(e).__name__} {e}")
         if d.hour >= REPORT_HOUR and self.db.get("last_daily") != today:
             self.db.put("last_daily", today)
             st = self.db.get("last_state")
