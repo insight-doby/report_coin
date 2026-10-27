@@ -2020,6 +2020,41 @@ class Bot:
         except (BithumbError, requests.RequestException, ValueError, KeyError, TypeError, IndexError):
             return None
 
+    @staticmethod
+    def trend(coin):
+        """일봉 20일선 기준 추세 + 4시간 중앙선. (글, 20일선, 거리%) / 실패 시 None."""
+        try:
+            d = bget("/v1/candles/days", {"market": f"KRW-{coin}", "count": 27}, private=False)
+            d = sorted([r for r in d if isinstance(r, dict)], key=lambda r: r["candle_date_time_kst"])
+            cl = [fnum(r.get("trade_price")) for r in d]
+            px = cl[-1]
+            done = cl[:-1]                                           # 진행 중인 오늘 봉 제외
+            if len(done) < 25:
+                return None
+            ma, ma5 = sum(done[-20:]) / 20, sum(done[-25:-5]) / 20   # 지금 20일선 / 5일 전 20일선
+            if px > ma and ma >= ma5:
+                txt = "📈 상승 추세"
+            elif px < ma and ma < ma5:
+                txt = "📉 하락 추세"
+            else:
+                txt = "↔️ 방향 전환 중"
+            h4 = ""
+            h = bget("/v1/candles/minutes/240", {"market": f"KRW-{coin}", "count": 21}, private=False)
+            h = sorted([r for r in h if isinstance(r, dict)], key=lambda r: r["candle_date_time_kst"])
+            hc = [fnum(r.get("trade_price")) for r in h]
+            if len(hc) >= 21:
+                h4 = "4시간 반등 중" if px > sum(hc[-21:-1]) / 20 else "4시간 약세"
+            return txt, ma, (px / ma - 1) * 100, h4
+        except (BithumbError, requests.RequestException, ValueError, KeyError, TypeError, IndexError, ZeroDivisionError):
+            return None
+
+    @staticmethod
+    def trend_line(t, money=False):
+        if not t:
+            return ""
+        txt, ma, dist, h4 = t
+        return f"{txt} · 20일선 {man(ma) if money else price_txt(ma)} ({pct(dist)})" + (f" · {h4}" if h4 else "")
+
     def morning_brief(self, st=None):
         st = st or self.snapshot(notify=False)
         d = kst(now_ts())
@@ -2038,6 +2073,9 @@ class Bot:
                 o = self._open_hours_ago(c, hours)
                 mk.append(f"{nm} {man(px[c])}" + (f" (밤사이 {pct((px[c] / o - 1) * 100)})" if o else ""))
         met = m.get("metrics") or {}
+        bt = self.trend("BTC")
+        if bt:
+            mk.insert(1, self.trend_line(bt, money=True))
         if met.get("breadth_pct") is not None:
             mk.append(f"알트 {met['breadth_pct']:.0f}%만 20일선 위" if met["breadth_pct"] < 50 else f"알트 {met['breadth_pct']:.0f}%가 20일선 위")
         out.append(f"<b>시장</b> {gate}\n" + "\n".join(mk))
@@ -2076,7 +2114,8 @@ class Bot:
                     if name == "정리" and dist > -5:
                         warn.append(c)
             mark = " ⚠️" if c in warn else ""
-            rows.append(head + mark + ("\n   " + " · ".join(parts) if parts else ""))
+            tl = self.trend_line(self.trend(c))
+            rows.append(head + mark + (f"\n   {tl}" if tl else "") + ("\n   " + " · ".join(parts) if parts else ""))
         if rows:
             out.append(f"<b>내 코인</b> <i>{man(MAJOR_KRW)}원 이상 · 평단 대비</i>\n" + "\n".join(rows))
         if minor:
