@@ -42,6 +42,9 @@ DB_PATH = os.environ.get("COINBOT_DB", "/var/lib/coinbot/coinbot.db")
 GOAL_PCT = float(os.environ.get("COINBOT_GOAL_PCT", "30"))     # 연 목표 수익률(%)
 REPORT_HOUR = int(os.environ.get("COINBOT_REPORT_HOUR", "22"))  # 하루 결산 시각(KST)
 MORNING_HOUR = int(os.environ.get("COINBOT_MORNING_HOUR", "9"))  # 아침 브리핑 시각(KST)
+RISK_PCT = float(os.environ.get("COINBOT_RISK_PCT", "1.5"))     # 돌파 추천 한 번 틀릴 때 잃을 계좌 비율(%)
+BRK_STOP_PCT = 7.0                                               # 돌파 추천 1차 손절폭(%)
+FOLLOW_H = 48                                                    # 추천 후 이 시간 안에 사면 "추천 따라 산 매매"
 
 TP1, TP2, SL = (float(os.environ.get(k, d)) for k, d in
                 (("COINBOT_TP1", "3"), ("COINBOT_TP2", "5"), ("COINBOT_SL", "3")))   # 매수 후 안내할 매도·손절 %
@@ -372,6 +375,7 @@ def send(text: str):
 
 COMMANDS = [
     ("brief", "아침 브리핑 (시장·내 코인·계획선)"),
+    ("signals", "추천 성적 (추천대로 vs 내가 한 것)"),
     ("account", "계좌 한눈에 (총자산·손익·목표)"),
     ("check", "계좌 점검 (상태 점수·할 일)"),
     ("holdings", "보유 코인별 수익률"),
@@ -390,6 +394,7 @@ COMMANDS = [
 ]
 WORDS = {
     "brief": ["브리핑", "아침", "시장"],
+    "signals": ["추천성적", "추천 성적", "추천"],
     "year": ["올해", "실질", "연간"],
     "history": ["언제까지", "오래된", "과거", "히스토리"],
     "coins": ["코인별", "종목별"],
@@ -610,8 +615,13 @@ class Bot:
         self._save_pos(coin, p)
         self.db.x("INSERT OR REPLACE INTO orders VALUES(?,?,?,?,?,?,?)",
                   (d["uuid"], int(ts), coin, d["side"], vol, funds, fee))
+        try:
+            extra = self.follow_on_fill(coin, d["side"], ts, px, p["qty"])
+        except Exception as e:
+            log(f"추천 연결 실패: {type(e).__name__}")
+            extra = ""
         if notify and msg:
-            send(msg)
+            send(msg + extra)
 
     def reconcile(self, st):
         """체결 기록으로 만든 보유를 실제 계좌(빗썸 평단)에 맞춤 — 외부 입출금·기록 누락 보정."""
@@ -678,6 +688,11 @@ class Bot:
                 self.watch_losses(st)
             except Exception as e:
                 log(f"손실 점검 실패: {type(e).__name__}")
+            for fn in (self.announce_signals, self.watch_follow):
+                try:
+                    fn(st)
+                except Exception as e:
+                    log(f"추천 안내 실패({fn.__name__}): {type(e).__name__}")
         if GH_TOKEN:
             try:
                 self.publish_public(st)
@@ -2143,6 +2158,192 @@ class Bot:
             out.append("<i>오늘 할 일: 새 코인 매수 쉬기 · 계획한 추매만 · 정리선은 일봉 마감으로 판단</i>")
         return "\n\n".join(out)
 
+    # ── 추천 따라 산 매매 (돌파 추천·기존 추천과 실제 체결 연결) ──
+    _PUB = {}
+
+    def pub(self, name, ttl=600):
+        """공개 데이터(깃허브 data/) 캐시 읽기."""
+        hit = Bot._PUB.get(name)
+        if hit and now_ts() - hit[0] < ttl:
+            return hit[1]
+        try:
+            r = requests.get(f"https://raw.githubusercontent.com/{GH_REPO}/main/data/{name}", timeout=10)
+            v = r.json()
+        except Exception:
+            v = hit[1] if hit else None
+        Bot._PUB[name] = (now_ts(), v)
+        return v
+
+    def signals(self):
+        """추천 목록: 돌파 추천(brk) + 기존 추천(ledger). issued_ts는 초 단위로 맞춤."""
+        out = []
+        for e in self.pub("brk_ledger.json") or []:
+            if isinstance(e, dict) and e.get("ticker"):
+                out.append(dict(e, kind="brk", ts=e["issued_ts"] / 1000))
+        for e in self.pub("ledger.json") or []:
+            if isinstance(e, dict) and e.get("ticker"):
+                out.append(dict(e, kind="old", ts=e["issued_ts"] / 1000))
+        return out
+
+    @staticmethod
+    def plan_amount(total, tier="swing"):
+        amt = total * RISK_PCT / 100 / (0.5 * BRK_STOP_PCT / 100)   # 1차(절반)가 -7%에 손절되면 계좌의 RISK_PCT%
+        return amt * (0.25 if tier == "small" else 1.0)
+
+    def announce_signals(self, st):
+        """새 돌파 추천(매수 가능 때)에 계좌 크기에 맞춘 금액을 따로 알림."""
+        done = set(self.db.get("brk_announced", []) or [])
+        msgs = []
+        for e in self.signals():
+            if e["kind"] != "brk" or e.get("gate") == "STOP" or e["id"] in done or e.get("status") != "open":
+                continue
+            if now_ts() - e["ts"] > 6 * 3600:
+                done.add(e["id"])
+                continue
+            plan = self.plan_amount(st["total"], e.get("tier"))
+            loss = plan * 0.5 * BRK_STOP_PCT / 100
+            lines = [f"계획 금액 {man(plan)}원 (계좌의 {plan / st['total'] * 100:.0f}%)",
+                     f"1차 {man(plan / 2)}원 · {price_txt(e['entry'])}원 근처",
+                     f"2차 {man(plan / 2)}원 · {price_txt(e['add_px'])}원 (+3%) 도달 시",
+                     f"손절 {price_txt(e['stop0'])}원 → 틀리면 약 {man(-loss, True)}원",
+                     f"현금 {man(st['cash'])}원"]
+            note = "\n<i>거래대금 작은 코인이라 1/4만 · 지정가로만</i>" if e.get("tier") == "small" else ""
+            if st["cash"] < plan / 2:
+                note += "\n⚠️ 현금이 1차 금액보다 적어요"
+            msgs.append(f"💰 <b>돌파 추천 금액 · {e['ticker']}</b>\n" + boxq(lines) + note)
+            done.add(e["id"])
+        self.db.put("brk_announced", sorted(done)[-300:])
+        for m in msgs:
+            send(m)
+
+    def follow_on_fill(self, coin, side, ts, px, qty_left):
+        """체결 때 호출. 추천을 따라 산 매매면 기록하고, 단계 안내 문구를 돌려줌."""
+        fol = self.db.get("follow", {}) or {}
+        f = fol.get(coin)
+        note = ""
+        if side == "bid":
+            if not f:
+                cand = [s for s in self.signals() if s["ticker"] == coin and 0 <= ts - s["ts"] <= FOLLOW_H * 3600]
+                cand.sort(key=lambda s: (s["kind"] != "brk", -s["ts"]))
+                if cand:
+                    s = cand[0]
+                    f = {"sig_id": s["id"], "kind": s["kind"], "setup": s.get("setup"), "start_ts": int(ts), "buys": 1,
+                         "entry": s.get("entry"), "add_px": s.get("add_px"), "stop0": s.get("stop0") or s.get("stop"),
+                         "tp_px": s.get("tp_px") or s.get("t1"), "added": False, "sent": {}}
+                    fol[coin] = f
+                    nm = "🆕 돌파 추천" if s["kind"] == "brk" else "📎 기존 추천"
+                    note = f"\n\n🧾 <b>{nm}을 따라 산 매매</b>로 기록했어요 ({kst(s['ts']):%m/%d %H시} 추천)"
+                    if s["kind"] == "brk":
+                        note += (f"\n다음: +3% <b>{price_txt(s['add_px'])}원</b>에 2차 매수 · 손절 <b>{price_txt(f['stop0'])}원</b>")
+            else:
+                f["buys"] += 1
+                if f["kind"] == "brk" and not f["added"] and f.get("add_px") and px >= f["add_px"] * 0.99:
+                    f["added"] = True
+                    note = "\n\n✅ 2차 매수 확인 — 이제 <b>손절을 평단으로</b> 올리세요 (위 평단 그대로)"
+        elif f and qty_left <= 1e-12:
+            rows = self.db.q("SELECT SUM(pnl) p FROM trades WHERE coin=? AND ts>=?", (coin, f["start_ts"]))
+            cost = self.db.q("SELECT SUM(funds) c FROM orders WHERE coin=? AND side='bid' AND ts>=?", (coin, f["start_ts"]))
+            pnl, c = (rows[0]["p"] or 0.0), (cost[0]["c"] or 0.0)
+            done = self.db.get("follow_done", []) or []
+            done.append({"coin": coin, "sig_id": f["sig_id"], "kind": f["kind"], "setup": f.get("setup"),
+                         "start_ts": f["start_ts"], "end_ts": int(ts), "pnl": pnl, "cost": c,
+                         "pct": pnl / c * 100 if c else None})
+            self.db.put("follow_done", done[-500:])
+            fol.pop(coin, None)
+            note = (f"\n\n📒 <b>추천 따라 한 매매 끝</b> · {pct(pnl / c * 100 if c else None)} ({man(pnl, True)}원)")
+        self.db.put("follow", fol)
+        return note
+
+    def watch_follow(self, st):
+        """추천 따라 산 코인의 단계 안내 (+3% 추가 · 손절 · +20% 절반 · 10일선 이탈). 같은 안내는 한 번만."""
+        fol = self.db.get("follow", {}) or {}
+        if not fol:
+            return
+        msgs = []
+        today = kst(now_ts()).strftime("%Y-%m-%d")
+        for coin, f in list(fol.items()):
+            h = st["hold"].get(coin)
+            if not h:
+                continue
+            if f["kind"] != "brk":
+                continue
+            cur, avg, sent = h["price"], h["avg"], f.setdefault("sent", {})
+            def once(key, text):
+                if not sent.get(key):
+                    sent[key] = int(now_ts())
+                    msgs.append(text)
+            if not f["added"] and f.get("add_px") and cur >= f["add_px"]:
+                once("add", f"📈 <b>{coin} +3% 도달</b> → 2차 매수 자리\n지금 {price_txt(cur)}원 · 계획 금액의 나머지 절반"
+                            "\n<i>사면 손절을 평단으로 올려요</i>")
+            if not f["added"] and f.get("stop0") and cur <= f["stop0"]:
+                once("stop", f"🛑 <b>{coin} 1차 손절가 {price_txt(f['stop0'])}원 도달</b> → 정리\n지금 {price_txt(cur)}원")
+            if f["added"] and avg and cur <= avg:
+                once("avgstop", f"🛑 <b>{coin} 평단 {price_txt(avg)}원 아래</b> → 본전 정리\n지금 {price_txt(cur)}원")
+            if f.get("tp_px") and cur >= f["tp_px"]:
+                once("tp", f"🎯 <b>{coin} +20% 도달</b> ({price_txt(f['tp_px'])}원) → 절반 매도\n나머지는 일봉 10일선 아래 마감 때")
+            if f.get("ma_day") != today and kst(now_ts()).hour >= 0:
+                f["ma_day"] = today
+                try:
+                    d = bget("/v1/candles/days", {"market": f"KRW-{coin}", "count": 12}, private=False)
+                    d = sorted([r for r in d if isinstance(r, dict)], key=lambda r: r["candle_date_time_kst"])[:-1]
+                    cl = [fnum(r.get("trade_price")) for r in d]
+                    if len(cl) >= 10:
+                        ma = sum(cl[-10:]) / 10
+                        f["ma10"] = ma
+                        if cl[-1] < ma:
+                            once("ma_" + today, f"📉 <b>{coin} 일봉이 10일선({price_txt(ma)}원) 아래 마감</b> → 전량 매도\n"
+                                                f"어제 종가 {price_txt(cl[-1])}원 · 지금 {price_txt(cur)}원")
+                except (BithumbError, requests.RequestException, ValueError, KeyError, TypeError):
+                    f["ma_day"] = None
+        self.db.put("follow", fol)
+        if msgs:
+            send("🧭 <b>추천 매매 단계 안내</b>\n\n" + "\n\n".join(msgs))
+
+    def block_signals(self, t_from=None, title="이번 달"):
+        """추천 성적: 장부(가정) vs 내가 실제로 한 것 vs 추천 밖 매매."""
+        t_from = self.bounds()["month"] if t_from is None else t_from
+        sig = self.signals()
+        def paper(kind):
+            vals = []
+            for s in sig:
+                if s["kind"] != kind or s.get("gate") == "STOP" or not s.get("exit_ts"):
+                    continue
+                if s["exit_ts"] / 1000 < t_from:
+                    continue
+                if kind == "brk" and s.get("ret_pct") is not None:
+                    vals.append(s["ret_pct"])
+                elif kind == "old" and s.get("r_net") is not None and s.get("fill_price") and s["entry"] > s["stop"]:
+                    vals.append(s["r_net"] * (s["entry"] - s["stop"]) / s["fill_price"] * 100)
+            return vals
+        done = [d for d in (self.db.get("follow_done", []) or []) if d["end_ts"] >= t_from]
+        def mine(kind):
+            r = [d for d in done if d["kind"] == kind]
+            return r
+        windows = {}
+        for d in (self.db.get("follow_done", []) or []):
+            windows.setdefault(d["coin"], []).append((d["start_ts"], d["end_ts"]))
+        for c, f in (self.db.get("follow", {}) or {}).items():
+            windows.setdefault(c, []).append((f["start_ts"], now_ts() + 1))
+        off = [r for r in self.db.q("SELECT coin, ts, pnl, pct FROM trades WHERE ts>=? AND pnl IS NOT NULL", (t_from,))
+               if not any(a <= r["ts"] <= b for a, b in windows.get(r["coin"], []))]
+        def p_txt(v):
+            return f"{len(v)}건 {pct(sum(v) / len(v))}" if v else "-"
+        def m_txt(r):
+            if not r:
+                return "-"
+            tot = sum(x["pnl"] for x in r)
+            return f"{len(r)}건 {pct(sum(x['pct'] or 0 for x in r) / len(r))} ({man(tot, True)})"
+        rows = [f"{'':8s}{'장부(가정)':>12s}  내가 실제로",
+                f"{'돌파 추천':<6s}{p_txt(paper('brk')):>12s}  {m_txt(mine('brk'))}",
+                f"{'기존 추천':<6s}{p_txt(paper('old')):>12s}  {m_txt(mine('old'))}"]
+        off_tot = sum(r["pnl"] for r in off)
+        rows.append(f"{'추천 밖':<6s}{'-':>12s}  " + (f"{len(off)}건 {pct(sum(r['pct'] or 0 for r in off) / len(off))} ({man(off_tot, True)})" if off else "-"))
+        open_n = len(self.db.get("follow", {}) or {})
+        return (f"📊 <b>추천 성적</b> · {title}\n<pre>" + esc("\n".join(rows)) + "</pre>"
+                + "\n<i>장부: 추천대로 했다면 (계획 금액 대비) · 실제: 추천 후 48시간 안에 산 매매 · 추천 밖: 그 외 매도</i>"
+                + (f"\n진행 중 {open_n}건" if open_n else ""))
+
+
     def month_report(self):
         now = kst(now_ts())
         first = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
@@ -2168,6 +2369,10 @@ class Bot:
             worst = min(s_rows, key=lambda r: r["pct"])
             lines[-1] += f" · 승률 {len(w) / len(s_rows) * 100:.0f}%"
             lines.append(f"최고 {best['coin']} {pct(best['pct'])} / 최저 {worst['coin']} {pct(worst['pct'])}")
+        try:
+            lines.append("\n" + self.block_signals(prev.timestamp(), f"{prev:%m}월"))
+        except Exception as e:
+            log(f"추천 성적 실패: {type(e).__name__}")
         return "\n".join(lines)
 
     # ── 공개 보유 목록 (종목·평단·비중만) ──
@@ -2225,6 +2430,9 @@ class Bot:
         curve, flows = self.curve()
         if cmd == "brief":
             send(self.morning_brief(st))
+            return
+        if cmd == "signals":
+            send(self.block_signals() + "\n\n" + self.block_signals(0, "전체 기간"))
             return
         if cmd == "account":
             send_photo(chart_account(self, st, curve, flows))
