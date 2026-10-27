@@ -1263,7 +1263,7 @@ def slack_div4h(fresh: list, gate: str = "UNKNOWN", stats: dict = None):
                    [_md(f"{lines}\n*지금은 매수 안 함* — {why_not} · 참고용"),
                     _ctx("시장이 '매수 가능'일 때만 매수 구간·손절·목표를 붙여 드려요.")])
         return
-    blocks = [{"type": "header", "text": {"type": "plain_text", "text": f"⚡ 4시간 다이버전스 신호 {len(fresh)}개", "emoji": True}},
+    blocks = [{"type": "header", "text": {"type": "plain_text", "text": f"📎 ⚡ 4시간 다이버전스 신호 {len(fresh)}개 (기존 방식 · 참고)", "emoji": True}},
               _ctx("일봉 상승추세 + 4시간 RSI 상승 다이버전스 + 반등 거래량 · 2년 백테스트 승률 77% (30건, 표본 적음) · AI 악재 확인 없음")]
     for p in fresh:
         blocks.append({"type": "divider"})
@@ -2205,6 +2205,10 @@ def run_track():
         run_position_watch(store, at)
     except Exception as e:
         log(f"  ⚠️ 보유 종목 감시 실패: {e}")
+    try:
+        run_breakout(store, at, (latest.get("market") or {}).get("gate", "UNKNOWN"))
+    except Exception as e:
+        log(f"  ⚠️ 돌파 추천 확인 실패: {type(e).__name__} {e}")
     store.write("ledger.json", ledger, f"장부 갱신 {iso_kst(at)}")
     store.write("stats.json", compute_stats(ledger), "통계 갱신")
     log(f"✅ 장부 갱신 — 이벤트 {len(events)}건")
@@ -2213,6 +2217,265 @@ def run_track():
     if events:
         body = "\n\n".join(x.replace("<b>", "*").replace("</b>", "*") for x in events)
         slack_post("📒 추천 결과 (매수 신호 아님)", [{"type": "section", "text": {"type": "mrkdwn", "text": "📒 *추천 결과* (매수 신호 아님)\n\n" + body}}])
+
+
+# ==========================================================
+# 돌파 추천 (2026-10-27 검증 규칙) — 기존 추천과 별도 장부(brk_ledger.json)
+#  신호: 일봉 20일선 돌파 · 볼린저 수축 후 상단 돌파 · 4시간봉이 일봉 20일선 돌파 + 거래대금 3배
+#  매매: 계획 금액 절반 진입(손절 -7%) → +3%에 나머지 추가(손절 평단) → +20%에 절반 → 일봉 10일선 아래 마감 시 전량
+#  근거: analysis/2026-10-종합-매매규칙.md (3년 1,262건, 평균 +2.2%, 대박 5% 빼도 본전)
+# ==========================================================
+BRK_CFG_DEFAULT = {
+    "swing": ["WLD", "DOGE", "VIRTUAL", "SUI", "ONDO", "ENA", "ADA", "XLM", "PEPE", "KAIA", "SOON", "NEAR",
+              "UNI", "INJ", "ICP", "ARB"],
+    "large": ["HBAR", "AAVE", "AVAX", "SEI"],
+    "small": ["DEEP", "SNT", "FET", "RENDER"],
+    "first_stop_pct": 7.0, "add_pct": 3.0, "tp_pct": 20.0, "exit_ma": 10,
+    "vol_x": 3.0, "cooldown_h": 72, "max_hold_days": 60,
+}
+BRK_LABEL = {"brk_4h": "⚡ 4시간 20일선 돌파", "brk_ma20": "일봉 20일선 돌파", "brk_squeeze": "볼린저 수축 돌파"}
+BRK_FEE = 2 * FEE_PCT_PER_SIDE   # 왕복 수수료(%)
+
+
+def brk_cfg(store) -> dict:
+    cfg = dict(BRK_CFG_DEFAULT)
+    cfg.update(store.read("brk_cfg.json", {}) or {})
+    return cfg
+
+
+def brk_coins(cfg: dict) -> list:
+    out = []
+    for k in ("swing", "large", "small"):
+        out += [t for t in cfg.get(k, []) if t not in out]
+    return out
+
+
+def _sma_last(c, n: int, upto: int) -> Optional[float]:
+    """c[upto-n+1 .. upto] 평균 (upto 포함)."""
+    if upto + 1 < n:
+        return None
+    return float(np.mean(c[upto - n + 1:upto + 1]))
+
+
+def brk_daily_signal(d: dict, k: int) -> Optional[str]:
+    """완성된 일봉 k에서 신호. 20일선 돌파 또는 볼린저 수축 후 상단 돌파."""
+    c = d["c"]
+    if k < 130:
+        return None
+    ma_k, ma_p = _sma_last(c, 20, k), _sma_last(c, 20, k - 1)
+    if c[k - 1] <= ma_p and c[k] > ma_k:
+        return "brk_ma20"
+    sd = float(np.std(c[k - 19:k + 1]))
+    up = ma_k + 2 * sd
+    widths = [4 * float(np.std(c[j - 19:j + 1])) / float(np.mean(c[j - 19:j + 1])) for j in range(k - 120, k)]
+    if c[k] > up and widths[-1] <= float(np.percentile(widths, 20)):
+        return "brk_squeeze"
+    return None
+
+
+def brk_4h_signal(h4: dict, i: int, ma20: float, vol_x: float) -> Optional[float]:
+    """완성된 4시간봉 i가 일봉 20일선(어제까지 기준)을 아래→위로 뚫고 거래대금이 평소의 vol_x배 이상이면 배수 반환."""
+    if i < 21 or not ma20:
+        return None
+    c, v = h4["c"], h4["v"]
+    base = float(np.median(v[i - 20:i]))
+    x = float(v[i] / base) if base > 0 else 0.0
+    if c[i - 1] <= ma20 < c[i] and x >= vol_x:
+        return round(x, 1)
+    return None
+
+
+def brk_new_entry(tk: str, setup: str, price: float, at_ms: int, gate: str, cfg: dict, ma10: Optional[float],
+                  vol_x: Optional[float] = None) -> dict:
+    tier = "small" if tk in cfg.get("small", []) else ("large" if tk in cfg.get("large", []) else "swing")
+    return {
+        "id": f"{tk}-{setup}-{datetime.fromtimestamp(at_ms / 1000, KST).strftime('%Y%m%d%H%M')}",
+        "kind": "brk", "ticker": tk, "setup": setup, "tier": tier, "gate": gate, "vol_x": vol_x,
+        "issued_ts": int(at_ms), "issued_at": iso_kst(at_ms),
+        "entry": rp(price), "add_px": rp(price * (1 + cfg["add_pct"] / 100)),
+        "stop0": rp(price * (1 - cfg["first_stop_pct"] / 100)), "tp_px": rp(price * (1 + cfg["tp_pct"] / 100)),
+        "ma10_at_issue": rp(ma10) if ma10 else None,
+        "status": "open", "lots": [[0.5, price]], "added": False, "half": False, "realized": 0.0,
+        "stop": price * (1 - cfg["first_stop_pct"] / 100), "pending_stop": None,
+        "cursor_ts": int((at_ms // HOUR_MS + 1) * HOUR_MS), "last_price": price,
+        "exit_ts": None, "exit_price": None, "exit_reason": None, "ret_pct": None, "events": [],
+    }
+
+
+def _brk_close(e: dict, ts: float, px: float, reason: str):
+    e["realized"] += sum(w * ((px / p - 1) * 100 - BRK_FEE) for w, p in e["lots"])
+    e["lots"] = []
+    e.update(status="closed", exit_ts=int(ts), exit_price=rp(px), exit_reason=reason, ret_pct=round(e["realized"], 2))
+
+
+def brk_replay(e: dict, h1: dict, daily_close: dict, cfg: dict, at_ms: float) -> list:
+    """완성된 1시간봉으로 '샀다면' 재생. daily_close: {'YYYY-MM-DD': 종가} (완성된 일봉). 이벤트(문자열) 목록."""
+    ev = []
+    if e["status"] != "open":
+        return ev
+    days = sorted(daily_close)
+    for i in range(len(h1["t"])):
+        t = float(h1["t"][i])
+        if t < e["cursor_ts"]:
+            continue
+        if t + HOUR_MS > at_ms:
+            break
+        o, h, l, c = (float(h1[k][i]) for k in ("o", "h", "l", "c"))
+        e["cursor_ts"] = int(t + HOUR_MS)
+        e["last_price"] = c
+        if e.get("pending_stop"):
+            e["stop"] = max(e["stop"], e["pending_stop"])
+            e["pending_stop"] = None
+        if l <= e["stop"]:
+            px = min(e["stop"], o)
+            _brk_close(e, t + HOUR_MS, px, "stop" if not e["added"] else "avg_stop")
+            return ev
+        if not e["added"] and h >= e["add_px"]:
+            e["lots"].append([0.5, e["add_px"]])
+            e["added"], e["add_ts"] = True, int(t)
+            e["pending_stop"] = (e["entry"] + e["add_px"]) / 2          # 다음 봉부터 평단 손절
+        if e["added"] and not e["half"] and h >= e["tp_px"]:
+            e["realized"] += sum(w * 0.5 * ((e["tp_px"] / p - 1) * 100 - BRK_FEE) for w, p in e["lots"])
+            e["lots"] = [[w * 0.5, p] for w, p in e["lots"]]
+            e["half"], e["half_ts"] = True, int(t)
+        # 하루 마지막 1시간봉(23시) → 일봉 종가로 10일선 확인
+        d = datetime.fromtimestamp(t / 1000, KST)
+        if d.hour == 23:
+            day = d.strftime("%Y-%m-%d")
+            if day in daily_close:
+                idx = days.index(day)
+                if idx + 1 >= cfg["exit_ma"]:
+                    ma = float(np.mean([daily_close[x] for x in days[idx + 1 - cfg["exit_ma"]:idx + 1]]))
+                    e["ma10_last"] = rp(ma)
+                    if daily_close[day] < ma:
+                        _brk_close(e, t + HOUR_MS, daily_close[day], "ma_exit")
+                        return ev
+        if (t - e["issued_ts"]) / DAY_MS >= cfg["max_hold_days"]:
+            _brk_close(e, t + HOUR_MS, c, "time")
+            return ev
+    return ev
+
+
+def brk_result_text(e: dict) -> str:
+    why = {"stop": "1차 손절 (-7%)", "avg_stop": "평단 손절", "ma_exit": "10일선 이탈 매도", "time": "기간 만료"}.get(e["exit_reason"], e["exit_reason"])
+    icon = "📗" if (e.get("ret_pct") or 0) > 0 else "📕"
+    steps = []
+    if e.get("added"):
+        steps.append("+3% 추가 매수")
+    if e.get("half"):
+        steps.append("+20% 절반 익절")
+    day = (e.get("issued_at") or "")[5:10].replace("-", "/")
+    return (f"{icon} {label(e['ticker'])} {BRK_LABEL.get(e['setup'], e['setup'])}\n"
+            f"   {day} {fmt_krw(e['entry'])} 추천 → {fmt_krw(e['exit_price'])} {why}"
+            + (f" ({' · '.join(steps)})" if steps else "")
+            + f"\n   결과 <b>{e['ret_pct']:+.1f}%</b> (계획 금액 대비)")
+
+
+def brk_stats(ledger: list) -> dict:
+    def agg(rows):
+        cl = [e["ret_pct"] for e in rows if e["status"] == "closed" and e.get("ret_pct") is not None]
+        return {"n": len(rows), "n_closed": len(cl), "n_open": sum(1 for e in rows if e["status"] == "open"),
+                "win_rate": round(sum(1 for x in cl if x > 0) / len(cl) * 100, 1) if cl else None,
+                "avg_pct": round(float(np.mean(cl)), 2) if cl else None,
+                "median_pct": round(float(np.median(cl)), 2) if cl else None,
+                "sum_pct": round(float(np.sum(cl)), 2) if cl else 0.0}
+    live = [e for e in ledger if e.get("gate") != "STOP"]
+    return {"generated_at": iso_kst(now_ms()), "overall": agg(live),
+            "by_setup": {s: agg([e for e in live if e["setup"] == s]) for s in BRK_LABEL},
+            "stop_gate_reference": agg([e for e in ledger if e.get("gate") == "STOP"])}
+
+
+def brk_alert_text(e: dict, gate: str, cfg: dict) -> str:
+    gl = {"GO": "🟢 매수 가능", "SELECTIVE": "🟢 매수 가능 (선별)"}.get(gate, gate)
+    sig = BRK_LABEL.get(e["setup"], e["setup"]) + (f" · 거래대금 {e['vol_x']}배" if e.get("vol_x") else "")
+    rows = [
+        f"1차 매수  {fmt_krw(e['entry'])}  계획 금액의 절반",
+        f"2차 매수  {fmt_krw(e['add_px'])} (+{cfg['add_pct']:.0f}%)  나머지 절반",
+        f"손절      {fmt_krw(e['stop0'])} (-{cfg['first_stop_pct']:.0f}%)",
+        "          → 2차 매수 후엔 평단",
+        f"1차 매도  {fmt_krw(e['tp_px'])} (+{cfg['tp_pct']:.0f}%) 절반",
+        f"2차 매도  일봉 {cfg['exit_ma']}일선 아래 마감" + (f" (지금 {fmt_krw(e['ma10_at_issue'])})" if e.get("ma10_at_issue") else ""),
+    ]
+    note = "💡 금액은 계좌 비서가 계좌 크기에 맞춰 따로 알려 드려요."
+    if e["tier"] == "small":
+        note = "⚠️ 거래대금이 작은 코인 — 계획 금액의 1/4만, <b>지정가로만</b>.\n" + note
+    return (f"🆕 <b>돌파 추천 · {kname(e['ticker'])} {e['ticker']}</b>\n{sig}\n{gl}\n\n<pre>" + "\n".join(rows) + "</pre>\n" + note)
+
+
+def run_breakout(store, at_ms: int, gate: str) -> list:
+    """돌파 신호 확인 + 장부 재생. 새 알림 메시지(HTML) 목록과 종료 결과 이벤트를 store에 반영."""
+    cfg = brk_cfg(store)
+    ledger = store.read("brk_ledger.json", []) or []
+    state = store.read("brk_state.json", {}) or {}
+    fresh, results = [], []
+    coins = brk_coins(cfg)
+    active = {e["ticker"] for e in ledger if e["status"] == "open"}
+    recent = {e["ticker"] for e in ledger if at_ms - e["issued_ts"] < cfg["cooldown_h"] * HOUR_MS}
+    daily = {}
+    for tk in coins:
+        d = fetch_v1(tk, "1d", 160)
+        if d is None or len(d["c"]) < 140:
+            continue
+        done = slice_completed(d, DAY_MS, at_ms)       # 완성된 일봉만
+        daily[tk] = done
+        if len(done["c"]) < 140:
+            continue
+        k = len(done["c"]) - 1
+        last_day = datetime.fromtimestamp(float(done["t"][k]) / 1000, KST).strftime("%Y-%m-%d")
+        st = state.setdefault(tk, {})
+        ma20 = _sma_last(done["c"], 20, k)
+        ma10 = _sma_last(done["c"], cfg["exit_ma"], k)
+        sig, vx = None, None
+        # 4시간봉: 마지막 완성 봉만 (이미 본 봉은 건너뜀)
+        h4 = fetch_v1(tk, "4h", 40)
+        if h4 is not None and ma20:
+            h4 = slice_completed(h4, 4 * HOUR_MS, at_ms)
+            j = len(h4["c"]) - 1
+            if j >= 21 and h4["t"][j] > st.get("last_4h", 0):
+                st["last_4h"] = float(h4["t"][j])
+                vx = brk_4h_signal(h4, j, ma20, cfg["vol_x"])
+                if vx:
+                    sig = "brk_4h"
+        if not sig and st.get("last_day") != last_day:
+            st["last_day"] = last_day
+            sig = brk_daily_signal(done, k)
+            vx = None
+        if not sig or tk in active or tk in recent:
+            continue
+        cur = fetch_v1(tk, "1h", 2)
+        price = float(cur["c"][-1]) if cur is not None else float(done["c"][k])
+        e = brk_new_entry(tk, sig, price, at_ms, gate, cfg, ma10, vx)
+        ledger.append(e)
+        recent.add(tk)
+        if gate != "STOP":
+            fresh.append(e)
+        log(f"🆕 돌파 신호 {tk} {sig} {fmt_krw(price)} (시장 {gate}{' — 기록만' if gate == 'STOP' else ''})")
+    # 장부 재생
+    for e in [x for x in ledger if x["status"] == "open"]:
+        h1 = fetch_v1(e["ticker"], "1h", 200)
+        dd = daily.get(e["ticker"])
+        if dd is None:
+            raw = fetch_v1(e["ticker"], "1d", 40)
+            dd = slice_completed(raw, DAY_MS, at_ms) if raw is not None else None
+        if h1 is None or dd is None:
+            continue
+        dc = {datetime.fromtimestamp(float(t) / 1000, KST).strftime("%Y-%m-%d"): float(c) for t, c in zip(dd["t"], dd["c"])}
+        brk_replay(e, h1, dc, cfg, at_ms)
+        if e["status"] == "closed" and e.get("gate") != "STOP":
+            results.append(brk_result_text(e))
+    store.write("brk_ledger.json", ledger, f"돌파 장부 {iso_kst(at_ms)}")
+    store.write("brk_state.json", state, "돌파 상태")
+    store.write("brk_stats.json", brk_stats(ledger), "돌파 통계")
+    for e in fresh:
+        telegram_send(brk_alert_text(e, gate, cfg), html=True)
+        if SLACK_BOT_TOKEN:
+            slack_post(f"🆕 돌파 추천 {label(e['ticker'])}", [_md(brk_alert_text(e, gate, cfg).replace("<b>", "*").replace("</b>", "*").replace("<pre>", "```").replace("</pre>", "```"))], tg=False)
+    if results:
+        body = "\n\n".join(results)
+        telegram_send("📒 <b>돌파 추천 결과</b> (매수 신호 아님)\n\n" + body, html=True)
+        if SLACK_BOT_TOKEN:
+            slack_post("📒 돌파 추천 결과", [_md(body.replace("<b>", "*").replace("</b>", "*"))], tg=False)
+    return fresh
 
 
 # ==========================================================
@@ -2442,8 +2705,9 @@ def telegram_scan_text(latest: dict, events: list, stats: dict = None) -> str:
     icon = {"GO": "🟢", "SELECTIVE": "🟡", "STOP": "🔴"}.get(m["gate"], "⚪")
     when = latest["generated_at"][5:16].replace("T", " ").replace("-", "/")
     picks, refs = split_picks(latest, stats)
-    out = [f"{icon} <b>{e(m['label'])}</b>  ·  추천 {len(picks)}개" + (f" · 참고 {len(refs)}개" if refs else "") + "\n"
-           f"<i>{when} · 2~5일 스윙 · 권장 비중 ×{m['size_mult']:g}</i>"]
+    out = [f"{icon} <b>{e(m['label'])}</b>  ·  📎 기존 방식 추천 {len(picks)}개" + (f" · 참고 {len(refs)}개" if refs else "") + "\n"
+           f"<i>{when} · 2~5일 스윙 · 권장 비중 ×{m['size_mult']:g}</i>\n"
+           "<i>📎 기존 방식(눌림목 등)은 실전 성적이 낮아 참고용이에요. 🆕 돌파 추천은 따로 와요.</i>"]
     if m.get("headline"):
         out.append(f"<blockquote>{e(m['headline'])}</blockquote>")
     if not picks:
@@ -2523,7 +2787,7 @@ def slack_scan(latest: dict, events: list, stats: dict = None):
 
     # ── 본문: 신호등 + 추천만 ──
     blocks = [
-        {"type": "header", "text": {"type": "plain_text", "text": f"{icon} {m['label']} · 추천 {len(picks)}개", "emoji": True}},
+        {"type": "header", "text": {"type": "plain_text", "text": f"{icon} {m['label']} · 📎 기존 방식 추천 {len(picks)}개", "emoji": True}},
         _ctx(f"{when} · 2~5일 스윙 · 권장 비중 ×{m['size_mult']:g} · {m['headline']}"),
     ]
     if not picks:
