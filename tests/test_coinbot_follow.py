@@ -14,8 +14,8 @@ PUB = {"brk_ledger.json": [SIG, PAPER], "ledger.json": []}
 
 
 def bget(path, params=None, private=True):
-    if path == "/v1/candles/days" and params.get("count") == 12:
-        cl = [20000] * 10 + [19000, 19500]                     # 어제 종가 19,000 < 10일선
+    if path == "/v1/candles/days" and params.get("count") == 13:
+        cl = [20000] * 10 + [18800, 19000, 19500]              # 이틀 연속 10일선 아래 마감 (마지막은 진행 중)
         return [{"candle_date_time_kst": f"2026-10-{i + 10:02d}T00:00:00", "trade_price": v} for i, v in enumerate(cl)]
     return T.fake_sorted(path, params, private)
 
@@ -40,7 +40,7 @@ def test_follow_flow():
     # 4) 단계 안내: +20% 도달 + 10일선 이탈
     st["hold"]["LINK"] = dict(st["hold"]["LINK"], price=21700.0, avg=18270.0)
     bot.watch_follow(st)
-    assert "+20% 도달" in sent[-1] and "10일선" in sent[-1], sent[-1]
+    assert "+20% 도달" in sent[-1] and "이틀 연속 10일선" in sent[-1], sent[-1]
     k = len(sent); bot.watch_follow(st); assert len(sent) == k                # 같은 안내는 한 번만
     # 5) 전량 매도 → 결과 기록
     p = bot._pos("LINK")

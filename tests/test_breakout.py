@@ -79,6 +79,7 @@ def test_replay_half_then_ma_exit():
     h1["t"] = h1["t"] + shift
     day = datetime.fromtimestamp(h1["t"][-1] / 1000, bot.KST).strftime("%Y-%m-%d")
     dcs = {k: v for k, v in dcs.items() if k < day}; dcs[day] = 119.0
+    e["below_n"] = 1; e["below_day"] = "2026-05-29"                     # 전날 이미 한 번 아래 마감
     bot.brk_replay(e, h1, dict(sorted(dcs.items())), CFG, h1["t"][-1] + 2 * H)
     assert e["added"] and e["half"] and e["exit_reason"] == "ma_exit", e
     half = 0.5 * 0.5 * ((120 / 100 - 1) * 100 - bot.BRK_FEE) + 0.5 * 0.5 * ((120 / 103 - 1) * 100 - bot.BRK_FEE)

@@ -848,18 +848,27 @@ def new_entry(p: dict, at_ms: int, gate: str) -> dict:
     }
 
 
+REF_MARK = "REF::"
+
+
+def is_ref(e: dict) -> bool:
+    """매수 안 함(참고용)으로 알렸던 기록인지."""
+    return bool(e.get("ref_only")) or e.get("gate") in ("STOP", "UNKNOWN")
+
+
 def _evt(e: dict, icon: str, what: str, price=None) -> str:
-    """추천 결과 문구 — 추천일·추천가 → 끝난 가격·수익률 (쉬운 말)."""
+    """추천 결과 문구 — 추천일·추천가 → 끝난 가격·수익률 (쉬운 말). 참고용 기록은 REF_MARK로 시작."""
+    ref = is_ref(e)
     day = (e.get("issued_at") or "")[5:10].replace("-", "/")
-    head = f"{icon} {label(e['ticker'])} {SETUP_LABEL.get(e['setup'], e['setup'])}"
-    base = f"{day} {fmt_krw(e['entry'])} 추천"
+    head = (REF_MARK if ref else "") + f"{icon} {label(e['ticker'])} {SETUP_LABEL.get(e['setup'], e['setup'])}"
+    base = f"{day} {fmt_krw(e['entry'])} {'기록' if ref else '추천'}"
     if price is None:
         return f"{head}\n   {base} → {what}"
     fill = e.get("fill_price") or e["entry"]
     pct = (price / fill - 1) * 100
     if e.get("r_net") is not None and e["entry"] > e["stop"]:
         pct = e["r_net"] * (e["entry"] - e["stop"]) / fill * 100      # 절반 익절·수수료 반영
-    return f"{head}\n   {base} → {fmt_krw(price)} {what}\n   결과 <b>{pct:+.1f}%</b>"
+    return f"{head}\n   {base} → {fmt_krw(price)} {what}\n   {'샀다면' if ref else '결과'} <b>{pct:+.1f}%</b>"
 
 
 def _close(e: dict, ts: float, price: float, reason: str, events: list):
@@ -1240,6 +1249,7 @@ def record_div4h(store, good: list, weak: list, ledger: list, at_ms: int, gate: 
             continue
         e = new_entry(p, at_ms, gate)
         e["sig_key"] = p["sig_key"]
+        e["ref_only"] = not buy_ok(gate, "div4h", store.read("stats.json", {}) or {})[0]
         ledger.append(e)
         p["id"], p["issued_at"] = e["id"], e["issued_at"]
         fresh.append(p)
@@ -1301,6 +1311,7 @@ def sector_heat(tickers: dict, smap: dict) -> list:
             "leaders": [{"tk": t, "chg": round(ch[t], 2), "name": kname(t),
                          "excess": next((x["excess"] for x in info["leaders"] if x["tk"] == t), None)} for t in lead_tks if t in ch],
             "laggard_leaders": [t for t in lead_tks if t in ch and ch[t] < 3.0],
+            "members": mem,
             "value": round(sum(float(tickers[t].get("value") or 0) for t in mem)),
         })
     rows.sort(key=lambda r: (-int(r["hot"]), -(r["n10"] / r["n"]), -(r["n5"] / r["n"]), -r["median"]))
@@ -1368,6 +1379,77 @@ def sector_picks(rows: list, tickers: dict, gate: str) -> list:
     return out
 
 
+def _h(t) -> str:
+    return str(t).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def sector_entry_plan(tk: str, price: float, at_ms: float) -> dict:
+    """'들어간다면' 가격: 4시간 20선 근처까지 눌릴 때. 손절 -7%, +3% 추가, +20% 절반."""
+    h4 = fetch_v1(tk, "4h", 25)
+    ma4 = None
+    if h4 is not None:
+        h4 = slice_completed(h4, 4 * HOUR_MS, at_ms)
+        if len(h4["c"]) >= 20:
+            ma4 = float(np.mean(h4["c"][-20:]))
+    if ma4 and ma4 < price:
+        lo, hi = ma4 * 0.995, ma4 * 1.015
+    else:
+        lo, hi = price * 0.98, price
+    mid = (lo + hi) / 2
+    return {"lo": rp(lo), "hi": rp(min(hi, price)), "stop": rp(mid * 0.93), "add": rp(mid * 1.03), "tp": rp(mid * 1.2),
+            "ma4": rp(ma4) if ma4 else None}
+
+
+def sector_tg_text(fresh: list, gate: str, tickers: dict, held: set, at_ms: float) -> str:
+    """텔레그램용 섹터 온도 알림 — 상황 · 많이 오른 코인 · 할 일 · 들어간다면 1~2개."""
+    out = []
+    small = gate != "GO"
+    for r in fresh:
+        lines = [f"🔥 <b>섹터 온도 상승 · {_h(r['group'])}</b>", "<i>돈이 몰리는 곳 (매수 신호 아님)</i>", "",
+                 "📊 <b>섹터 상황</b>",
+                 f"  중앙값 {r['median']:+.1f}% · {r['n']}개 중 {r['n10']}개가 +10%↑", "",
+                 "🚀 <b>많이 오른 코인</b>"]
+        for k, x in enumerate(r["top"][:5], 1):
+            star = "⭐ " if x["leader"] else ""
+            lines.append(f"  {k}. {star}{_h(x['name'] or x['tk'])} {x['chg']:+.1f}%" + (" (섹터 대장)" if x["leader"] else ""))
+        lines += ["", "👉 <b>할 일</b>"]
+        lines.append({"GO": "  🟢 시장 매수 가능 → 아래 자리에서 계획대로",
+                      "SELECTIVE": "  🟡 골라서만 → 들어가도 절반 크기로"}.get(gate, "  🔴 시장 매수 금지 → 들어가도 소액(1/4)만"))
+        # 들어간다면: 대장 1개 + 거래대금 가장 큰 코인 1개
+        cand = []
+        lead = next((x for x in r["top"] if x["leader"] and x["tk"] in tickers), None)
+        if lead:
+            cand.append((lead, "섹터 대장"))
+        by_val = sorted([x for x in r["top"][:5] if x["tk"] in tickers and (not lead or x["tk"] != lead["tk"])],
+                        key=lambda x: -float(tickers[x["tk"]].get("value") or 0))
+        if by_val:
+            cand.append((by_val[0], "거래대금 가장 큼"))
+        if cand:
+            lines += ["", "🎯 <b>들어간다면</b>"]
+            for x, why in cand[:2]:
+                px = float(tickers[x["tk"]]["price"])
+                pl = sector_entry_plan(x["tk"], px, at_ms)
+                val = float(tickers[x["tk"]].get("value") or 0) / 1e8
+                lines += [f"{'⭐ ' if x['leader'] else '• '}<b>{_h(x['name'] or x['tk'])}</b> ({why}) · 지금 {fmt_krw(px)} · 거래대금 {val:.0f}억",
+                          "<pre>" + "\n".join([
+                              f"매수  {fmt_krw(pl['lo'])} ~ {fmt_krw(pl['hi'])}" + (" (4시간 20선 근처)" if pl["ma4"] and pl["ma4"] < px else ""),
+                              f"손절  {fmt_krw(pl['stop'])} (-7%)",
+                              f"2차   {fmt_krw(pl['add'])} (+3%) 오르면 추가",
+                              f"매도  {fmt_krw(pl['tp'])} (+20%) 절반",
+                              "      10일선 이틀 연속 이탈 시 나머지"]) + "</pre>"]
+            lines.append("<i>급등 직후 추격은 손해, 눌림 지지 확인은 본전 수준이었어요 — " + ("소액으로만" if small else "계획 금액 안에서") + "</i>")
+        lines += ["", "🚫 이미 +10%↑ 오른 걸 지금 가격에 추격 금지"]
+        mine = [t for t in r.get("members", []) if t in held] if r.get("members") else []
+        lag = [t for t in r.get("laggard_leaders", [])]
+        mine_all = sorted(set(mine) | {t for t in lag if t in held})
+        if mine_all:
+            lines.append("💼 내 코인 중 이 섹터: " + ", ".join(_h(kname(t) or t) for t in mine_all) + "\n   <i>(따라 오른다는 근거는 약해요)</i>")
+        elif lag:
+            lines.append("💤 아직 덜 오른 대장: " + ", ".join(_h(kname(t) or t) for t in lag) + " <i>(따라 오른다는 근거는 약해요)</i>")
+        out.append("\n".join(lines))
+    return "\n\n─────────\n\n".join(out)
+
+
 def sector_alert(store, rows: list, at_ms: int, tickers: dict = None, ledger: list = None, gate: str = "UNKNOWN") -> list:
     """새로 뜨거워진 섹터만 (같은 섹터는 12시간에 한 번) 슬랙 알림."""
     st = store.read("sector_alerts.json", {}) or {}
@@ -1378,9 +1460,11 @@ def sector_alert(store, rows: list, at_ms: int, tickers: dict = None, ledger: li
         st[r["group"]] = at_ms
     store.write("sector_alerts.json", st, "섹터 알림 기록")
     picks = sector_picks(fresh, tickers or {}, gate) if tickers else []
+    ok, why_not = buy_ok(gate, "sector_lead", store.read("stats.json", {}) or {})
     if ledger is not None:
         for p in picks:
             e = new_entry(p, at_ms, gate)
+            e["ref_only"] = not ok
             e["sig_key"] = f"{p['sig_key']}-{at_ms // (12 * HOUR_MS)}"
             e["max_hold_h"] = SECTOR_HOLD_H
             ledger.append(e)
@@ -1394,7 +1478,6 @@ def sector_alert(store, rows: list, at_ms: int, tickers: dict = None, ledger: li
         if lag:
             txt += f"\n_이 섹터에서 평소 크게 움직이던 대장 중 아직 덜 오른 종목: {lag}_"
         blocks.append(_md(txt))
-    ok, why_not = buy_ok(gate, "sector_lead", store.read("stats.json", {}) or {})
     if picks and not ok:
         # 매수 구간·손절·목표 없이 참고용 한 줄만 (사라는 말과 사지 말라는 말이 섞이지 않게)
         blocks.append({"type": "divider"})
@@ -1410,7 +1493,12 @@ def sector_alert(store, rows: list, at_ms: int, tickers: dict = None, ledger: li
             blocks += _pick_blocks(p)
             blocks.append(_ctx("⚠️ " + " · ".join(p["risks"]) + f" · 3일 안에 결판 안 나면 정리"))
     blocks.append(_ctx("★ = 과거 이 섹터가 뜰 때 평균보다 더 크게 움직였던 종목. 덜 오른 종목이 뒤따라 오른다는 근거는 약합니다."))
-    slack_post("🔥 섹터 온도 상승", blocks)
+    slack_post("🔥 섹터 온도 상승", blocks, tg=False)
+    try:
+        held = {p.get("ticker") for p in (store.read("positions.json", {}) or {}).get("positions", [])}
+        telegram_send(sector_tg_text(fresh, gate, tickers or {}, held, at_ms), html=True)
+    except Exception as e:
+        log(f"  ⚠️ 섹터 텔레그램 실패: {type(e).__name__} {e}")
     for r in fresh:
         r["picks"] = [p for p in picks if p["group"] == r["group"]]
     return fresh
@@ -2214,9 +2302,13 @@ def run_track():
     log(f"✅ 장부 갱신 — 이벤트 {len(events)}건")
     slack_div4h(fresh, (latest.get("market") or {}).get("gate", "UNKNOWN"), store.read("stats.json", {}) or {})
     slack_moves(moves, (latest.get("market") or {}).get("gate", "UNKNOWN"))
-    if events:
-        body = "\n\n".join(x.replace("<b>", "*").replace("</b>", "*") for x in events)
-        slack_post("📒 추천 결과 (매수 신호 아님)", [{"type": "section", "text": {"type": "mrkdwn", "text": "📒 *추천 결과* (매수 신호 아님)\n\n" + body}}])
+    real = [x for x in events if not x.startswith(REF_MARK)]
+    refs = [x[len(REF_MARK):] for x in events if x.startswith(REF_MARK)]
+    for head, items in (("📒 *추천 결과* (매수 신호 아님)", real),
+                        ("📎 *참고로 기록한 것* (매수 안 함 알림이었음)", refs)):
+        if items:
+            body = "\n\n".join(x.replace("<b>", "*").replace("</b>", "*") for x in items)
+            slack_post(head.replace("*", ""), [{"type": "section", "text": {"type": "mrkdwn", "text": head + "\n\n" + body}}])
 
 
 # ==========================================================
@@ -2231,7 +2323,7 @@ BRK_CFG_DEFAULT = {
     "large": ["HBAR", "AAVE", "AVAX", "SEI"],
     "small": ["DEEP", "SNT", "FET", "RENDER"],
     "first_stop_pct": 7.0, "add_pct": 3.0, "tp_pct": 20.0, "exit_ma": 10,
-    "vol_x": 3.0, "cooldown_h": 72, "max_hold_days": 60,
+    "vol_x": 3.0, "cooldown_h": 72, "max_hold_days": 60, "exit_days": 2,
 }
 BRK_LABEL = {"brk_4h": "⚡ 4시간 20일선 돌파", "brk_ma20": "일봉 20일선 돌파", "brk_squeeze": "볼린저 수축 돌파"}
 BRK_FEE = 2 * FEE_PCT_PER_SIDE   # 왕복 수수료(%)
@@ -2347,7 +2439,10 @@ def brk_replay(e: dict, h1: dict, daily_close: dict, cfg: dict, at_ms: float) ->
                 if idx + 1 >= cfg["exit_ma"]:
                     ma = float(np.mean([daily_close[x] for x in days[idx + 1 - cfg["exit_ma"]:idx + 1]]))
                     e["ma10_last"] = rp(ma)
-                    if daily_close[day] < ma:
+                    if e.get("below_day") != day:
+                        e["below_day"] = day
+                        e["below_n"] = e.get("below_n", 0) + 1 if daily_close[day] < ma else 0
+                    if e["below_n"] >= cfg.get("exit_days", 2):
                         _brk_close(e, t + HOUR_MS, daily_close[day], "ma_exit")
                         return ev
         if (t - e["issued_ts"]) / DAY_MS >= cfg["max_hold_days"]:
@@ -2357,7 +2452,7 @@ def brk_replay(e: dict, h1: dict, daily_close: dict, cfg: dict, at_ms: float) ->
 
 
 def brk_result_text(e: dict) -> str:
-    why = {"stop": "1차 손절 (-7%)", "avg_stop": "평단 손절", "ma_exit": "10일선 이탈 매도", "time": "기간 만료"}.get(e["exit_reason"], e["exit_reason"])
+    why = {"stop": "1차 손절 (-7%)", "avg_stop": "평단 손절", "ma_exit": "10일선 이틀 이탈 매도", "time": "기간 만료"}.get(e["exit_reason"], e["exit_reason"])
     icon = "📗" if (e.get("ret_pct") or 0) > 0 else "📕"
     steps = []
     if e.get("added"):
@@ -2394,7 +2489,7 @@ def brk_alert_text(e: dict, gate: str, cfg: dict) -> str:
         f"손절      {fmt_krw(e['stop0'])} (-{cfg['first_stop_pct']:.0f}%)",
         "          → 2차 매수 후엔 평단",
         f"1차 매도  {fmt_krw(e['tp_px'])} (+{cfg['tp_pct']:.0f}%) 절반",
-        f"2차 매도  일봉 {cfg['exit_ma']}일선 아래 마감" + (f" (지금 {fmt_krw(e['ma10_at_issue'])})" if e.get("ma10_at_issue") else ""),
+        f"2차 매도  일봉 {cfg['exit_ma']}일선 아래 {cfg.get('exit_days', 2)}일 연속 마감" + (f" (지금 {fmt_krw(e['ma10_at_issue'])})" if e.get("ma10_at_issue") else ""),
     ]
     note = "💡 금액은 계좌 비서가 계좌 크기에 맞춰 따로 알려 드려요."
     if e["tier"] == "small":

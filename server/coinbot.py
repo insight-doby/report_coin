@@ -2272,27 +2272,33 @@ class Bot:
                 if not sent.get(key):
                     sent[key] = int(now_ts())
                     msgs.append(text)
-            if not f["added"] and f.get("add_px") and cur >= f["add_px"]:
+            exited = bool(f.get("exited"))
+            if not exited and not f["added"] and f.get("add_px") and cur >= f["add_px"]:
                 once("add", f"📈 <b>{coin} +3% 도달</b> → 2차 매수 자리\n지금 {price_txt(cur)}원 · 계획 금액의 나머지 절반"
                             "\n<i>사면 손절을 평단으로 올려요</i>")
             if not f["added"] and f.get("stop0") and cur <= f["stop0"]:
                 once("stop", f"🛑 <b>{coin} 1차 손절가 {price_txt(f['stop0'])}원 도달</b> → 정리\n지금 {price_txt(cur)}원")
             if f["added"] and avg and cur <= avg:
                 once("avgstop", f"🛑 <b>{coin} 평단 {price_txt(avg)}원 아래</b> → 본전 정리\n지금 {price_txt(cur)}원")
-            if f.get("tp_px") and cur >= f["tp_px"]:
+            if not exited and f.get("tp_px") and cur >= f["tp_px"]:
                 once("tp", f"🎯 <b>{coin} +20% 도달</b> ({price_txt(f['tp_px'])}원) → 절반 매도\n나머지는 일봉 10일선 아래 마감 때")
             if f.get("ma_day") != today and kst(now_ts()).hour >= 0:
                 f["ma_day"] = today
                 try:
-                    d = bget("/v1/candles/days", {"market": f"KRW-{coin}", "count": 12}, private=False)
+                    d = bget("/v1/candles/days", {"market": f"KRW-{coin}", "count": 13}, private=False)
                     d = sorted([r for r in d if isinstance(r, dict)], key=lambda r: r["candle_date_time_kst"])[:-1]
                     cl = [fnum(r.get("trade_price")) for r in d]
-                    if len(cl) >= 10:
-                        ma = sum(cl[-10:]) / 10
+                    if len(cl) >= 11:
+                        ma, ma_prev = sum(cl[-10:]) / 10, sum(cl[-11:-1]) / 10
                         f["ma10"] = ma
-                        if cl[-1] < ma:
-                            once("ma_" + today, f"📉 <b>{coin} 일봉이 10일선({price_txt(ma)}원) 아래 마감</b> → 전량 매도\n"
+                        b1, b2 = cl[-1] < ma, cl[-2] < ma_prev
+                        if b1 and b2:
+                            f["exited"] = True
+                            once("ma_" + today, f"📉 <b>{coin} 일봉이 이틀 연속 10일선({price_txt(ma)}원) 아래 마감</b> → 전량 매도\n"
                                                 f"어제 종가 {price_txt(cl[-1])}원 · 지금 {price_txt(cur)}원")
+                        elif b1:
+                            once("mawarn_" + today, f"⚠️ <b>{coin} 일봉이 10일선({price_txt(ma)}원) 아래 마감</b> — 주의\n"
+                                                    f"오늘도 10일선 아래로 마감하면 전량 매도예요 · 지금 {price_txt(cur)}원")
                 except (BithumbError, requests.RequestException, ValueError, KeyError, TypeError):
                     f["ma_day"] = None
         self.db.put("follow", fol)
