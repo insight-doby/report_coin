@@ -1,0 +1,1765 @@
+{
+ "day": "2026-10-01",
+ "rule": "전날(UTC) 빗썸 일봉 거래대금 상위 10개 KRW 마켓",
+ "generated_at": "2026-11-11T08:07:24+00:00",
+ "params": {
+  "taus": [
+   1,
+   5,
+   30,
+   60,
+   300
+  ],
+  "block_s": 600,
+  "wipe_s": 0.3,
+  "fee": 0
+ },
+ "symbols": {
+  "KRW-USDT": {
+   "book_rows": 98644,
+   "trades": 29050,
+   "tick": 1.0,
+   "tick_bp": 7.345,
+   "price_open": 1359.5,
+   "price_close": 1362.5,
+   "day_return_pct": 0.22,
+   "day_range_pct": 0.59,
+   "spread_ticks_med": 1.0,
+   "one_tick_share": 0.9997,
+   "crossed_or_bad_book_share": 0.0,
+   "q_bid_krw_med": 1011725882.6884,
+   "q_ask_krw_med": 969696659.6095499,
+   "book_gap_s": {
+    "p50": 0.187,
+    "p99": 8.7,
+    "max": 46.4
+   },
+   "book_ts_inversions_in_file": 0,
+   "trade_value_krw": 92331614247.06,
+   "align": {
+    "n": 29050,
+    "at_best_pct": 99.95,
+    "top5_same_side_pct": 99.99,
+    "inside_spread_pct": 0.01,
+    "opposite_meaning_at_best_pct": 0.0
+   },
+   "markout": {
+    "front": {
+     "n": 28986,
+     "value_krw": 92191323112.58002,
+     "0-": {
+      "mean_ticks": 0.5,
+      "se_ticks": 0.0,
+      "vw_ticks": 0.5,
+      "mean_bp": 3.6725,
+      "vw_bp": 3.6717,
+      "vw_bp_block_se": 0.0004,
+      "blocks": 144
+     },
+     "1s": {
+      "mean_ticks": 0.4853,
+      "se_ticks": 0.0014,
+      "vw_ticks": 0.1213,
+      "mean_bp": 3.5646,
+      "vw_bp": 0.8918,
+      "vw_bp_block_se": 0.1589,
+      "blocks": 144
+     },
+     "5s": {
+      "mean_ticks": 0.4533,
+      "se_ticks": 0.0047,
+      "vw_ticks": 0.033,
+      "mean_bp": 3.3294,
+      "vw_bp": 0.2434,
+      "vw_bp_block_se": 0.1858,
+      "blocks": 144
+     },
+     "30s": {
+      "mean_ticks": 0.3956,
+      "se_ticks": 0.0094,
+      "vw_ticks": -0.0092,
+      "mean_bp": 2.9059,
+      "vw_bp": -0.0674,
+      "vw_bp_block_se": 0.1977,
+      "blocks": 144
+     },
+     "60s": {
+      "mean_ticks": 0.3714,
+      "se_ticks": 0.0117,
+      "vw_ticks": -0.0045,
+      "mean_bp": 2.7277,
+      "vw_bp": -0.0325,
+      "vw_bp_block_se": 0.1968,
+      "blocks": 144
+     },
+     "300s": {
+      "mean_ticks": 0.3016,
+      "se_ticks": 0.0192,
+      "vw_ticks": -0.0493,
+      "mean_bp": 2.2147,
+      "vw_bp": -0.363,
+      "vw_bp_block_se": 0.217,
+      "blocks": 144
+     },
+     "vw_bp_60s_by_6h": [
+      0.633,
+      -0.939,
+      0.257,
+      1.481
+     ]
+    },
+    "back": {
+     "n": 219,
+     "value_krw": 25473483452.99338,
+     "0-": {
+      "mean_ticks": 0.5,
+      "se_ticks": 0.0,
+      "vw_ticks": 0.5,
+      "mean_bp": 3.6703,
+      "vw_bp": 3.6709,
+      "vw_bp_block_se": 0.0006,
+      "blocks": 71
+     },
+     "1s": {
+      "mean_ticks": -0.4886,
+      "se_ticks": 0.0042,
+      "vw_ticks": -0.4918,
+      "mean_bp": -3.5866,
+      "vw_bp": -3.6109,
+      "vw_bp_block_se": 0.0272,
+      "blocks": 71
+     },
+     "5s": {
+      "mean_ticks": -0.4543,
+      "se_ticks": 0.0068,
+      "vw_ticks": -0.4767,
+      "mean_bp": -3.3352,
+      "vw_bp": -3.4999,
+      "vw_bp_block_se": 0.034,
+      "blocks": 71
+     },
+     "30s": {
+      "mean_ticks": -0.3721,
+      "se_ticks": 0.0153,
+      "vw_ticks": -0.4267,
+      "mean_bp": -2.7323,
+      "vw_bp": -3.1334,
+      "vw_bp_block_se": 0.1592,
+      "blocks": 71
+     },
+     "60s": {
+      "mean_ticks": -0.3402,
+      "se_ticks": 0.0203,
+      "vw_ticks": -0.3141,
+      "mean_bp": -2.4979,
+      "vw_bp": -2.3071,
+      "vw_bp_block_se": 0.1965,
+      "blocks": 71
+     },
+     "300s": {
+      "mean_ticks": -0.3265,
+      "se_ticks": 0.0412,
+      "vw_ticks": -0.3153,
+      "mean_bp": -2.3986,
+      "vw_bp": -2.3155,
+      "vw_bp_block_se": 0.3141,
+      "blocks": 71
+     },
+     "vw_bp_60s_by_6h": [
+      -3.311,
+      -2.481,
+      -1.538,
+      null
+     ]
+    }
+   },
+   "share_wiped": 0.0076,
+   "excluded_not_at_best_pct": 0.05,
+   "bytes": {
+    "trades": 677539,
+    "book": 1703195
+   }
+  },
+  "KRW-XRP": {
+   "book_rows": 530868,
+   "trades": 36889,
+   "tick": 1.0,
+   "tick_bp": 4.922,
+   "price_open": 2027.0,
+   "price_close": 2036.5,
+   "day_return_pct": 0.47,
+   "day_range_pct": 1.79,
+   "spread_ticks_med": 1.0,
+   "one_tick_share": 0.8226,
+   "crossed_or_bad_book_share": 0.0,
+   "q_bid_krw_med": 18507098.1648,
+   "q_ask_krw_med": 17999003.8653,
+   "book_gap_s": {
+    "p50": 0.103,
+    "p99": 1.1,
+    "max": 5.1
+   },
+   "book_ts_inversions_in_file": 0,
+   "trade_value_krw": 54571807529.15979,
+   "align": {
+    "n": 36889,
+    "at_best_pct": 97.14,
+    "top5_same_side_pct": 99.12,
+    "inside_spread_pct": 0.78,
+    "opposite_meaning_at_best_pct": 0.09
+   },
+   "markout": {
+    "front": {
+     "n": 35771,
+     "value_krw": 50446342277.85497,
+     "0-": {
+      "mean_ticks": 0.5428,
+      "se_ticks": 0.003,
+      "vw_ticks": 0.5248,
+      "mean_bp": 2.673,
+      "vw_bp": 2.5842,
+      "vw_bp_block_se": 0.0193,
+      "blocks": 144
+     },
+     "1s": {
+      "mean_ticks": 0.3859,
+      "se_ticks": 0.0069,
+      "vw_ticks": 0.15,
+      "mean_bp": 1.8999,
+      "vw_bp": 0.7384,
+      "vw_bp_block_se": 0.0792,
+      "blocks": 144
+     },
+     "5s": {
+      "mean_ticks": 0.3194,
+      "se_ticks": 0.0101,
+      "vw_ticks": 0.0198,
+      "mean_bp": 1.572,
+      "vw_bp": 0.0966,
+      "vw_bp_block_se": 0.1025,
+      "blocks": 144
+     },
+     "30s": {
+      "mean_ticks": 0.2414,
+      "se_ticks": 0.0162,
+      "vw_ticks": -0.0973,
+      "mean_bp": 1.1882,
+      "vw_bp": -0.4784,
+      "vw_bp_block_se": 0.1508,
+      "blocks": 144
+     },
+     "60s": {
+      "mean_ticks": 0.2194,
+      "se_ticks": 0.0246,
+      "vw_ticks": -0.1789,
+      "mean_bp": 1.0806,
+      "vw_bp": -0.8794,
+      "vw_bp_block_se": 0.2079,
+      "blocks": 144
+     },
+     "300s": {
+      "mean_ticks": 0.3347,
+      "se_ticks": 0.0539,
+      "vw_ticks": 0.138,
+      "mean_bp": 1.6522,
+      "vw_bp": 0.6903,
+      "vw_bp_block_se": 0.469,
+      "blocks": 144
+     },
+     "vw_bp_60s_by_6h": [
+      0.057,
+      -1.419,
+      -0.692,
+      -1.337
+     ]
+    },
+    "back": {
+     "n": 4934,
+     "value_krw": 16562778751.718328,
+     "0-": {
+      "mean_ticks": 0.5067,
+      "se_ticks": 0.0009,
+      "vw_ticks": 0.5083,
+      "mean_bp": 2.4959,
+      "vw_bp": 2.5029,
+      "vw_bp_block_se": 0.0175,
+      "blocks": 144
+     },
+     "1s": {
+      "mean_ticks": -0.3801,
+      "se_ticks": 0.0122,
+      "vw_ticks": -0.4356,
+      "mean_bp": -1.8725,
+      "vw_bp": -2.1455,
+      "vw_bp_block_se": 0.0902,
+      "blocks": 144
+     },
+     "5s": {
+      "mean_ticks": -0.4005,
+      "se_ticks": 0.0159,
+      "vw_ticks": -0.4609,
+      "mean_bp": -1.9733,
+      "vw_bp": -2.2704,
+      "vw_bp_block_se": 0.123,
+      "blocks": 144
+     },
+     "30s": {
+      "mean_ticks": -0.4392,
+      "se_ticks": 0.0243,
+      "vw_ticks": -0.5479,
+      "mean_bp": -2.1638,
+      "vw_bp": -2.6984,
+      "vw_bp_block_se": 0.1732,
+      "blocks": 144
+     },
+     "60s": {
+      "mean_ticks": -0.4647,
+      "se_ticks": 0.0302,
+      "vw_ticks": -0.5822,
+      "mean_bp": -2.2894,
+      "vw_bp": -2.8667,
+      "vw_bp_block_se": 0.2145,
+      "blocks": 144
+     },
+     "300s": {
+      "mean_ticks": -0.2393,
+      "se_ticks": 0.058,
+      "vw_ticks": -0.5004,
+      "mean_bp": -1.1744,
+      "vw_bp": -2.4585,
+      "vw_bp_block_se": 0.4924,
+      "blocks": 144
+     },
+     "vw_bp_60s_by_6h": [
+      -2.629,
+      -2.85,
+      -2.958,
+      -2.924
+     ]
+    }
+   },
+   "share_wiped": 0.1379,
+   "excluded_not_at_best_pct": 2.86,
+   "bytes": {
+    "trades": 800877,
+    "book": 11061793
+   }
+  },
+  "KRW-WLD": {
+   "book_rows": 373751,
+   "trades": 30116,
+   "tick": 1.0,
+   "tick_bp": 14.194,
+   "price_open": 727.5,
+   "price_close": 690.0,
+   "day_return_pct": -5.15,
+   "day_range_pct": 13.1,
+   "spread_ticks_med": 1.0,
+   "one_tick_share": 0.911,
+   "crossed_or_bad_book_share": 0.0,
+   "q_bid_krw_med": 49509679.3898,
+   "q_ask_krw_med": 57421816.987500004,
+   "book_gap_s": {
+    "p50": 0.106,
+    "p99": 1.82,
+    "max": 10.3
+   },
+   "book_ts_inversions_in_file": 0,
+   "trade_value_krw": 42127497049.28157,
+   "align": {
+    "n": 30116,
+    "at_best_pct": 96.92,
+    "top5_same_side_pct": 99.44,
+    "inside_spread_pct": 0.5,
+    "opposite_meaning_at_best_pct": 0.05
+   },
+   "markout": {
+    "front": {
+     "n": 29075,
+     "value_krw": 40292331687.91081,
+     "0-": {
+      "mean_ticks": 0.5136,
+      "se_ticks": 0.0012,
+      "vw_ticks": 0.5111,
+      "mean_bp": 7.3122,
+      "vw_bp": 7.2908,
+      "vw_bp_block_se": 0.05,
+      "blocks": 144
+     },
+     "1s": {
+      "mean_ticks": 0.2102,
+      "se_ticks": 0.0105,
+      "vw_ticks": 0.1025,
+      "mean_bp": 2.9818,
+      "vw_bp": 1.4449,
+      "vw_bp_block_se": 0.199,
+      "blocks": 144
+     },
+     "5s": {
+      "mean_ticks": 0.1287,
+      "se_ticks": 0.013,
+      "vw_ticks": 0.0443,
+      "mean_bp": 1.8224,
+      "vw_bp": 0.6203,
+      "vw_bp_block_se": 0.253,
+      "blocks": 144
+     },
+     "30s": {
+      "mean_ticks": 0.0505,
+      "se_ticks": 0.0193,
+      "vw_ticks": 0.0471,
+      "mean_bp": 0.7086,
+      "vw_bp": 0.6584,
+      "vw_bp_block_se": 0.3871,
+      "blocks": 144
+     },
+     "60s": {
+      "mean_ticks": 0.0474,
+      "se_ticks": 0.0273,
+      "vw_ticks": 0.0689,
+      "mean_bp": 0.6419,
+      "vw_bp": 0.9513,
+      "vw_bp_block_se": 0.5051,
+      "blocks": 144
+     },
+     "300s": {
+      "mean_ticks": 0.169,
+      "se_ticks": 0.0493,
+      "vw_ticks": 0.2194,
+      "mean_bp": 2.3434,
+      "vw_bp": 3.164,
+      "vw_bp_block_se": 1.0933,
+      "blocks": 144
+     },
+     "vw_bp_60s_by_6h": [
+      3.523,
+      -0.236,
+      0.138,
+      1.375
+     ]
+    },
+    "back": {
+     "n": 7411,
+     "value_krw": 14739144543.10389,
+     "0-": {
+      "mean_ticks": 0.5024,
+      "se_ticks": 0.0006,
+      "vw_ticks": 0.5055,
+      "mean_bp": 7.1664,
+      "vw_bp": 7.2193,
+      "vw_bp_block_se": 0.0268,
+      "blocks": 144
+     },
+     "1s": {
+      "mean_ticks": -0.4156,
+      "se_ticks": 0.0095,
+      "vw_ticks": -0.4615,
+      "mean_bp": -5.933,
+      "vw_bp": -6.6079,
+      "vw_bp_block_se": 0.2182,
+      "blocks": 144
+     },
+     "5s": {
+      "mean_ticks": -0.3746,
+      "se_ticks": 0.013,
+      "vw_ticks": -0.4276,
+      "mean_bp": -5.3448,
+      "vw_bp": -6.1066,
+      "vw_bp_block_se": 0.2978,
+      "blocks": 144
+     },
+     "30s": {
+      "mean_ticks": -0.3261,
+      "se_ticks": 0.0249,
+      "vw_ticks": -0.3188,
+      "mean_bp": -4.6438,
+      "vw_bp": -4.555,
+      "vw_bp_block_se": 0.4961,
+      "blocks": 144
+     },
+     "60s": {
+      "mean_ticks": -0.3838,
+      "se_ticks": 0.0346,
+      "vw_ticks": -0.3608,
+      "mean_bp": -5.5051,
+      "vw_bp": -5.1941,
+      "vw_bp_block_se": 0.6372,
+      "blocks": 144
+     },
+     "300s": {
+      "mean_ticks": -0.3625,
+      "se_ticks": 0.0623,
+      "vw_ticks": -0.1287,
+      "mean_bp": -5.2045,
+      "vw_bp": -1.7993,
+      "vw_bp_block_se": 1.2261,
+      "blocks": 144
+     },
+     "vw_bp_60s_by_6h": [
+      -2.507,
+      -5.605,
+      -7.254,
+      -2.403
+     ]
+    }
+   },
+   "share_wiped": 0.2549,
+   "excluded_not_at_best_pct": 3.08,
+   "bytes": {
+    "trades": 647802,
+    "book": 8368438
+   }
+  },
+  "KRW-SOON": {
+   "book_rows": 255825,
+   "trades": 33711,
+   "tick": 1.0,
+   "tick_bp": 16.3,
+   "price_open": 662.5,
+   "price_close": 574.0,
+   "day_return_pct": -13.36,
+   "day_range_pct": 21.91,
+   "spread_ticks_med": 1.0,
+   "one_tick_share": 0.5892,
+   "crossed_or_bad_book_share": 0.0,
+   "q_bid_krw_med": 6114190.9085,
+   "q_ask_krw_med": 8208140.2533,
+   "book_gap_s": {
+    "p50": 0.1,
+    "p99": 3.62,
+    "max": 30.1
+   },
+   "book_ts_inversions_in_file": 0,
+   "trade_value_krw": 25957009897.327896,
+   "align": {
+    "n": 33711,
+    "at_best_pct": 94.9,
+    "top5_same_side_pct": 97.74,
+    "inside_spread_pct": 2.01,
+    "opposite_meaning_at_best_pct": 0.17
+   },
+   "markout": {
+    "front": {
+     "n": 31972,
+     "value_krw": 23848763901.81188,
+     "0-": {
+      "mean_ticks": 0.5877,
+      "se_ticks": 0.0036,
+      "vw_ticks": 0.6009,
+      "mean_bp": 9.5986,
+      "vw_bp": 9.7941,
+      "vw_bp_block_se": 0.0958,
+      "blocks": 144
+     },
+     "1s": {
+      "mean_ticks": 0.1868,
+      "se_ticks": 0.0104,
+      "vw_ticks": 0.0885,
+      "mean_bp": 3.073,
+      "vw_bp": 1.4705,
+      "vw_bp_block_se": 0.2512,
+      "blocks": 144
+     },
+     "5s": {
+      "mean_ticks": 0.1161,
+      "se_ticks": 0.0149,
+      "vw_ticks": -0.007,
+      "mean_bp": 1.9285,
+      "vw_bp": -0.0644,
+      "vw_bp_block_se": 0.3445,
+      "blocks": 144
+     },
+     "30s": {
+      "mean_ticks": 0.0404,
+      "se_ticks": 0.0265,
+      "vw_ticks": -0.111,
+      "mean_bp": 0.7091,
+      "vw_bp": -1.693,
+      "vw_bp_block_se": 0.6852,
+      "blocks": 144
+     },
+     "60s": {
+      "mean_ticks": 0.0838,
+      "se_ticks": 0.0323,
+      "vw_ticks": -0.1056,
+      "mean_bp": 1.4019,
+      "vw_bp": -1.5842,
+      "vw_bp_block_se": 0.8646,
+      "blocks": 144
+     },
+     "300s": {
+      "mean_ticks": 0.2375,
+      "se_ticks": 0.0638,
+      "vw_ticks": -0.0319,
+      "mean_bp": 3.8821,
+      "vw_bp": -0.4366,
+      "vw_bp_block_se": 1.4011,
+      "blocks": 144
+     },
+     "vw_bp_60s_by_6h": [
+      -4.379,
+      0.145,
+      -0.937,
+      2.092
+     ]
+    },
+    "back": {
+     "n": 13708,
+     "value_krw": 12064510459.624538,
+     "0-": {
+      "mean_ticks": 0.5333,
+      "se_ticks": 0.0024,
+      "vw_ticks": 0.5533,
+      "mean_bp": 8.6805,
+      "vw_bp": 8.9968,
+      "vw_bp_block_se": 0.0899,
+      "blocks": 144
+     },
+     "1s": {
+      "mean_ticks": -0.3372,
+      "se_ticks": 0.0119,
+      "vw_ticks": -0.3838,
+      "mean_bp": -5.4788,
+      "vw_bp": -6.2212,
+      "vw_bp_block_se": 0.296,
+      "blocks": 144
+     },
+     "5s": {
+      "mean_ticks": -0.3844,
+      "se_ticks": 0.0184,
+      "vw_ticks": -0.4311,
+      "mean_bp": -6.2334,
+      "vw_bp": -6.9521,
+      "vw_bp_block_se": 0.3914,
+      "blocks": 144
+     },
+     "30s": {
+      "mean_ticks": -0.4982,
+      "se_ticks": 0.035,
+      "vw_ticks": -0.56,
+      "mean_bp": -8.0561,
+      "vw_bp": -8.9494,
+      "vw_bp_block_se": 0.8104,
+      "blocks": 144
+     },
+     "60s": {
+      "mean_ticks": -0.4036,
+      "se_ticks": 0.0416,
+      "vw_ticks": -0.4909,
+      "mean_bp": -6.5159,
+      "vw_bp": -7.8681,
+      "vw_bp_block_se": 0.9759,
+      "blocks": 144
+     },
+     "300s": {
+      "mean_ticks": -0.3808,
+      "se_ticks": 0.0721,
+      "vw_ticks": -0.2648,
+      "mean_bp": -6.1223,
+      "vw_bp": -4.2784,
+      "vw_bp_block_se": 1.5511,
+      "blocks": 144
+     },
+     "vw_bp_60s_by_6h": [
+      -12.167,
+      -6.219,
+      -5.256,
+      -3.426
+     ]
+    }
+   },
+   "share_wiped": 0.4288,
+   "excluded_not_at_best_pct": 5.1,
+   "bytes": {
+    "trades": 745697,
+    "book": 5344778
+   }
+  },
+  "KRW-BTC": {
+   "book_rows": 390726,
+   "trades": 35305,
+   "tick": 1000.0,
+   "tick_bp": 0.087,
+   "price_open": 113684500.0,
+   "price_close": 115624500.0,
+   "day_return_pct": 1.71,
+   "day_range_pct": 2.04,
+   "spread_ticks_med": 21.0,
+   "one_tick_share": 0.1027,
+   "crossed_or_bad_book_share": 0.0,
+   "q_bid_krw_med": 516622.49999999994,
+   "q_ask_krw_med": 1559552.7999999998,
+   "book_gap_s": {
+    "p50": 0.1,
+    "p99": 2.45,
+    "max": 28.6
+   },
+   "book_ts_inversions_in_file": 0,
+   "trade_value_krw": 33765792095.49001,
+   "align": {
+    "n": 35304,
+    "at_best_pct": 65.51,
+    "top5_same_side_pct": 86.45,
+    "inside_spread_pct": 4.99,
+    "opposite_meaning_at_best_pct": 0.03
+   },
+   "markout": {
+    "front": {
+     "n": 23031,
+     "value_krw": 21155335769.131424,
+     "0-": {
+      "mean_ticks": 6.9393,
+      "se_ticks": 0.2199,
+      "vw_ticks": 5.6939,
+      "mean_bp": 0.6065,
+      "vw_bp": 0.4971,
+      "vw_bp_block_se": 0.0213,
+      "blocks": 144
+     },
+     "1s": {
+      "mean_ticks": 1.9791,
+      "se_ticks": 0.2323,
+      "vw_ticks": -3.3612,
+      "mean_bp": 0.1734,
+      "vw_bp": -0.2927,
+      "vw_bp_block_se": 0.0557,
+      "blocks": 144
+     },
+     "5s": {
+      "mean_ticks": -0.6763,
+      "se_ticks": 0.3838,
+      "vw_ticks": -8.2515,
+      "mean_bp": -0.0584,
+      "vw_bp": -0.7181,
+      "vw_bp_block_se": 0.0679,
+      "blocks": 144
+     },
+     "30s": {
+      "mean_ticks": -6.0708,
+      "se_ticks": 0.8374,
+      "vw_ticks": -16.9722,
+      "mean_bp": -0.5287,
+      "vw_bp": -1.4755,
+      "vw_bp_block_se": 0.1249,
+      "blocks": 144
+     },
+     "60s": {
+      "mean_ticks": -7.8795,
+      "se_ticks": 1.1287,
+      "vw_ticks": -18.5284,
+      "mean_bp": -0.6864,
+      "vw_bp": -1.611,
+      "vw_bp_block_se": 0.1508,
+      "blocks": 144
+     },
+     "300s": {
+      "mean_ticks": -5.7103,
+      "se_ticks": 2.1073,
+      "vw_ticks": -6.3737,
+      "mean_bp": -0.4978,
+      "vw_bp": -0.5585,
+      "vw_bp_block_se": 0.3236,
+      "blocks": 144
+     },
+     "vw_bp_60s_by_6h": [
+      -0.514,
+      -0.707,
+      -1.85,
+      -3.222
+     ]
+    },
+    "back": {
+     "n": 8790,
+     "value_krw": 9021806467.538078,
+     "0-": {
+      "mean_ticks": 6.9431,
+      "se_ticks": 0.209,
+      "vw_ticks": 5.4257,
+      "mean_bp": 0.6067,
+      "vw_bp": 0.4736,
+      "vw_bp_block_se": 0.0222,
+      "blocks": 144
+     },
+     "1s": {
+      "mean_ticks": -4.6833,
+      "se_ticks": 0.2744,
+      "vw_ticks": -11.0759,
+      "mean_bp": -0.4088,
+      "vw_bp": -0.9661,
+      "vw_bp_block_se": 0.0632,
+      "blocks": 144
+     },
+     "5s": {
+      "mean_ticks": -8.3415,
+      "se_ticks": 0.4514,
+      "vw_ticks": -14.8455,
+      "mean_bp": -0.7282,
+      "vw_bp": -1.2945,
+      "vw_bp_block_se": 0.0686,
+      "blocks": 144
+     },
+     "30s": {
+      "mean_ticks": -16.3426,
+      "se_ticks": 1.0624,
+      "vw_ticks": -23.5963,
+      "mean_bp": -1.4256,
+      "vw_bp": -2.057,
+      "vw_bp_block_se": 0.1162,
+      "blocks": 144
+     },
+     "60s": {
+      "mean_ticks": -19.4195,
+      "se_ticks": 1.4219,
+      "vw_ticks": -23.0512,
+      "mean_bp": -1.6937,
+      "vw_bp": -2.0104,
+      "vw_bp_block_se": 0.1352,
+      "blocks": 144
+     },
+     "300s": {
+      "mean_ticks": -14.3955,
+      "se_ticks": 2.5424,
+      "vw_ticks": -13.3047,
+      "mean_bp": -1.2555,
+      "vw_bp": -1.1663,
+      "vw_bp_block_se": 0.3606,
+      "blocks": 144
+     },
+     "vw_bp_60s_by_6h": [
+      -1.391,
+      -1.929,
+      -2.271,
+      -2.055
+     ]
+    }
+   },
+   "share_wiped": 0.3817,
+   "excluded_not_at_best_pct": 34.49,
+   "bytes": {
+    "trades": 660215,
+    "book": 6967223
+   }
+  },
+  "KRW-ETH": {
+   "book_rows": 555773,
+   "trades": 16352,
+   "tick": 1000.0,
+   "tick_bp": 2.726,
+   "price_open": 3652500.0,
+   "price_close": 3687500.0,
+   "day_return_pct": 0.96,
+   "day_range_pct": 1.32,
+   "spread_ticks_med": 1.0,
+   "one_tick_share": 0.5172,
+   "crossed_or_bad_book_share": 0.0,
+   "q_bid_krw_med": 8412442.5,
+   "q_ask_krw_med": 10265080.9,
+   "book_gap_s": {
+    "p50": 0.099,
+    "p99": 1.07,
+    "max": 9.4
+   },
+   "book_ts_inversions_in_file": 0,
+   "trade_value_krw": 22814630317.46032,
+   "align": {
+    "n": 16352,
+    "at_best_pct": 94.45,
+    "top5_same_side_pct": 98.48,
+    "inside_spread_pct": 1.46,
+    "opposite_meaning_at_best_pct": 0.06
+   },
+   "markout": {
+    "front": {
+     "n": 15376,
+     "value_krw": 20513816325.70394,
+     "0-": {
+      "mean_ticks": 0.6619,
+      "se_ticks": 0.009,
+      "vw_ticks": 0.6093,
+      "mean_bp": 1.8038,
+      "vw_bp": 1.6598,
+      "vw_bp_block_se": 0.0288,
+      "blocks": 144
+     },
+     "1s": {
+      "mean_ticks": 0.4173,
+      "se_ticks": 0.0135,
+      "vw_ticks": 0.136,
+      "mean_bp": 1.1372,
+      "vw_bp": 0.3701,
+      "vw_bp_block_se": 0.0671,
+      "blocks": 144
+     },
+     "5s": {
+      "mean_ticks": 0.3057,
+      "se_ticks": 0.0187,
+      "vw_ticks": -0.0572,
+      "mean_bp": 0.8333,
+      "vw_bp": -0.1557,
+      "vw_bp_block_se": 0.0879,
+      "blocks": 144
+     },
+     "30s": {
+      "mean_ticks": 0.0979,
+      "se_ticks": 0.0343,
+      "vw_ticks": -0.3915,
+      "mean_bp": 0.2673,
+      "vw_bp": -1.0657,
+      "vw_bp_block_se": 0.1601,
+      "blocks": 144
+     },
+     "60s": {
+      "mean_ticks": 0.042,
+      "se_ticks": 0.0418,
+      "vw_ticks": -0.4857,
+      "mean_bp": 0.1151,
+      "vw_bp": -1.3224,
+      "vw_bp_block_se": 0.1904,
+      "blocks": 144
+     },
+     "300s": {
+      "mean_ticks": 0.0563,
+      "se_ticks": 0.0835,
+      "vw_ticks": -0.1672,
+      "mean_bp": 0.1538,
+      "vw_bp": -0.4563,
+      "vw_bp_block_se": 0.3893,
+      "blocks": 144
+     },
+     "vw_bp_60s_by_6h": [
+      -0.203,
+      -2.036,
+      -1.857,
+      -0.218
+     ]
+    },
+    "back": {
+     "n": 3235,
+     "value_krw": 8313899030.076141,
+     "0-": {
+      "mean_ticks": 0.5719,
+      "se_ticks": 0.0057,
+      "vw_ticks": 0.5698,
+      "mean_bp": 1.5583,
+      "vw_bp": 1.5523,
+      "vw_bp_block_se": 0.0244,
+      "blocks": 144
+     },
+     "1s": {
+      "mean_ticks": -0.4031,
+      "se_ticks": 0.0167,
+      "vw_ticks": -0.4489,
+      "mean_bp": -1.0987,
+      "vw_bp": -1.2233,
+      "vw_bp_block_se": 0.0724,
+      "blocks": 144
+     },
+     "5s": {
+      "mean_ticks": -0.4932,
+      "se_ticks": 0.0222,
+      "vw_ticks": -0.5689,
+      "mean_bp": -1.3438,
+      "vw_bp": -1.55,
+      "vw_bp_block_se": 0.0906,
+      "blocks": 144
+     },
+     "30s": {
+      "mean_ticks": -0.7607,
+      "se_ticks": 0.0477,
+      "vw_ticks": -0.8895,
+      "mean_bp": -2.0727,
+      "vw_bp": -2.4236,
+      "vw_bp_block_se": 0.1688,
+      "blocks": 144
+     },
+     "60s": {
+      "mean_ticks": -0.8898,
+      "se_ticks": 0.061,
+      "vw_ticks": -1.0023,
+      "mean_bp": -2.4244,
+      "vw_bp": -2.7321,
+      "vw_bp_block_se": 0.212,
+      "blocks": 144
+     },
+     "300s": {
+      "mean_ticks": -0.857,
+      "se_ticks": 0.1096,
+      "vw_ticks": -0.5459,
+      "mean_bp": -2.3353,
+      "vw_bp": -1.4893,
+      "vw_bp_block_se": 0.4595,
+      "blocks": 144
+     },
+     "vw_bp_60s_by_6h": [
+      -2.791,
+      -2.887,
+      -3.101,
+      -1.129
+     ]
+    }
+   },
+   "share_wiped": 0.2104,
+   "excluded_not_at_best_pct": 5.55,
+   "bytes": {
+    "trades": 366391,
+    "book": 10054569
+   }
+  },
+  "KRW-ONDO": {
+   "book_rows": 248498,
+   "trades": 11438,
+   "tick": 1.0,
+   "tick_bp": 14.738,
+   "price_open": 679.5,
+   "price_close": 677.5,
+   "day_return_pct": -0.29,
+   "day_range_pct": 5.44,
+   "spread_ticks_med": 1.0,
+   "one_tick_share": 0.8535,
+   "crossed_or_bad_book_share": 0.0,
+   "q_bid_krw_med": 49373995.5,
+   "q_ask_krw_med": 52064589.56340001,
+   "book_gap_s": {
+    "p50": 0.128,
+    "p99": 3.49,
+    "max": 19.9
+   },
+   "book_ts_inversions_in_file": 0,
+   "trade_value_krw": 13513347242.79372,
+   "align": {
+    "n": 11438,
+    "at_best_pct": 98.09,
+    "top5_same_side_pct": 99.0,
+    "inside_spread_pct": 0.96,
+    "opposite_meaning_at_best_pct": 0.03
+   },
+   "markout": {
+    "front": {
+     "n": 11187,
+     "value_krw": 12957844600.519085,
+     "0-": {
+      "mean_ticks": 0.5094,
+      "se_ticks": 0.0017,
+      "vw_ticks": 0.5105,
+      "mean_bp": 7.4839,
+      "vw_bp": 7.4838,
+      "vw_bp_block_se": 0.047,
+      "blocks": 144
+     },
+     "1s": {
+      "mean_ticks": 0.1647,
+      "se_ticks": 0.0129,
+      "vw_ticks": 0.1631,
+      "mean_bp": 2.4152,
+      "vw_bp": 2.3884,
+      "vw_bp_block_se": 0.2501,
+      "blocks": 144
+     },
+     "5s": {
+      "mean_ticks": 0.0695,
+      "se_ticks": 0.0154,
+      "vw_ticks": 0.1191,
+      "mean_bp": 1.0208,
+      "vw_bp": 1.7491,
+      "vw_bp_block_se": 0.2738,
+      "blocks": 144
+     },
+     "30s": {
+      "mean_ticks": 0.0277,
+      "se_ticks": 0.0222,
+      "vw_ticks": 0.07,
+      "mean_bp": 0.4099,
+      "vw_bp": 1.0352,
+      "vw_bp_block_se": 0.3811,
+      "blocks": 144
+     },
+     "60s": {
+      "mean_ticks": 0.0212,
+      "se_ticks": 0.0281,
+      "vw_ticks": 0.114,
+      "mean_bp": 0.3159,
+      "vw_bp": 1.6897,
+      "vw_bp_block_se": 0.5105,
+      "blocks": 144
+     },
+     "300s": {
+      "mean_ticks": -0.0271,
+      "se_ticks": 0.0582,
+      "vw_ticks": 0.0392,
+      "mean_bp": -0.3848,
+      "vw_bp": 0.6177,
+      "vw_bp_block_se": 1.0253,
+      "blocks": 144
+     },
+     "vw_bp_60s_by_6h": [
+      -0.065,
+      2.207,
+      3.973,
+      0.9
+     ]
+    },
+    "back": {
+     "n": 3453,
+     "value_krw": 4455027879.265415,
+     "0-": {
+      "mean_ticks": 0.5004,
+      "se_ticks": 0.0002,
+      "vw_ticks": 0.5008,
+      "mean_bp": 7.3609,
+      "vw_bp": 7.3473,
+      "vw_bp_block_se": 0.0085,
+      "blocks": 143
+     },
+     "1s": {
+      "mean_ticks": -0.3749,
+      "se_ticks": 0.0086,
+      "vw_ticks": -0.38,
+      "mean_bp": -5.5121,
+      "vw_bp": -5.5744,
+      "vw_bp_block_se": 0.2009,
+      "blocks": 143
+     },
+     "5s": {
+      "mean_ticks": -0.3034,
+      "se_ticks": 0.0121,
+      "vw_ticks": -0.2874,
+      "mean_bp": -4.4573,
+      "vw_bp": -4.2152,
+      "vw_bp_block_se": 0.2556,
+      "blocks": 143
+     },
+     "30s": {
+      "mean_ticks": -0.2075,
+      "se_ticks": 0.0249,
+      "vw_ticks": -0.2165,
+      "mean_bp": -3.0425,
+      "vw_bp": -3.1848,
+      "vw_bp_block_se": 0.4185,
+      "blocks": 143
+     },
+     "60s": {
+      "mean_ticks": -0.2525,
+      "se_ticks": 0.0341,
+      "vw_ticks": -0.2697,
+      "mean_bp": -3.7031,
+      "vw_bp": -3.9497,
+      "vw_bp_block_se": 0.6137,
+      "blocks": 143
+     },
+     "300s": {
+      "mean_ticks": -0.2061,
+      "se_ticks": 0.0602,
+      "vw_ticks": -0.1597,
+      "mean_bp": -3.0174,
+      "vw_bp": -2.3096,
+      "vw_bp_block_se": 1.1375,
+      "blocks": 143
+     },
+     "vw_bp_60s_by_6h": [
+      -5.07,
+      -2.509,
+      -2.631,
+      -5.546
+     ]
+    }
+   },
+   "share_wiped": 0.3087,
+   "excluded_not_at_best_pct": 1.91,
+   "bytes": {
+    "trades": 244116,
+    "book": 5181617
+   }
+  },
+  "KRW-ENA": {
+   "book_rows": 244047,
+   "trades": 11432,
+   "tick": 1.0,
+   "tick_bp": 28.289,
+   "price_open": 360.5,
+   "price_close": 332.5,
+   "day_return_pct": -7.77,
+   "day_range_pct": 14.92,
+   "spread_ticks_med": 1.0,
+   "one_tick_share": 0.9155,
+   "crossed_or_bad_book_share": 0.0,
+   "q_bid_krw_med": 101032941.4744,
+   "q_ask_krw_med": 102436264.1285,
+   "book_gap_s": {
+    "p50": 0.126,
+    "p99": 3.57,
+    "max": 29.3
+   },
+   "book_ts_inversions_in_file": 0,
+   "trade_value_krw": 13256346821.908813,
+   "align": {
+    "n": 11432,
+    "at_best_pct": 98.54,
+    "top5_same_side_pct": 98.86,
+    "inside_spread_pct": 1.11,
+    "opposite_meaning_at_best_pct": 0.03
+   },
+   "markout": {
+    "front": {
+     "n": 11183,
+     "value_krw": 13109878828.204273,
+     "0-": {
+      "mean_ticks": 0.5072,
+      "se_ticks": 0.0009,
+      "vw_ticks": 0.5037,
+      "mean_bp": 14.3938,
+      "vw_bp": 14.3072,
+      "vw_bp_block_se": 0.0535,
+      "blocks": 144
+     },
+     "1s": {
+      "mean_ticks": 0.2171,
+      "se_ticks": 0.0129,
+      "vw_ticks": 0.2046,
+      "mean_bp": 6.1906,
+      "vw_bp": 5.8488,
+      "vw_bp_block_se": 0.4476,
+      "blocks": 144
+     },
+     "5s": {
+      "mean_ticks": 0.1588,
+      "se_ticks": 0.0145,
+      "vw_ticks": 0.1707,
+      "mean_bp": 4.5486,
+      "vw_bp": 4.9154,
+      "vw_bp_block_se": 0.5433,
+      "blocks": 144
+     },
+     "30s": {
+      "mean_ticks": 0.1116,
+      "se_ticks": 0.0187,
+      "vw_ticks": 0.1166,
+      "mean_bp": 3.1941,
+      "vw_bp": 3.3832,
+      "vw_bp_block_se": 0.6128,
+      "blocks": 144
+     },
+     "60s": {
+      "mean_ticks": 0.1326,
+      "se_ticks": 0.0189,
+      "vw_ticks": 0.1248,
+      "mean_bp": 3.7772,
+      "vw_bp": 3.5638,
+      "vw_bp_block_se": 0.6286,
+      "blocks": 144
+     },
+     "300s": {
+      "mean_ticks": 0.1011,
+      "se_ticks": 0.0402,
+      "vw_ticks": 0.127,
+      "mean_bp": 2.8394,
+      "vw_bp": 3.5577,
+      "vw_bp_block_se": 1.403,
+      "blocks": 144
+     },
+     "vw_bp_60s_by_6h": [
+      2.323,
+      4.061,
+      4.262,
+      3.384
+     ]
+    },
+    "back": {
+     "n": 3057,
+     "value_krw": 4199645259.106291,
+     "0-": {
+      "mean_ticks": 0.5,
+      "se_ticks": 0.0,
+      "vw_ticks": 0.5,
+      "mean_bp": 14.1416,
+      "vw_bp": 14.1404,
+      "vw_bp_block_se": 0.0456,
+      "blocks": 141
+     },
+     "1s": {
+      "mean_ticks": -0.3306,
+      "se_ticks": 0.0111,
+      "vw_ticks": -0.3506,
+      "mean_bp": -9.3474,
+      "vw_bp": -9.9021,
+      "vw_bp_block_se": 0.39,
+      "blocks": 141
+     },
+     "5s": {
+      "mean_ticks": -0.2561,
+      "se_ticks": 0.0142,
+      "vw_ticks": -0.2872,
+      "mean_bp": -7.2253,
+      "vw_bp": -8.0704,
+      "vw_bp_block_se": 0.5005,
+      "blocks": 141
+     },
+     "30s": {
+      "mean_ticks": -0.1922,
+      "se_ticks": 0.0246,
+      "vw_ticks": -0.2555,
+      "mean_bp": -5.4648,
+      "vw_bp": -7.1944,
+      "vw_bp_block_se": 0.8256,
+      "blocks": 141
+     },
+     "60s": {
+      "mean_ticks": -0.1366,
+      "se_ticks": 0.0268,
+      "vw_ticks": -0.183,
+      "mean_bp": -3.8675,
+      "vw_bp": -5.1504,
+      "vw_bp_block_se": 0.948,
+      "blocks": 141
+     },
+     "300s": {
+      "mean_ticks": -0.0978,
+      "se_ticks": 0.0427,
+      "vw_ticks": -0.202,
+      "mean_bp": -2.7786,
+      "vw_bp": -5.8274,
+      "vw_bp_block_se": 1.828,
+      "blocks": 141
+     },
+     "vw_bp_60s_by_6h": [
+      -4.784,
+      -5.87,
+      -6.27,
+      -2.683
+     ]
+    }
+   },
+   "share_wiped": 0.2734,
+   "excluded_not_at_best_pct": 1.46,
+   "bytes": {
+    "trades": 251404,
+    "book": 4770012
+   }
+  },
+  "KRW-NEAR": {
+   "book_rows": 394432,
+   "trades": 13045,
+   "tick": 5.0,
+   "tick_bp": 7.388,
+   "price_open": 7260.0,
+   "price_close": 6562.5,
+   "day_return_pct": -9.61,
+   "day_range_pct": 16.11,
+   "spread_ticks_med": 2.0,
+   "one_tick_share": 0.1909,
+   "crossed_or_bad_book_share": 0.0,
+   "q_bid_krw_med": 3269700.3479999998,
+   "q_ask_krw_med": 4929651.176,
+   "book_gap_s": {
+    "p50": 0.102,
+    "p99": 1.73,
+    "max": 14.7
+   },
+   "book_ts_inversions_in_file": 0,
+   "trade_value_krw": 9972726893.448599,
+   "align": {
+    "n": 13045,
+    "at_best_pct": 91.33,
+    "top5_same_side_pct": 96.78,
+    "inside_spread_pct": 3.1,
+    "opposite_meaning_at_best_pct": 0.08
+   },
+   "markout": {
+    "front": {
+     "n": 11906,
+     "value_krw": 8909523629.13736,
+     "0-": {
+      "mean_ticks": 0.7394,
+      "se_ticks": 0.0091,
+      "vw_ticks": 0.7565,
+      "mean_bp": 5.3484,
+      "vw_bp": 5.4873,
+      "vw_bp_block_se": 0.1079,
+      "blocks": 144
+     },
+     "1s": {
+      "mean_ticks": 0.0373,
+      "se_ticks": 0.0221,
+      "vw_ticks": 0.0246,
+      "mean_bp": 0.2443,
+      "vw_bp": 0.1582,
+      "vw_bp_block_se": 0.2561,
+      "blocks": 144
+     },
+     "5s": {
+      "mean_ticks": -0.1538,
+      "se_ticks": 0.0295,
+      "vw_ticks": -0.2109,
+      "mean_bp": -1.1503,
+      "vw_bp": -1.5568,
+      "vw_bp_block_se": 0.3093,
+      "blocks": 144
+     },
+     "30s": {
+      "mean_ticks": -0.3195,
+      "se_ticks": 0.0461,
+      "vw_ticks": -0.3336,
+      "mean_bp": -2.3434,
+      "vw_bp": -2.3954,
+      "vw_bp_block_se": 0.4772,
+      "blocks": 144
+     },
+     "60s": {
+      "mean_ticks": -0.3523,
+      "se_ticks": 0.0633,
+      "vw_ticks": -0.1299,
+      "mean_bp": -2.567,
+      "vw_bp": -0.8436,
+      "vw_bp_block_se": 0.6236,
+      "blocks": 144
+     },
+     "300s": {
+      "mean_ticks": -0.681,
+      "se_ticks": 0.1392,
+      "vw_ticks": -0.4429,
+      "mean_bp": -4.9784,
+      "vw_bp": -3.1113,
+      "vw_bp_block_se": 1.4347,
+      "blocks": 144
+     },
+     "vw_bp_60s_by_6h": [
+      -2.193,
+      -2.503,
+      0.14,
+      0.607
+     ]
+    },
+    "back": {
+     "n": 6209,
+     "value_krw": 4471401436.443034,
+     "0-": {
+      "mean_ticks": 0.687,
+      "se_ticks": 0.0082,
+      "vw_ticks": 0.7239,
+      "mean_bp": 4.983,
+      "vw_bp": 5.2565,
+      "vw_bp_block_se": 0.0988,
+      "blocks": 144
+     },
+     "1s": {
+      "mean_ticks": -0.5323,
+      "se_ticks": 0.0208,
+      "vw_ticks": -0.6447,
+      "mean_bp": -3.8907,
+      "vw_bp": -4.7194,
+      "vw_bp_block_se": 0.2579,
+      "blocks": 144
+     },
+     "5s": {
+      "mean_ticks": -0.6713,
+      "se_ticks": 0.0287,
+      "vw_ticks": -0.7652,
+      "mean_bp": -4.9141,
+      "vw_bp": -5.594,
+      "vw_bp_block_se": 0.3017,
+      "blocks": 144
+     },
+     "30s": {
+      "mean_ticks": -0.8578,
+      "se_ticks": 0.0487,
+      "vw_ticks": -0.7725,
+      "mean_bp": -6.269,
+      "vw_bp": -5.6012,
+      "vw_bp_block_se": 0.4978,
+      "blocks": 144
+     },
+     "60s": {
+      "mean_ticks": -0.9588,
+      "se_ticks": 0.0662,
+      "vw_ticks": -0.6649,
+      "mean_bp": -6.9734,
+      "vw_bp": -4.7312,
+      "vw_bp_block_se": 0.6329,
+      "blocks": 144
+     },
+     "300s": {
+      "mean_ticks": -1.2544,
+      "se_ticks": 0.1531,
+      "vw_ticks": -0.7822,
+      "mean_bp": -9.1339,
+      "vw_bp": -5.5446,
+      "vw_bp_block_se": 1.4235,
+      "blocks": 144
+     },
+     "vw_bp_60s_by_6h": [
+      -4.11,
+      -7.188,
+      -4.038,
+      -3.617
+     ]
+    }
+   },
+   "share_wiped": 0.5215,
+   "excluded_not_at_best_pct": 8.67,
+   "bytes": {
+    "trades": 281601,
+    "book": 8522355
+   }
+  },
+  "KRW-SOL": {
+   "book_rows": 249490,
+   "trades": 9534,
+   "tick": 100.0,
+   "tick_bp": 6.225,
+   "price_open": 160550.0,
+   "price_close": 161300.0,
+   "day_return_pct": 0.47,
+   "day_range_pct": 2.01,
+   "spread_ticks_med": 1.0,
+   "one_tick_share": 0.7364,
+   "crossed_or_bad_book_share": 0.0,
+   "q_bid_krw_med": 15852730.54,
+   "q_ask_krw_med": 18084732.38,
+   "book_gap_s": {
+    "p50": 0.13,
+    "p99": 3.48,
+    "max": 15.1
+   },
+   "book_ts_inversions_in_file": 0,
+   "trade_value_krw": 9952140745.473152,
+   "align": {
+    "n": 9534,
+    "at_best_pct": 97.09,
+    "top5_same_side_pct": 98.85,
+    "inside_spread_pct": 1.13,
+    "opposite_meaning_at_best_pct": 0.02
+   },
+   "markout": {
+    "front": {
+     "n": 9246,
+     "value_krw": 9386644873.778126,
+     "0-": {
+      "mean_ticks": 0.5481,
+      "se_ticks": 0.0046,
+      "vw_ticks": 0.5474,
+      "mean_bp": 3.4106,
+      "vw_bp": 3.4063,
+      "vw_bp_block_se": 0.047,
+      "blocks": 144
+     },
+     "1s": {
+      "mean_ticks": 0.3223,
+      "se_ticks": 0.0121,
+      "vw_ticks": 0.1529,
+      "mean_bp": 2.005,
+      "vw_bp": 0.9512,
+      "vw_bp_block_se": 0.1406,
+      "blocks": 144
+     },
+     "5s": {
+      "mean_ticks": 0.2435,
+      "se_ticks": 0.0145,
+      "vw_ticks": 0.0721,
+      "mean_bp": 1.5147,
+      "vw_bp": 0.4484,
+      "vw_bp_block_se": 0.1566,
+      "blocks": 144
+     },
+     "30s": {
+      "mean_ticks": 0.1065,
+      "se_ticks": 0.0234,
+      "vw_ticks": 0.0062,
+      "mean_bp": 0.6626,
+      "vw_bp": 0.0399,
+      "vw_bp_block_se": 0.2327,
+      "blocks": 144
+     },
+     "60s": {
+      "mean_ticks": 0.0335,
+      "se_ticks": 0.0317,
+      "vw_ticks": -0.0091,
+      "mean_bp": 0.2082,
+      "vw_bp": -0.0553,
+      "vw_bp_block_se": 0.2888,
+      "blocks": 144
+     },
+     "300s": {
+      "mean_ticks": -0.0183,
+      "se_ticks": 0.0756,
+      "vw_ticks": 0.0892,
+      "mean_bp": -0.1125,
+      "vw_bp": 0.5571,
+      "vw_bp_block_se": 0.5969,
+      "blocks": 144
+     },
+     "vw_bp_60s_by_6h": [
+      -0.039,
+      -0.763,
+      0.395,
+      0.206
+     ]
+    },
+    "back": {
+     "n": 1904,
+     "value_krw": 3751148477.153577,
+     "0-": {
+      "mean_ticks": 0.5058,
+      "se_ticks": 0.0019,
+      "vw_ticks": 0.5151,
+      "mean_bp": 3.1486,
+      "vw_bp": 3.206,
+      "vw_bp_block_se": 0.0329,
+      "blocks": 144
+     },
+     "1s": {
+      "mean_ticks": -0.39,
+      "se_ticks": 0.0118,
+      "vw_ticks": -0.3753,
+      "mean_bp": -2.4279,
+      "vw_bp": -2.3359,
+      "vw_bp_block_se": 0.1141,
+      "blocks": 144
+     },
+     "5s": {
+      "mean_ticks": -0.3881,
+      "se_ticks": 0.0137,
+      "vw_ticks": -0.3934,
+      "mean_bp": -2.416,
+      "vw_bp": -2.4477,
+      "vw_bp_block_se": 0.1321,
+      "blocks": 144
+     },
+     "30s": {
+      "mean_ticks": -0.4488,
+      "se_ticks": 0.0285,
+      "vw_ticks": -0.4202,
+      "mean_bp": -2.7937,
+      "vw_bp": -2.6142,
+      "vw_bp_block_se": 0.2371,
+      "blocks": 144
+     },
+     "60s": {
+      "mean_ticks": -0.49,
+      "se_ticks": 0.0354,
+      "vw_ticks": -0.3574,
+      "mean_bp": -3.0504,
+      "vw_bp": -2.2244,
+      "vw_bp_block_se": 0.291,
+      "blocks": 144
+     },
+     "300s": {
+      "mean_ticks": -0.4057,
+      "se_ticks": 0.0748,
+      "vw_ticks": -0.2349,
+      "mean_bp": -2.5247,
+      "vw_bp": -1.4607,
+      "vw_bp_block_se": 0.6762,
+      "blocks": 144
+     },
+     "vw_bp_60s_by_6h": [
+      -1.468,
+      -2.554,
+      -1.941,
+      -3.839
+     ]
+    }
+   },
+   "share_wiped": 0.2059,
+   "excluded_not_at_best_pct": 2.91,
+   "bytes": {
+    "trades": 212654,
+    "book": 4773238
+   }
+  }
+ },
+ "git": "99fca7be00afce2c6bfabe6607a4534587a920bc",
+ "rank_prev_day": [
+  [
+   "KRW-USDT",
+   995.3
+  ],
+  [
+   "KRW-XRP",
+   524.6
+  ],
+  [
+   "KRW-WLD",
+   420.5
+  ],
+  [
+   "KRW-SOON",
+   338.9
+  ],
+  [
+   "KRW-BTC",
+   278.0
+  ],
+  [
+   "KRW-ETH",
+   221.2
+  ],
+  [
+   "KRW-ONDO",
+   182.3
+  ],
+  [
+   "KRW-ENA",
+   128.5
+  ],
+  [
+   "KRW-NEAR",
+   118.1
+  ],
+  [
+   "KRW-SOL",
+   111.6
+  ],
+  [
+   "KRW-TRAC",
+   99.4
+  ],
+  [
+   "KRW-SUI",
+   96.8
+  ],
+  [
+   "KRW-XLM",
+   96.2
+  ],
+  [
+   "KRW-TRUMP",
+   88.9
+  ],
+  [
+   "KRW-Q",
+   88.0
+  ],
+  [
+   "KRW-ARK",
+   74.2
+  ],
+  [
+   "KRW-STX",
+   73.2
+  ],
+  [
+   "KRW-MANTRA",
+   71.7
+  ],
+  [
+   "KRW-CAP",
+   66.9
+  ],
+  [
+   "KRW-MON",
+   61.6
+  ]
+ ],
+ "markets_checked": 489,
+ "selected": [
+  "KRW-USDT",
+  "KRW-XRP",
+  "KRW-WLD",
+  "KRW-SOON",
+  "KRW-BTC",
+  "KRW-ETH",
+  "KRW-ONDO",
+  "KRW-ENA",
+  "KRW-NEAR",
+  "KRW-SOL"
+ ]
+}
