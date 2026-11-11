@@ -1,0 +1,157 @@
+{
+ "minutes": 8.0,
+ "markets": [
+  "KRW-XRP",
+  "KRW-XPL",
+  "KRW-HYPE",
+  "KRW-ETH",
+  "KRW-USDT"
+ ],
+ "host": "runnervmwuk1x",
+ "git": "fe71fee074c1f7c4520f8748b4b69cc1596544fc",
+ "window_s": 469.4,
+ "forced_drop_at": 240.0,
+ "reconnected_after_s": 1.58,
+ "connect_events": 2,
+ "ref_events": [
+  [
+   "open"
+  ]
+ ],
+ "lines": 13868,
+ "bad_lines": 0,
+ "trades_ref": 1214,
+ "trades_missing": 0,
+ "trades_extra": 0,
+ "book_ref": 12239,
+ "book_missing": 0,
+ "book_coverage_pct": 100.0,
+ "recorder_status": {
+  "run": "ws1",
+  "now": "2026-11-11T17:50:17+09:00",
+  "start": "2026-11-11T17:42:07+09:00",
+  "days": 0.005555555555555556,
+  "rule": "지정",
+  "markets": [
+   "KRW-XRP",
+   "KRW-XPL",
+   "KRW-HYPE",
+   "KRW-ETH",
+   "KRW-USDT"
+  ],
+  "rank_at_start": null,
+  "counts_trade_book": {
+   "KRW-ETH": [
+    55,
+    4179
+   ],
+   "KRW-HYPE": [
+    27,
+    1564
+   ],
+   "KRW-XPL": [
+    538,
+    2120
+   ],
+   "KRW-USDT": [
+    469,
+    893
+   ],
+   "KRW-XRP": [
+    155,
+    3858
+   ]
+  },
+  "latency_ms": {
+   "trade_pub_ms": {
+    "p50": 242,
+    "p90": 272,
+    "p99": 296,
+    "min": 112,
+    "n": 1234
+   },
+   "trade_net_ms": {
+    "p50": 85.5,
+    "p90": 90.0,
+    "p99": 120.8,
+    "min": 75.8,
+    "n": 1234
+   },
+   "book_ms": {
+    "p50": 137.1,
+    "p90": 160.8,
+    "p99": 175.5,
+    "min": 98.0,
+    "n": 12604
+   }
+  },
+  "session": {
+   "since": "2026-11-11T17:42:04+09:00",
+   "reconnects": 2,
+   "errors": {
+    "ConnectionError": 1
+   }
+  },
+  "uploaded_files": 5,
+  "uploaded_bytes": 323115,
+  "upload_fail": 0,
+  "last_upload_http": 201,
+  "pending_files": 0,
+  "disk_free_gb": 93.9,
+  "done": true,
+  "stop_reason": null
+ },
+ "uploads": [
+  [
+   "ETH_20261111T06.csv.gz",
+   201,
+   91036
+  ],
+  [
+   "HYPE_20261111T06.csv.gz",
+   201,
+   36560
+  ],
+  [
+   "USDT_20261111T06.csv.gz",
+   201,
+   30954
+  ],
+  [
+   "XPL_20261111T06.csv.gz",
+   201,
+   59116
+  ],
+  [
+   "XRP_20261111T06.csv.gz",
+   201,
+   105449
+  ]
+ ],
+ "messages": [
+  [
+   "tg",
+   "📒 <b>호가·체결 기록 시작</b> (웹소켓)\nXRP, XPL, HYPE, ETH, USDT\n0.00555556일 동안 · 공개 시세만 읽어요"
+  ],
+  [
+   "status",
+   1064
+  ],
+  [
+   "status",
+   1073
+  ],
+  [
+   "tg",
+   "📒 <b>호가·체결 기록 끝</b>\n체결 1,244건 · 호가 12,614건 · 올린 파일 5개\nClaude에게 '호가 기록 분석해줘'라고 말해"
+  ]
+ ],
+ "pass": {
+  "1_trades_identical": true,
+  "2_book_coverage": true,
+  "3_reconnect_10s": true,
+  "4_lines_ok": true,
+  "5_upload_201": true
+ },
+ "all_pass": true
+}
