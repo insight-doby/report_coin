@@ -221,7 +221,7 @@ def main(path):
             for tau in TAUS:
                 j = bisect.bisect_right(ts, tt + tau) - 1
                 e.append(sgn * (mids[j] - x[4]) / tick)
-            ja = min(bisect.bisect_right(ts, tt + 0.3), len(o) - 1)      # 체결 0.3초 뒤 호가에서 그 가격 줄이 사라졌는가
+            ja = max(bisect.bisect_right(ts, tt + 0.3) - 1, 0)           # 체결 0.3초 뒤 '그 시점'의 호가에서 그 가격 줄이 사라졌는가
             la = o[ja][4]
             wiped = (la[0] < x[4]) if x[6] == "ASK" else (la[2] > x[4])
             rows.append((tt, e, x[4] * x[5], wiped))

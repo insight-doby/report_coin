@@ -1,0 +1,36 @@
+name: research
+# 연구용 읽기 전용 작업(공개 자료 분석). 알림 봇(track)과 잠금을 따로 써서 알림을 늦추지 않는다.
+# 결과는 data/research/ 에만 저장한다. 주문·계좌·키를 쓰지 않는다.
+on:
+  workflow_dispatch:
+    inputs:
+      script: { description: "tools/ 안의 스크립트", required: true }
+      args: { description: "스크립트에 넘길 인자", required: false, default: "" }
+concurrency: { group: research, cancel-in-progress: false }
+permissions: { contents: write }
+jobs:
+  research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - run: pip install -q requests numpy pandas
+      - env:
+          SCRIPT: ${{ inputs.script }}
+          ARGS: ${{ inputs.args }}
+        run: python -u "tools/$SCRIPT" $ARGS
+      - if: always()
+        run: |
+          git config user.name "bot"; git config user.email "bot@users.noreply.github.com"
+          git add data/research 2>/dev/null || true
+          git diff --cached --quiet && { echo '저장할 것 없음'; exit 0; }
+          git commit -q -m "research"
+          ok=0
+          for i in 1 2 3 4 5; do
+            if git pull -q --rebase origin ${{ github.ref_name }} && git push -q; then ok=1; break; fi
+            git rebase --abort 2>/dev/null || true
+            sleep $((i*5))
+          done
+          [ "$ok" = 1 ] || { echo '저장 5번 실패'; exit 1; }
