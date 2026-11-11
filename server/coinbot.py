@@ -6,7 +6,7 @@
   · 2분마다   체결 확인 → 매수/매도 체결 알림 (매도는 실현 손익까지)
   · 10분마다  계좌 스냅샷(총자산·보유·현금) + 입출금 확인
   · 매일 22시 하루 결산 / 매월 1일 09시 지난달 성적표
-  · (연습 준비) 후보 코인 호가·체결 기록 → data/mmrec/ (공개 시세만)
+  · (연구용) 거래대금 상위 코인의 호가·체결을 웹소켓으로 기록 → 릴리스 첨부 mmrec-data (공개 시세만)
   · 텔레그램 메뉴: /account /holdings /perf /trades /orders /goal
 
 보안
@@ -15,19 +15,24 @@
   · 공개 저장소에는 (선택) 종목·평단·비중만 올립니다.
 """
 import base64
+import gzip
 import hashlib
 import hmac
 import json
 import os
 import re
+import shutil
+import socket
 import sqlite3
+import ssl
+import struct
 import sys
 import threading
 import time
 import traceback
 import uuid as uuidlib
 from datetime import datetime, timedelta, timezone
-from urllib.parse import quote
+from urllib.parse import quote, urlsplit
 
 import requests
 
@@ -2528,9 +2533,9 @@ class Bot:
                 self.db.put("history_sent", True)
             except Exception as e:
                 log(f"기록 범위 확인 실패: {type(e).__name__}")
-        if MM_MARKETS and MM_DAYS > 0:
+        if MM_DAYS > 0:
             try:
-                MMRecorder().start()
+                MMWS().start()
             except Exception as e:
                 log(f"호가 기록 시작 실패: {type(e).__name__}")
         next_fill = next_snap = 0.0
@@ -2595,18 +2600,28 @@ class Bot:
                 send(txt)
 
 
-# ───────────────────────── 호가 기록 (마켓 메이킹 연습 준비) ─────────────────────────
-# 공개 시세만 읽습니다(키·주문 없음). 후보 코인의 호가창 위 3칸과 체결을 며칠 동안 저장하고,
-# 하루치씩 공개 저장소 data/mmrec/ 에 올립니다(시장 데이터일 뿐, 계좌 정보 없음).
-MM_MARKETS = [m.strip() for m in os.environ.get(
-    "COINBOT_MM_MARKETS", "KRW-XRP,KRW-XPL,KRW-HYPE,KRW-ETH,KRW-USDT").split(",") if m.strip()]
+# ───────────────────────── 호가·체결 실시간 기록 (웹소켓, 공개 시세만) ─────────────────────────
+# 연구용. 키·계좌·주문을 쓰지 않는다. 빗썸 공개 웹소켓에서 체결과 호가(위 5칸)를 받아 며칠 동안 저장한다.
+#   · 종목: 기록 시작 시점의 24시간 거래대금 상위 N개를 한 번 정해 끝까지 고정 (결과를 보고 고르지 않기 위함)
+#   · 체결은 웹소켓 번호(sequential_id, 체결마다 고유)와 거래소 시각·받은 시각을 함께 저장
+#     (REST 의 sequential_id 는 '체결 시각×10000' 이라 고유하지 않음 — 2026-11-11 감사에서 확인)
+#   · 6시간 단위 파일로 묶어 저장소의 릴리스 첨부(mmrec-data)에 올리고 서버에서는 지운다
+#   · 상태(건수·지연·업로드)는 data/mmrec/status.json 에 1시간마다 올린다
+MM_TOP_N = int(os.environ.get("COINBOT_MM_TOP_N", "10"))
+MM_MARKETS = [m.strip() for m in os.environ.get("COINBOT_MM_MARKETS", "").split(",") if m.strip()]   # 비우면 규칙으로 선정
 MM_DAYS = float(os.environ.get("COINBOT_MM_DAYS", "3"))
-MM_DB = os.environ.get("COINBOT_MM_DB", os.path.join(os.path.dirname(DB_PATH) or ".", "mm_rec.db"))
-MM_OB_EVERY, MM_TR_EVERY = 5, 20
+MM_DIR = os.environ.get("COINBOT_MM_DIR", os.path.join(os.path.dirname(DB_PATH) or ".", "mmws"))
+MM_WS_URL = "wss://ws-api.bithumb.com/websocket/v1"
+MM_RELEASE_TAG = "mmrec-data"
+MM_RUN_ID = "ws1"                 # 기록을 새로 시작하려면 이 값을 바꾼다
+MM_BLOCK_H = 6                    # 파일 하나에 담는 시간(UTC 기준 0·6·12·18시에 끊음)
+MM_LEVELS = 5
+MM_MIN_FREE = 1.5e9               # 디스크 여유가 이보다 적으면 기록 중단
+MM_WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
 
 def gh_put_file(path: str, raw: bytes, message: str) -> bool:
-    """공개 저장소에 파일 올리기(있으면 덮어쓰기). 시장 데이터 전용."""
+    """공개 저장소에 작은 파일 올리기(있으면 덮어쓰기). 시장 데이터·상태 전용."""
     if not GH_TOKEN:
         return False
     url = f"https://api.github.com/repos/{GH_REPO}/contents/{path}"
@@ -2619,157 +2634,483 @@ def gh_put_file(path: str, raw: bytes, message: str) -> bool:
     return r.status_code in (200, 201)
 
 
-class MMRecorder:
-    def __init__(self, path=MM_DB, markets=None, days=MM_DAYS, getter=None, putter=None, sender=None):
-        self.path, self.markets, self.days = path, list(markets or MM_MARKETS), days
-        self.get = getter or (lambda p, q: bget(p, q, private=False))
-        self.put = putter or gh_put_file
-        self.send = sender or send
+def gh_release_upload(path: str, name: str, tag: str = MM_RELEASE_TAG) -> int:
+    """릴리스 첨부로 파일 올리기. 돌려주는 값: 마지막 HTTP 상태(201 이면 성공). 같은 이름이 있으면 지우고 다시 올림."""
+    if not GH_TOKEN:
+        return 0
+    h = {"Authorization": f"Bearer {GH_TOKEN}", "Accept": "application/vnd.github+json"}
+    api = f"https://api.github.com/repos/{GH_REPO}"
+    r = requests.get(f"{api}/releases/tags/{tag}", headers=h, timeout=20)
+    if r.status_code == 404:
+        r = requests.post(f"{api}/releases", headers=h, timeout=20, json={
+            "tag_name": tag, "name": "호가·체결 기록 (연구용 원자료)", "prerelease": True,
+            "body": "빗썸 공개 웹소켓에서 받은 체결·호가 원자료. 계좌 정보 없음."})
+    if r.status_code not in (200, 201):
+        return r.status_code
+    rid = r.json().get("id")
+    up = f"https://uploads.github.com/repos/{GH_REPO}/releases/{rid}/assets"
+    code = 0
+    for attempt in (1, 2):
+        with open(path, "rb") as f:
+            r = requests.post(up, headers=dict(h, **{"Content-Type": "application/gzip"}), params={"name": name}, data=f, timeout=600)
+        code = r.status_code
+        if code != 422:
+            break
+        page = 1                                   # 같은 이름이 이미 있음 → 찾아서 지우고 한 번 더
+        while page <= 10:
+            lst = requests.get(f"{api}/releases/{rid}/assets", headers=h, params={"per_page": 100, "page": page}, timeout=20)
+            items = lst.json() if lst.status_code == 200 else []
+            hit = [a for a in items if isinstance(a, dict) and a.get("name") == name]
+            if hit:
+                requests.delete(f"{api}/releases/assets/{hit[0]['id']}", headers=h, timeout=20)
+                break
+            if len(items) < 100:
+                break
+            page += 1
+    return code
 
-    def _db(self):
-        os.makedirs(os.path.dirname(self.path) or ".", exist_ok=True)
-        c = sqlite3.connect(self.path, timeout=30)
-        c.executescript("""
-        CREATE TABLE IF NOT EXISTS kv(k TEXT PRIMARY KEY, v TEXT);
-        CREATE TABLE IF NOT EXISTS ob(ts REAL, m TEXT, b1 REAL, bs1 REAL, a1 REAL, as1 REAL,
-                                      b2 REAL, bs2 REAL, a2 REAL, as2 REAL, b3 REAL, bs3 REAL, a3 REAL, as3 REAL);
-        CREATE INDEX IF NOT EXISTS ob_ts ON ob(ts);
-        CREATE TABLE IF NOT EXISTS tr(sid TEXT PRIMARY KEY, m TEXT, ts REAL, px REAL, vol REAL, side TEXT);
-        CREATE INDEX IF NOT EXISTS tr_ts ON tr(ts);
-        """)
-        return c
 
-    @staticmethod
-    def _kv(c, k, v=None):
-        if v is None:
-            r = c.execute("SELECT v FROM kv WHERE k=?", (k,)).fetchone()
-            return json.loads(r[0]) if r else None
-        c.execute("INSERT OR REPLACE INTO kv VALUES(?,?)", (k, json.dumps(v)))
-        c.commit()
+class MiniWS:
+    """표준 라이브러리만 쓰는 최소 웹소켓 클라이언트 (wss, 수신 위주, 핑/퐁, 조각난 메시지 처리)."""
 
-    def record_ob(self, c, ts):
-        data = self.get("/v1/orderbook", {"markets": ",".join(self.markets)})
-        rows = []
-        for o in data if isinstance(data, list) else []:
-            u = (o.get("orderbook_units") or [])[:3]
-            if len(u) < 3:
+    def __init__(self, url=MM_WS_URL, timeout=20):
+        u = urlsplit(url)
+        self.host, self.port, self.path = u.hostname, u.port or 443, (u.path or "/")
+        self.timeout, self.sock, self.buf, self.frag = timeout, None, b"", []
+
+    def connect(self):
+        raw = socket.create_connection((self.host, self.port), timeout=self.timeout)
+        self.sock = ssl.create_default_context().wrap_socket(raw, server_hostname=self.host)
+        self.sock.settimeout(self.timeout)
+        key = base64.b64encode(os.urandom(16)).decode()
+        self.sock.sendall((f"GET {self.path} HTTP/1.1\r\nHost: {self.host}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"
+                           f"Sec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\nUser-Agent: coinbot-mmrec\r\n\r\n").encode())
+        head = b""
+        while b"\r\n\r\n" not in head:
+            chunk = self.sock.recv(4096)
+            if not chunk:
+                raise ConnectionError("handshake closed")
+            head += chunk
+            if len(head) > 65536:
+                raise ConnectionError("handshake too long")
+        h, rest = head.split(b"\r\n\r\n", 1)
+        lines = h.split(b"\r\n")
+        if b" 101" not in lines[0]:
+            raise ConnectionError("handshake " + lines[0][:40].decode("latin1"))
+        want = base64.b64encode(hashlib.sha1((key + MM_WS_GUID).encode()).digest())
+        got = [ln.split(b":", 1)[1].strip() for ln in lines[1:] if ln.lower().startswith(b"sec-websocket-accept:")]
+        if not got or got[0] != want:
+            raise ConnectionError("handshake accept mismatch")
+        self.buf, self.frag = rest, []
+
+    def _parse(self):
+        """버퍼에 프레임 하나가 온전히 있으면 (fin, opcode, payload) 를 꺼내고, 모자라면 None (버퍼는 그대로)."""
+        b = self.buf
+        if len(b) < 2:
+            return None
+        fin, op, masked, ln, pos = b[0] & 0x80, b[0] & 0x0F, b[1] & 0x80, b[1] & 0x7F, 2
+        if ln == 126:
+            if len(b) < 4:
+                return None
+            ln, pos = struct.unpack(">H", b[2:4])[0], 4
+        elif ln == 127:
+            if len(b) < 10:
+                return None
+            ln, pos = struct.unpack(">Q", b[2:10])[0], 10
+        mk = b""
+        if masked:
+            if len(b) < pos + 4:
+                return None
+            mk, pos = b[pos:pos + 4], pos + 4
+        if len(b) < pos + ln:
+            return None
+        payload = b[pos:pos + ln]
+        if masked:
+            payload = bytes(c ^ mk[i % 4] for i, c in enumerate(payload))
+        self.buf = b[pos + ln:]
+        return bool(fin), op, payload
+
+    def _send(self, op, payload=b""):
+        mk, n = os.urandom(4), len(payload)
+        head = bytes([0x80 | op])
+        if n < 126:
+            head += bytes([0x80 | n])
+        elif n < 65536:
+            head += bytes([0x80 | 126]) + struct.pack(">H", n)
+        else:
+            head += bytes([0x80 | 127]) + struct.pack(">Q", n)
+        self.sock.sendall(head + mk + bytes(c ^ mk[i % 4] for i, c in enumerate(payload)))
+
+    def send_text(self, s: str):
+        self._send(0x1, s.encode())
+
+    def ping(self):
+        self._send(0x9, b"")
+
+    def recv(self) -> bytes:
+        """메시지 하나를 돌려준다. 제어 프레임은 안에서 처리. 일정 시간 아무것도 안 오면 socket.timeout."""
+        while True:
+            fr = self._parse()
+            if fr is None:
+                chunk = self.sock.recv(65536)
+                if not chunk:
+                    raise ConnectionError("closed")
+                self.buf += chunk
                 continue
-            row = [ts, o.get("market")]
-            for x in u:
-                row += [fnum(x.get("bid_price")), fnum(x.get("bid_size")), fnum(x.get("ask_price")), fnum(x.get("ask_size"))]
-            rows.append(row)
-        c.executemany("INSERT INTO ob VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                      [[r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[8], r[9], r[10], r[11], r[12], r[13]] for r in rows])
-        c.commit()
-        return len(rows)
+            fin, op, payload = fr
+            if op == 0x9:
+                self._send(0xA, payload)
+            elif op == 0x8:
+                raise ConnectionError("server close")
+            elif op in (0x1, 0x2):
+                if fin:
+                    return payload
+                self.frag = [payload]
+            elif op == 0x0:
+                self.frag.append(payload)
+                if fin:
+                    msg, self.frag = b"".join(self.frag), []
+                    return msg
 
-    def record_tr(self, c):
-        n = 0
-        for m in self.markets:
-            data = self.get("/v1/trades/ticks", {"market": m, "count": 200})
-            rows = []
-            for x in data if isinstance(data, list) else []:
-                sid = str(x.get("sequential_id") or f"{x.get('timestamp')}-{x.get('trade_price')}-{x.get('trade_volume')}")
-                rows.append((f"{m}:{sid}", m, fnum(x.get("timestamp")) / 1000, fnum(x.get("trade_price")),
-                             fnum(x.get("trade_volume")), str(x.get("ask_bid") or "")))
-            cur = c.executemany("INSERT OR IGNORE INTO tr VALUES(?,?,?,?,?,?)", rows)
-            n += cur.rowcount if cur.rowcount and cur.rowcount > 0 else 0
-        c.commit()
-        return n
-
-    def upload_day(self, c, day: str) -> int:
-        """하루치(KST)를 코인별 gzip JSON 으로 올림. 올린 파일 수를 돌려줌."""
-        import gzip
-        t0 = datetime.strptime(day, "%Y-%m-%d").replace(tzinfo=KST).timestamp()
-        t1 = t0 + 86400
-        ok = 0
-        for m in self.markets:
-            ob = c.execute("SELECT ts,b1,bs1,a1,as1,b2,bs2,a2,as2,b3,bs3,a3,as3 FROM ob WHERE m=? AND ts>=? AND ts<? ORDER BY ts",
-                           (m, t0, t1)).fetchall()
-            tr = c.execute("SELECT ts,px,vol,side FROM tr WHERE m=? AND ts>=? AND ts<? ORDER BY ts", (m, t0, t1)).fetchall()
-            if not ob and not tr:
-                continue
-            doc = {"market": m, "day": day, "ob_cols": "ts,b1,bs1,a1,as1,b2,bs2,a2,as2,b3,bs3,a3,as3",
-                   "tr_cols": "ts,px,vol,side", "ob": [list(r) for r in ob], "tr": [list(r) for r in tr]}
-            raw = gzip.compress(json.dumps(doc, separators=(",", ":")).encode())
+    def close(self):
+        for fn in (lambda: self._send(0x8, b""), lambda: self.sock.close()):
             try:
-                if self.put(f"data/mmrec/{day}_{m[4:]}.json.gz", raw, f"호가 기록 {day} {m[4:]}"):
-                    ok += 1
-            except Exception as e:
-                log(f"호가 기록 업로드 실패 {m}: {type(e).__name__}")
-        return ok
-
-    def status(self, c, start):
-        rows = c.execute("SELECT m, COUNT(*) FROM ob GROUP BY m").fetchall()
-        trs = dict(c.execute("SELECT m, COUNT(*) FROM tr GROUP BY m").fetchall())
-        return {"start": kst(start).isoformat(timespec="seconds"), "now": kst(now_ts()).isoformat(timespec="seconds"),
-                "days": self.days, "markets": {m: {"ob": n, "tr": trs.get(m, 0)} for m, n in rows}}
-
-    def step(self, c, t, state):
-        """한 번 돌기. state: next_ob, next_tr, day, start"""
-        if t >= state["next_ob"]:
-            state["next_ob"] = t + MM_OB_EVERY
-            self.record_ob(c, t)
-        if t >= state["next_tr"]:
-            state["next_tr"] = t + MM_TR_EVERY
-            self.record_tr(c)
-        day = f"{kst(t):%Y-%m-%d}"
-        if day != state["day"]:
-            n = self.upload_day(c, state["day"])
-            self._kv(c, "uploaded_" + state["day"], n)
-            try:
-                self.put("data/mmrec/status.json", json.dumps(self.status(c, state["start"]), ensure_ascii=False, indent=1).encode(),
-                         "호가 기록 상태")
+                fn()
             except Exception:
                 pass
-            state["day"] = day
 
-    def finish(self, c, state):
-        n = self.upload_day(c, state["day"])
-        st = self.status(c, state["start"])
-        st["finished"] = True
+
+class MMWS:
+    """웹소켓 호가·체결 기록기. 파일 한 줄 형식:
+         T,받은시각(µs),발송시각(ms),체결시각(ms),번호,방향,가격,수량,종류
+         B,받은시각(µs),호가시각(µs),종류,매도총량,매수총량,[매수가,매수량,매도가,매도량]×5
+         E,받은시각(µs),사건(connect 등)        ← 연결이 새로 맺어진 시점. 그 앞은 빠진 구간일 수 있음
+    """
+
+    def __init__(self, base=MM_DIR, days=MM_DAYS, top_n=MM_TOP_N, markets=None, ws_factory=None,
+                 uploader=None, status_put=None, sender=None, ranker=None):
+        self.base, self.days, self.top_n = base, days, top_n
+        self.fixed = list(markets or MM_MARKETS)
+        self.ws_factory = ws_factory or (lambda: MiniWS(MM_WS_URL))
+        self.uploader = uploader or gh_release_upload
+        self.status_put = status_put or gh_put_file
+        self.send = sender or send
+        self.ranker = ranker or self.rank_markets
+        self.lock = threading.Lock()
+        self.w = {}                       # 코인 → (파일 경로, 파일)
+        self.st = {}
+        self.lat = {"trade_pub_ms": [], "trade_net_ms": [], "book_ms": []}
+        self.session = {"reconnects": 0, "errors": {}, "started": time.time()}
+        self.next_flush = self.next_scan = self.next_status = 0.0
+        self.upq, self.stop_up, self.inflight, self.up_fails = [], threading.Event(), set(), 0
+        self.ws = None
+
+    # ── 상태 ──
+    def _state_path(self):
+        return os.path.join(self.base, "state.json")
+
+    def load_state(self):
+        os.makedirs(self.base, exist_ok=True)
         try:
-            self.put("data/mmrec/status.json", json.dumps(st, ensure_ascii=False, indent=1).encode(), "호가 기록 끝")
-        except Exception:
-            pass
-        self._kv(c, "done", True)
-        cnt = ", ".join(f"{m[4:]} {v['ob']:,}/{v['tr']:,}" for m, v in st["markets"].items())
-        self.send(f"📒 <b>호가 기록 끝</b> ({self.days:g}일)\n코인별 호가/체결 건수: {esc(cnt)}\n"
-                  "분석 준비가 끝났어요. Claude에게 '호가 기록 분석해줘'라고 말해 주세요.")
+            st = json.load(open(self._state_path()))
+        except (OSError, ValueError):
+            st = {}
+        if st.get("run") != MM_RUN_ID:
+            st = {"run": MM_RUN_ID}
+        st.setdefault("counts", {}); st.setdefault("uploaded", []); st.setdefault("upload_fail", 0); st.setdefault("last_upload_http", None)
+        self.st = st
+        return st
+
+    def save_state(self):
+        with self.lock:
+            tmp = self._state_path() + ".tmp"
+            for _ in range(3):
+                try:
+                    txt = json.dumps(self.st, ensure_ascii=False)
+                    break
+                except RuntimeError:                 # 다른 스레드가 건수를 고치는 순간과 겹친 경우
+                    time.sleep(0.05)
+            else:
+                return
+            with open(tmp, "w") as f:
+                f.write(txt)
+            os.replace(tmp, self._state_path())
+
+    @staticmethod
+    def rank_markets(n):
+        """지금 시점 24시간 거래대금 상위 n개 KRW 마켓: [(마켓, 거래대금), ...]"""
+        coins = sorted(krw_markets())
+        rows = []
+        for i in range(0, len(coins), 40):
+            chunk = coins[i:i + 40]
+            data = _tick(",".join(f"KRW-{c}" for c in chunk))
+            if data is None:
+                data = []
+                for c in chunk:
+                    data += _tick(f"KRW-{c}") or []
+            rows += [(str(t.get("market")), fnum(t.get("acc_trade_price_24h"))) for t in data]
+        rows.sort(key=lambda x: -x[1])
+        return rows[:n]
+
+    # ── 파일 ──
+    @staticmethod
+    def block_name(code, t):
+        d = datetime.fromtimestamp(t, timezone.utc)
+        return f"{code[4:]}_{d:%Y%m%d}T{d.hour // MM_BLOCK_H * MM_BLOCK_H:02d}"
+
+    def writer(self, code, t):
+        name = self.block_name(code, t)
+        cur = self.w.get(code)
+        if cur and cur[0] == name:
+            return cur[1]
+        if cur:
+            cur[1].close()
+        f = open(os.path.join(self.base, name + ".csv"), "a", buffering=1 << 16)
+        self.w[code] = (name, f)
+        return f
+
+    def close_all(self):
+        for name, f in self.w.values():
+            try:
+                f.close()
+            except OSError:
+                pass
+        self.w = {}
+
+    def event(self, t, what):
+        for code in self.st.get("markets", []):
+            self.writer(code, t).write(f"E,{int(t * 1e6)},{what}\n")
+
+    # ── 메시지 ──
+    def on_message(self, raw, t):
+        try:
+            d = json.loads(raw)
+        except ValueError:
+            self._err("parse")
+            return
+        ty, code = d.get("type"), d.get("code")
+        if ty not in ("trade", "orderbook") or not code:
+            return
+        cnt = self.st["counts"].setdefault(code, [0, 0])
+        if ty == "trade":
+            ts, tts = d.get("timestamp"), d.get("trade_timestamp")
+            self.writer(code, t).write(f"T,{int(t * 1e6)},{ts},{tts},{d.get('sequential_id')},{d.get('ask_bid')},"
+                                       f"{d.get('trade_price')},{d.get('trade_volume')},{d.get('stream_type')}\n")
+            cnt[0] += 1
+            if d.get("stream_type") == "REALTIME" and ts and tts:
+                self._lat("trade_pub_ms", ts - tts); self._lat("trade_net_ms", t * 1000 - ts)
+        else:
+            u = (d.get("orderbook_units") or [])[:MM_LEVELS]
+            ts = d.get("timestamp")
+            lv = ",".join(f"{x.get('bid_price')},{x.get('bid_size')},{x.get('ask_price')},{x.get('ask_size')}" for x in u)
+            self.writer(code, t).write(f"B,{int(t * 1e6)},{ts},{d.get('stream_type')},{d.get('total_ask_size')},{d.get('total_bid_size')},{lv}\n")
+            cnt[1] += 1
+            if d.get("stream_type") == "REALTIME" and ts:
+                self._lat("book_ms", t * 1000 - ts / 1000)
+
+    def _lat(self, k, v):
+        a = self.lat[k]
+        a.append(v)
+        if len(a) > 20000:
+            del a[:10000]
+
+    def _err(self, kind):
+        self.session["errors"][kind] = self.session["errors"].get(kind, 0) + 1
+
+    # ── 주기 작업 ──
+    def housekeeping(self, t):
+        if t >= self.next_flush:
+            self.next_flush = t + 5
+            for _, f in self.w.values():
+                f.flush()
+        if t >= self.next_scan:
+            self.next_scan = t + 60
+            self.scan_closed(t)
+            free = shutil.disk_usage(self.base).free
+            if free < MM_MIN_FREE:
+                raise MMStop(f"디스크 여유 부족 ({free / 1e9:.1f}GB)")
+        if t >= self.next_status:
+            self.next_status = t + 3600
+            self.push_status()
+
+    def scan_closed(self, t, include_open=False):
+        """지난 시간 구간의 파일을 업로드 대기열에 넣는다."""
+        open_names = set() if include_open else {v[0] for v in self.w.values()}
+        cur = {self.block_name(c, t) for c in self.st.get("markets", [])} if not include_open else set()
+        for fn in sorted(os.listdir(self.base)):
+            if not (fn.endswith(".csv") or fn.endswith(".csv.gz")):
+                continue
+            name = fn.replace(".csv.gz", "").replace(".csv", "")
+            if name in open_names or name in cur:
+                continue
+            p = os.path.join(self.base, fn)
+            with self.lock:
+                if name not in self.inflight and name not in {os.path.basename(q).split(".csv")[0] for q in self.upq}:
+                    self.upq.append(p)
+
+    def upload_loop(self):
+        while not self.stop_up.is_set() or self.upq:
+            with self.lock:
+                p = self.upq.pop(0) if self.upq else None
+                name0 = os.path.basename(p).split(".csv")[0] if p else None
+                if name0:
+                    self.inflight.add(name0)
+            if not p:
+                time.sleep(2)
+                continue
+            try:
+                if not os.path.exists(p):
+                    continue
+                if p.endswith(".csv"):                       # 압축
+                    gz = p + ".gz"
+                    with open(p, "rb") as fi, gzip.open(gz + ".part", "wb", compresslevel=6) as fo:
+                        shutil.copyfileobj(fi, fo, 1 << 20)
+                    os.replace(gz + ".part", gz)
+                    os.remove(p)
+                    p = gz
+                name = os.path.basename(p)
+                code = self.uploader(p, name)
+                self.st["last_upload_http"] = code
+                if code == 201:
+                    size = os.path.getsize(p)
+                    os.remove(p)
+                    self.st["uploaded"].append([name, size])
+                    self.up_fails = 0
+                else:
+                    self.st["upload_fail"] += 1
+                    self.up_fails += 1
+                    if not self.st.get("upload_warned"):
+                        self.st["upload_warned"] = True
+                        self.send(f"⚠️ 호가 기록 파일 업로드 실패 (HTTP {code}). 파일은 서버에 남겨 두고 다시 시도합니다.")
+                    self.stop_up.wait(min(3600, 60 * 2 ** min(self.up_fails, 6)))     # 실패가 이어지면 점점 천천히
+                self.save_state()
+            except Exception as e:
+                self._err("upload_" + type(e).__name__)
+                self.stop_up.wait(60)
+            finally:
+                with self.lock:
+                    self.inflight.discard(name0)
+
+    def status(self):
+        def q(a):
+            if not a:
+                return None
+            s = sorted(a)
+            pick = lambda p: round(s[min(len(s) - 1, int(p * len(s)))], 1)
+            return {"p50": pick(0.5), "p90": pick(0.9), "p99": pick(0.99), "min": round(s[0], 1), "n": len(s)}
+        pending = [fn for fn in os.listdir(self.base) if fn.endswith(".csv") or fn.endswith(".csv.gz")]
+        st = self.st
+        return {"run": MM_RUN_ID, "now": kst(now_ts()).isoformat(timespec="seconds"),
+                "start": kst(st["start"]).isoformat(timespec="seconds") if st.get("start") else None, "days": self.days,
+                "rule": f"시작 시점 24시간 거래대금 상위 {self.top_n}개" if not self.fixed else "지정", "markets": st.get("markets"), "rank_at_start": st.get("rank"),
+                "counts_trade_book": st.get("counts"), "latency_ms": {k: q(v) for k, v in self.lat.items()},
+                "session": {"since": kst(self.session["started"]).isoformat(timespec="seconds"), "reconnects": self.session["reconnects"], "errors": self.session["errors"]},
+                "uploaded_files": len(st.get("uploaded", [])), "uploaded_bytes": sum(x[1] for x in st.get("uploaded", [])),
+                "upload_fail": st.get("upload_fail"), "last_upload_http": st.get("last_upload_http"), "pending_files": len(pending),
+                "disk_free_gb": round(shutil.disk_usage(self.base).free / 1e9, 1), "done": st.get("done", False), "stop_reason": st.get("stop_reason")}
+
+    def push_status(self):
+        try:
+            self.save_state()
+            self.status_put("data/mmrec/status.json", json.dumps(self.status(), ensure_ascii=False, indent=1).encode(), "호가 기록 상태")
+        except Exception as e:
+            self._err("status_" + type(e).__name__)
+
+    # ── 연결 ──
+    def session_loop(self, end):
+        ws = self.ws = self.ws_factory()
+        ws.connect()
+        mk = self.st["markets"]
+        ws.send_text(json.dumps([{"ticket": "mmrec-" + uuidlib.uuid4().hex[:8]}, {"type": "trade", "codes": mk},
+                                 {"type": "orderbook", "codes": mk}, {"format": "DEFAULT"}]))
+        t = time.time()
+        self.event(t, "connect")
+        last_msg = last_ping = t
+        try:
+            while time.time() < end:
+                try:
+                    raw = ws.recv()
+                except (socket.timeout, TimeoutError):
+                    if time.time() - last_msg > 90:
+                        raise ConnectionError("no data 90s")
+                    ws.ping()
+                    self.housekeeping(time.time())
+                    continue
+                t = time.time()
+                last_msg = t
+                self.on_message(raw, t)
+                if t - last_ping > 30:
+                    ws.ping()
+                    last_ping = t
+                self.housekeeping(t)
+        finally:
+            ws.close()
 
     def run(self):
-        c = self._db()
-        if self._kv(c, "done"):
+        st = self.load_state()
+        if st.get("done"):
             return
-        start = self._kv(c, "start")
-        if start is None:
-            start = now_ts()
-            self._kv(c, "start", start)
-            self.send(f"📒 <b>호가 기록 시작</b>\n{esc(', '.join(m[4:] for m in self.markets))} · {self.days:g}일 동안\n"
-                      "공개 시세만 읽어요 (주문·계좌 접근 없음).")
-        state = {"next_ob": 0.0, "next_tr": 0.0, "day": f"{kst(now_ts()):%Y-%m-%d}", "start": start}
-        d = kst(start).date()                       # 재시작으로 못 올린 지난 날짜 채우기
-        while f"{d:%Y-%m-%d}" < state["day"]:
-            k = f"{d:%Y-%m-%d}"
-            if self._kv(c, "uploaded_" + k) is None:
-                self._kv(c, "uploaded_" + k, self.upload_day(c, k))
-            d += timedelta(days=1)
-        while True:
-            t = now_ts()
-            if t - start > self.days * 86400:
-                self.finish(c, state)
-                return
+        old = os.path.join(os.path.dirname(self.base), "mm_rec.db")      # 예전 REST 기록(결함 있음) 정리
+        if os.path.exists(old):
             try:
-                self.step(c, t, state)
+                os.remove(old)
+            except OSError:
+                pass
+        if not st.get("start"):
+            if self.fixed:
+                st["markets"], st["rank"] = self.fixed, None
+            else:
+                rank = self.ranker(self.top_n)
+                if len(rank) < 3:
+                    log("호가 기록: 종목 선정 실패, 다음 실행 때 다시 시도")
+                    return
+                st["markets"] = [m for m, _ in rank]
+                st["rank"] = [[m, round(v / 1e8, 1)] for m, v in rank]
+            st["start"] = now_ts()
+            self.save_state()
+            self.send(f"📒 <b>호가·체결 기록 시작</b> (웹소켓)\n{esc(', '.join(m[4:] for m in st['markets']))}\n"
+                      f"{self.days:g}일 동안 · 공개 시세만 읽어요 (주문·계좌 접근 없음).")
+        end = st["start"] + self.days * 86400
+        self.next_status = time.time() + 300
+        up = threading.Thread(target=self.upload_loop, daemon=True, name="mmws-up")
+        up.start()
+        fails, reason = 0, None
+        while time.time() < end:
+            t0 = time.time()
+            try:
+                self.session_loop(end)
+            except MMStop as e:
+                reason = str(e)
+                break
             except Exception as e:
-                log(f"호가 기록 오류: {type(e).__name__}")
-                time.sleep(10)
-            time.sleep(1)
+                self._err(type(e).__name__)
+            self.session["reconnects"] += 1
+            fails = 0 if time.time() - t0 > 60 else fails + 1
+            time.sleep(min(60, 2 ** min(fails, 6)))
+        self.close_all()
+        self.scan_closed(time.time(), include_open=True)
+        self.stop_up.set()
+        up.join(timeout=1800)
+        st["done"], st["stop_reason"] = True, reason
+        self.push_status()
+        n_t = sum(v[0] for v in st["counts"].values()); n_b = sum(v[1] for v in st["counts"].values())
+        self.send(f"📒 <b>호가·체결 기록 끝</b>{' — ' + esc(reason) if reason else ''}\n체결 {n_t:,}건 · 호가 {n_b:,}건 · 올린 파일 {len(st['uploaded'])}개\n"
+                  "Claude에게 '호가 기록 분석해줘'라고 말해 주세요.")
 
     def start(self):
-        th = threading.Thread(target=self.run, daemon=True, name="mmrec")
+        th = threading.Thread(target=self._guard, daemon=True, name="mmws")
         th.start()
         return th
+
+    def _guard(self):
+        try:
+            self.run()
+        except Exception as e:                       # 기록기가 죽어도 계좌 비서는 계속 돌아야 한다
+            log(f"호가 기록 중단: {type(e).__name__}")
+
+
+class MMStop(Exception):
+    pass
 
 
 # ───────────────────────── 이미지 카드 (텔레그램 사진) ─────────────────────────

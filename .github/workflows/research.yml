@@ -20,6 +20,8 @@ jobs:
       - env:
           SCRIPT: ${{ inputs.script }}
           ARGS: ${{ inputs.args }}
+          GITHUB_TOKEN: ${{ github.token }}          # 릴리스 첨부 업로드 검증용(이 저장소 한정, 작업이 끝나면 만료)
+          GITHUB_REPO: ${{ github.repository }}
         run: python -u "tools/$SCRIPT" $ARGS
       - if: always()
         run: |
