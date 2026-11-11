@@ -6,6 +6,7 @@
   · 2분마다   체결 확인 → 매수/매도 체결 알림 (매도는 실현 손익까지)
   · 10분마다  계좌 스냅샷(총자산·보유·현금) + 입출금 확인
   · 매일 22시 하루 결산 / 매월 1일 09시 지난달 성적표
+  · (연습 준비) 후보 코인 호가·체결 기록 → data/mmrec/ (공개 시세만)
   · 텔레그램 메뉴: /account /holdings /perf /trades /orders /goal
 
 보안
@@ -2527,6 +2528,11 @@ class Bot:
                 self.db.put("history_sent", True)
             except Exception as e:
                 log(f"기록 범위 확인 실패: {type(e).__name__}")
+        if MM_MARKETS and MM_DAYS > 0:
+            try:
+                MMRecorder().start()
+            except Exception as e:
+                log(f"호가 기록 시작 실패: {type(e).__name__}")
         next_fill = next_snap = 0.0
         while True:
             t = now_ts()
@@ -2587,6 +2593,183 @@ class Bot:
             if txt:
                 send_photo(chart_monthly(self))
                 send(txt)
+
+
+# ───────────────────────── 호가 기록 (마켓 메이킹 연습 준비) ─────────────────────────
+# 공개 시세만 읽습니다(키·주문 없음). 후보 코인의 호가창 위 3칸과 체결을 며칠 동안 저장하고,
+# 하루치씩 공개 저장소 data/mmrec/ 에 올립니다(시장 데이터일 뿐, 계좌 정보 없음).
+MM_MARKETS = [m.strip() for m in os.environ.get(
+    "COINBOT_MM_MARKETS", "KRW-XRP,KRW-XPL,KRW-HYPE,KRW-ETH,KRW-USDT").split(",") if m.strip()]
+MM_DAYS = float(os.environ.get("COINBOT_MM_DAYS", "3"))
+MM_DB = os.environ.get("COINBOT_MM_DB", os.path.join(os.path.dirname(DB_PATH) or ".", "mm_rec.db"))
+MM_OB_EVERY, MM_TR_EVERY = 5, 20
+
+
+def gh_put_file(path: str, raw: bytes, message: str) -> bool:
+    """공개 저장소에 파일 올리기(있으면 덮어쓰기). 시장 데이터 전용."""
+    if not GH_TOKEN:
+        return False
+    url = f"https://api.github.com/repos/{GH_REPO}/contents/{path}"
+    h = {"Authorization": f"Bearer {GH_TOKEN}", "Accept": "application/vnd.github+json"}
+    body = {"message": message, "content": base64.b64encode(raw).decode()}
+    r = requests.get(url, headers=h, timeout=20)
+    if r.status_code == 200:
+        body["sha"] = r.json().get("sha")
+    r = requests.put(url, headers=h, json=body, timeout=60)
+    return r.status_code in (200, 201)
+
+
+class MMRecorder:
+    def __init__(self, path=MM_DB, markets=None, days=MM_DAYS, getter=None, putter=None, sender=None):
+        self.path, self.markets, self.days = path, list(markets or MM_MARKETS), days
+        self.get = getter or (lambda p, q: bget(p, q, private=False))
+        self.put = putter or gh_put_file
+        self.send = sender or send
+
+    def _db(self):
+        os.makedirs(os.path.dirname(self.path) or ".", exist_ok=True)
+        c = sqlite3.connect(self.path, timeout=30)
+        c.executescript("""
+        CREATE TABLE IF NOT EXISTS kv(k TEXT PRIMARY KEY, v TEXT);
+        CREATE TABLE IF NOT EXISTS ob(ts REAL, m TEXT, b1 REAL, bs1 REAL, a1 REAL, as1 REAL,
+                                      b2 REAL, bs2 REAL, a2 REAL, as2 REAL, b3 REAL, bs3 REAL, a3 REAL, as3 REAL);
+        CREATE INDEX IF NOT EXISTS ob_ts ON ob(ts);
+        CREATE TABLE IF NOT EXISTS tr(sid TEXT PRIMARY KEY, m TEXT, ts REAL, px REAL, vol REAL, side TEXT);
+        CREATE INDEX IF NOT EXISTS tr_ts ON tr(ts);
+        """)
+        return c
+
+    @staticmethod
+    def _kv(c, k, v=None):
+        if v is None:
+            r = c.execute("SELECT v FROM kv WHERE k=?", (k,)).fetchone()
+            return json.loads(r[0]) if r else None
+        c.execute("INSERT OR REPLACE INTO kv VALUES(?,?)", (k, json.dumps(v)))
+        c.commit()
+
+    def record_ob(self, c, ts):
+        data = self.get("/v1/orderbook", {"markets": ",".join(self.markets)})
+        rows = []
+        for o in data if isinstance(data, list) else []:
+            u = (o.get("orderbook_units") or [])[:3]
+            if len(u) < 3:
+                continue
+            row = [ts, o.get("market")]
+            for x in u:
+                row += [fnum(x.get("bid_price")), fnum(x.get("bid_size")), fnum(x.get("ask_price")), fnum(x.get("ask_size"))]
+            rows.append(row)
+        c.executemany("INSERT INTO ob VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                      [[r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[8], r[9], r[10], r[11], r[12], r[13]] for r in rows])
+        c.commit()
+        return len(rows)
+
+    def record_tr(self, c):
+        n = 0
+        for m in self.markets:
+            data = self.get("/v1/trades/ticks", {"market": m, "count": 200})
+            rows = []
+            for x in data if isinstance(data, list) else []:
+                sid = str(x.get("sequential_id") or f"{x.get('timestamp')}-{x.get('trade_price')}-{x.get('trade_volume')}")
+                rows.append((f"{m}:{sid}", m, fnum(x.get("timestamp")) / 1000, fnum(x.get("trade_price")),
+                             fnum(x.get("trade_volume")), str(x.get("ask_bid") or "")))
+            cur = c.executemany("INSERT OR IGNORE INTO tr VALUES(?,?,?,?,?,?)", rows)
+            n += cur.rowcount if cur.rowcount and cur.rowcount > 0 else 0
+        c.commit()
+        return n
+
+    def upload_day(self, c, day: str) -> int:
+        """하루치(KST)를 코인별 gzip JSON 으로 올림. 올린 파일 수를 돌려줌."""
+        import gzip
+        t0 = datetime.strptime(day, "%Y-%m-%d").replace(tzinfo=KST).timestamp()
+        t1 = t0 + 86400
+        ok = 0
+        for m in self.markets:
+            ob = c.execute("SELECT ts,b1,bs1,a1,as1,b2,bs2,a2,as2,b3,bs3,a3,as3 FROM ob WHERE m=? AND ts>=? AND ts<? ORDER BY ts",
+                           (m, t0, t1)).fetchall()
+            tr = c.execute("SELECT ts,px,vol,side FROM tr WHERE m=? AND ts>=? AND ts<? ORDER BY ts", (m, t0, t1)).fetchall()
+            if not ob and not tr:
+                continue
+            doc = {"market": m, "day": day, "ob_cols": "ts,b1,bs1,a1,as1,b2,bs2,a2,as2,b3,bs3,a3,as3",
+                   "tr_cols": "ts,px,vol,side", "ob": [list(r) for r in ob], "tr": [list(r) for r in tr]}
+            raw = gzip.compress(json.dumps(doc, separators=(",", ":")).encode())
+            try:
+                if self.put(f"data/mmrec/{day}_{m[4:]}.json.gz", raw, f"호가 기록 {day} {m[4:]}"):
+                    ok += 1
+            except Exception as e:
+                log(f"호가 기록 업로드 실패 {m}: {type(e).__name__}")
+        return ok
+
+    def status(self, c, start):
+        rows = c.execute("SELECT m, COUNT(*) FROM ob GROUP BY m").fetchall()
+        trs = dict(c.execute("SELECT m, COUNT(*) FROM tr GROUP BY m").fetchall())
+        return {"start": kst(start).isoformat(timespec="seconds"), "now": kst(now_ts()).isoformat(timespec="seconds"),
+                "days": self.days, "markets": {m: {"ob": n, "tr": trs.get(m, 0)} for m, n in rows}}
+
+    def step(self, c, t, state):
+        """한 번 돌기. state: next_ob, next_tr, day, start"""
+        if t >= state["next_ob"]:
+            state["next_ob"] = t + MM_OB_EVERY
+            self.record_ob(c, t)
+        if t >= state["next_tr"]:
+            state["next_tr"] = t + MM_TR_EVERY
+            self.record_tr(c)
+        day = f"{kst(t):%Y-%m-%d}"
+        if day != state["day"]:
+            n = self.upload_day(c, state["day"])
+            self._kv(c, "uploaded_" + state["day"], n)
+            try:
+                self.put("data/mmrec/status.json", json.dumps(self.status(c, state["start"]), ensure_ascii=False, indent=1).encode(),
+                         "호가 기록 상태")
+            except Exception:
+                pass
+            state["day"] = day
+
+    def finish(self, c, state):
+        n = self.upload_day(c, state["day"])
+        st = self.status(c, state["start"])
+        st["finished"] = True
+        try:
+            self.put("data/mmrec/status.json", json.dumps(st, ensure_ascii=False, indent=1).encode(), "호가 기록 끝")
+        except Exception:
+            pass
+        self._kv(c, "done", True)
+        cnt = ", ".join(f"{m[4:]} {v['ob']:,}/{v['tr']:,}" for m, v in st["markets"].items())
+        self.send(f"📒 <b>호가 기록 끝</b> ({self.days:g}일)\n코인별 호가/체결 건수: {esc(cnt)}\n"
+                  "분석 준비가 끝났어요. Claude에게 '호가 기록 분석해줘'라고 말해 주세요.")
+
+    def run(self):
+        c = self._db()
+        if self._kv(c, "done"):
+            return
+        start = self._kv(c, "start")
+        if start is None:
+            start = now_ts()
+            self._kv(c, "start", start)
+            self.send(f"📒 <b>호가 기록 시작</b>\n{esc(', '.join(m[4:] for m in self.markets))} · {self.days:g}일 동안\n"
+                      "공개 시세만 읽어요 (주문·계좌 접근 없음).")
+        state = {"next_ob": 0.0, "next_tr": 0.0, "day": f"{kst(now_ts()):%Y-%m-%d}", "start": start}
+        d = kst(start).date()                       # 재시작으로 못 올린 지난 날짜 채우기
+        while f"{d:%Y-%m-%d}" < state["day"]:
+            k = f"{d:%Y-%m-%d}"
+            if self._kv(c, "uploaded_" + k) is None:
+                self._kv(c, "uploaded_" + k, self.upload_day(c, k))
+            d += timedelta(days=1)
+        while True:
+            t = now_ts()
+            if t - start > self.days * 86400:
+                self.finish(c, state)
+                return
+            try:
+                self.step(c, t, state)
+            except Exception as e:
+                log(f"호가 기록 오류: {type(e).__name__}")
+                time.sleep(10)
+            time.sleep(1)
+
+    def start(self):
+        th = threading.Thread(target=self.run, daemon=True, name="mmrec")
+        th.start()
+        return th
 
 
 # ───────────────────────── 이미지 카드 (텔레그램 사진) ─────────────────────────
