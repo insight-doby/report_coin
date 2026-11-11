@@ -21,7 +21,7 @@ MINUTES = float(os.environ.get("MM_AUDIT_MINUTES", "12"))
 TR_EVERY, OB_EVERY, LEVELS = 2.0, 10.0, 5
 KST = timezone(timedelta(hours=9))
 
-out = {"meta": {"markets": MARKETS, "minutes": MINUTES, "host": platform.node(), "python": sys.version.split()[0],
+out = {"meta": {"fmt": 2, "markets": MARKETS, "minutes": MINUTES, "host": platform.node(), "python": sys.version.split()[0],
                 "rest": REST, "ws": WS_URL, "tr_every": TR_EVERY, "ob_every": OB_EVERY, "levels": LEVELS,
                 "cols": {
                     "rest_trades": "first_poll,first_seen_local,market,sid,ts_ms,px,vol,side",
@@ -77,17 +77,20 @@ def rest_loop(t_end):
                 out["samples"]["rest_trade"] = data[0]
             sids = [x.get("sequential_id") for x in data]
             order_ok = all(a >= b for a, b in zip(sids, sids[1:])) if all(isinstance(z, (int, float)) for z in sids) else None
+            # 주의: REST sequential_id 는 '체결 시각(ms)×10000' 이라 같은 ms 에 난 체결끼리 번호가 같다(고유 번호 아님).
+            # 그래서 내용(시각·가격·수량·방향)과 그 내용이 한 응답에 나온 횟수로 새 체결을 가린다.
             n_new = 0
+            cnt = {}
             for x in data:
-                key = (m, x.get("sequential_id"))
-                val = (x.get("timestamp"), f(x.get("trade_price")), f(x.get("trade_volume")), x.get("ask_bid"))
-                if key in seen:
-                    if seen[key] != val:
-                        out["rest_dup_conflict"].append([m, x.get("sequential_id"), list(seen[key]), list(val)])
-                    continue
-                seen[key] = val
-                n_new += 1
-                out["rest_trades"].append([poll, round(t1, 3), m, x.get("sequential_id"), *val])
+                val = (x.get("timestamp"), f(x.get("trade_price")), f(x.get("trade_volume")), x.get("ask_bid"), x.get("sequential_id"))
+                cnt[val] = cnt.get(val, 0) + 1
+            for val, c in cnt.items():
+                have = seen.get((m, val), 0)
+                for _ in range(c - have):
+                    n_new += 1
+                    out["rest_trades"].append([poll, round(t1, 3), m, val[4], val[0], val[1], val[2], val[3]])
+                if c > have:
+                    seen[(m, val)] = c
             out["rest_polls"].append([poll, m, round(t0, 3), round(t1, 3), r.status_code, len(data), n_new,
                                       sids[0] if sids else None, sids[-1] if sids else None, order_ok])
         if time.time() >= next_ob:
