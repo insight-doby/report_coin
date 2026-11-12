@@ -4,7 +4,7 @@ name: mmrec
 on:
   schedule: [{ cron: "0 */3 * * *" }]
   workflow_dispatch: {}
-permissions: { contents: write }
+permissions: { contents: write, actions: write }      # actions: 다음 기록 작업을 직접 띄우기 위함
 jobs:
   record:
     runs-on: ubuntu-latest

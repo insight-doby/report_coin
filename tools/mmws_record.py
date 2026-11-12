@@ -42,6 +42,39 @@ if now >= run["end"]:
     sys.exit(0)
 
 minutes = min(RECORD_MIN, (run["end"] - now) / 60)
+
+
+def gh_api(method, path, **kw):
+    h = {"Authorization": f"Bearer {c.GH_TOKEN}", "Accept": "application/vnd.github+json"}
+    return c.requests.request(method, f"https://api.github.com/repos/{c.GH_REPO}{path}", headers=h, timeout=20, **kw)
+
+
+# 예약 실행(cron)은 GitHub 사정으로 건너뛰어질 수 있다(11/12 03시 UTC 실행이 없었음).
+# 그래서 각 작업이 끝나기 CHAIN_BEFORE 분 전에 다음 작업을 직접 띄운다. 이미 2개 이상 돌고 있으면 띄우지 않는다.
+CHAIN_BEFORE = 40
+
+
+def running_others():
+    try:
+        r = gh_api("GET", "/actions/workflows/mmrec.yml/runs", params={"status": "in_progress", "per_page": 10})
+        return [x["id"] for x in r.json().get("workflow_runs", []) if str(x["id"]) != JOB]
+    except Exception:
+        return []
+
+
+def chain():
+    if time.time() + 60 >= run["end"]:
+        return
+    if len(running_others()) >= 1:
+        print("다음 작업이 이미 돌고 있어 띄우지 않음"); return
+    r = gh_api("POST", "/actions/workflows/mmrec.yml/dispatches", json={"ref": os.environ.get("GITHUB_REF_NAME", "main")})
+    print("다음 작업 띄움:", r.status_code)
+
+
+if len(running_others()) >= 2:                  # 예약 실행과 이어 띄우기가 겹쳐 3개째가 되면 그냥 끝냄
+    sys.exit("이미 기록 작업 2개가 돌고 있어 이번 작업은 쉼")
+import threading
+threading.Timer(max(60, (minutes - CHAIN_BEFORE) * 60), chain).start()
 uploads, msgs = [], []
 
 
