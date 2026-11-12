@@ -1,5 +1,4 @@
-"""[중단·참고용 2026-11-12] 모의 마켓 메이킹 엔진 (실주문 없음) — 단순 봇 / 똑똑한 봇.
-사용자 결정으로 마켓 메이킹 모의 봇은 만들지 않기로 함(기회 매매 +1% 봇으로 방향 전환). 실행되는 곳 없음.
+"""모의 마켓 메이킹 엔진 (실주문 없음) — 단순 봇 / 똑똑한 봇.
 
 규칙은 2026-11-12 에 고정했고 2주 모의 기간 동안 바꾸지 않는다. 바꾸면 버전을 올리고 기록을 따로 센다.
 RULES_VERSION = "pm1"
@@ -142,7 +141,7 @@ def simulate(tr, ob, variant="단순", alpha=None, lot_qty=None, feed_lat_us=Non
             o = orders[side]
             if o is not None and o.cancel_at is None:
                 pull = False
-                if smart and o.ahead is not None and o.ahead0:
+                if smart and o.ahead is not None and o.ahead0 and o.qty > 1e-12:
                     hit = sum(a for tt, s, a in recent if s == side)
                     if o.ahead < PULL_FRAC * o.ahead0 and hit >= PULL_FLOW_X * max(o.ahead, 1e-12):
                         pull = True
