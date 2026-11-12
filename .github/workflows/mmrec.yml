@@ -1,0 +1,49 @@
+name: mmrec
+# 연구용 호가·체결 기록(공개 시세만, 키·계좌·주문 없음). 3시간마다 시작해 약 3시간 40분씩 기록 → 앞뒤가 겹쳐 빈틈이 없다.
+# 알림 봇(track)과 잠금을 공유하지 않는다. 결과 파일은 릴리스 첨부 mmrec-data, 상태는 data/research/mmrec/.
+on:
+  schedule: [{ cron: "0 */3 * * *" }]
+  workflow_dispatch: {}
+permissions: { contents: write }
+jobs:
+  record:
+    runs-on: ubuntu-latest
+    timeout-minutes: 245
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - run: pip install -q requests
+      - name: 기록 묶음(종목) 확정 후 바로 저장
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPO: ${{ github.repository }}
+        run: |
+          python -u tools/mmws_record.py --init
+          git config user.name "bot"; git config user.email "bot@users.noreply.github.com"
+          git add data/research/mmrec/run.json
+          git diff --cached --quiet && exit 0
+          git commit -q -m "mmrec 기록 묶음 시작"
+          for i in 1 2 3 4 5 6; do
+            git pull -q --rebase origin main && git push -q && exit 0
+            git rebase --abort 2>/dev/null || true
+            sleep $((i*7))
+          done
+          exit 1
+      - env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPO: ${{ github.repository }}
+          RECORD_MIN: "220"
+        run: python -u tools/mmws_record.py
+      - if: always()
+        run: |
+          git config user.name "bot"; git config user.email "bot@users.noreply.github.com"
+          git add data/research/mmrec/status_*.json 2>/dev/null || true
+          git diff --cached --quiet && exit 0
+          git commit -q -m "mmrec 상태"
+          for i in 1 2 3 4 5 6; do
+            git pull -q --rebase origin main && git push -q && exit 0
+            git rebase --abort 2>/dev/null || true
+            sleep $((i*7))
+          done
+          exit 1

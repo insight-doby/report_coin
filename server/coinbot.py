@@ -6,7 +6,6 @@
   · 2분마다   체결 확인 → 매수/매도 체결 알림 (매도는 실현 손익까지)
   · 10분마다  계좌 스냅샷(총자산·보유·현금) + 입출금 확인
   · 매일 22시 하루 결산 / 매월 1일 09시 지난달 성적표
-  · (연구용) 거래대금 상위 코인의 호가·체결을 웹소켓으로 기록 → 릴리스 첨부 mmrec-data (공개 시세만)
   · 텔레그램 메뉴: /account /holdings /perf /trades /orders /goal
 
 보안
@@ -2538,6 +2537,16 @@ class Bot:
                 MMWS().start()
             except Exception as e:
                 log(f"호가 기록 시작 실패: {type(e).__name__}")
+        else:                                       # 기록기를 끈 경우: 서버에 남은 기록 파일 정리(디스크 확보)
+            for pth in (MM_DIR, os.path.join(os.path.dirname(DB_PATH) or ".", "mm_rec.db")):
+                try:
+                    if os.path.isdir(pth):
+                        shutil.rmtree(pth, ignore_errors=True)
+                        log("호가 기록: 서버 기록 폴더 정리")
+                    elif os.path.exists(pth):
+                        os.remove(pth)
+                except OSError:
+                    pass
         next_fill = next_snap = 0.0
         while True:
             t = now_ts()
@@ -2609,7 +2618,7 @@ class Bot:
 #   · 상태(건수·지연·업로드)는 data/mmrec/status.json 에 1시간마다 올린다
 MM_TOP_N = int(os.environ.get("COINBOT_MM_TOP_N", "10"))
 MM_MARKETS = [m.strip() for m in os.environ.get("COINBOT_MM_MARKETS", "").split(",") if m.strip()]   # 비우면 규칙으로 선정
-MM_DAYS = float(os.environ.get("COINBOT_MM_DAYS", "3"))
+MM_DAYS = float(os.environ.get("COINBOT_MM_DAYS", "0"))     # 서버에서는 끔(2026-11-12). 기록은 GitHub 작업(mmrec.yml)에서 돈다
 MM_DIR = os.environ.get("COINBOT_MM_DIR", os.path.join(os.path.dirname(DB_PATH) or ".", "mmws"))
 MM_WS_URL = "wss://ws-api.bithumb.com/websocket/v1"
 MM_RELEASE_TAG = "mmrec-data"
